@@ -26,5 +26,8 @@ namespace Storage
 
 		// List all keys in the storage system
 		Task<List<string>> ListAllKeys();
+
+		// Get the size in bytes of the data for the given key. Returns null if the key doesn't exist.
+		Task<long?> GetSize(string key);
 	}
 }

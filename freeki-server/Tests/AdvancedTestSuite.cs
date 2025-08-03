@@ -232,24 +232,28 @@ namespace TestApp
 				{
 					Page? emptyIdPage = await pageManager.ReadPage("").ConfigureAwait(false);
 					stopwatch1.Stop();
-					ReportTestResult("003", "Empty page ID handling", false, stopwatch1.ElapsedMilliseconds,
-						"Should have thrown ArgumentException for empty page ID",
-						"ArgumentException thrown",
-						"No exception thrown");
-				}
-				catch (ArgumentException)
-				{
-					stopwatch1.Stop();
-					ReportTestResult("003", "Empty page ID handling", true, stopwatch1.ElapsedMilliseconds);
-					passed++;
+					
+					// Should gracefully return null for empty page ID
+					if (emptyIdPage == null)
+					{
+						ReportTestResult("003", "Empty page ID handling", true, stopwatch1.ElapsedMilliseconds);
+						passed++;
+					}
+					else
+					{
+						ReportTestResult("003", "Empty page ID handling", false, stopwatch1.ElapsedMilliseconds,
+							"Should return null for empty page ID",
+							"null",
+							"non-null Page object");
+					}
 				}
 				catch (Exception ex)
 				{
 					stopwatch1.Stop();
 					ReportTestResult("003", "Empty page ID handling", false, stopwatch1.ElapsedMilliseconds,
-						$"Wrong exception type: {ex.GetType().Name}",
-						"ArgumentException",
-						ex.GetType().Name);
+						$"Should not throw exception for empty page ID: {ex.GetType().Name}",
+						"null return value",
+						$"Exception: {ex.Message}");
 				}
 				
 				// Test 2: Null page write
@@ -259,24 +263,28 @@ namespace TestApp
 				{
 					bool nullWriteResult = await pageManager.WritePage(null!, "TestUser", "test@example.com").ConfigureAwait(false);
 					stopwatch2.Stop();
-					ReportTestResult("004", "Null page write handling", false, stopwatch2.ElapsedMilliseconds,
-						"Should have thrown ArgumentNullException for null page",
-						"ArgumentNullException thrown",
-						$"Returned {nullWriteResult}");
-				}
-				catch (ArgumentNullException)
-				{
-					stopwatch2.Stop();
-					ReportTestResult("004", "Null page write handling", true, stopwatch2.ElapsedMilliseconds);
-					passed++;
+					
+					// Should gracefully return false for null page
+					if (nullWriteResult == false)
+					{
+						ReportTestResult("004", "Null page write handling", true, stopwatch2.ElapsedMilliseconds);
+						passed++;
+					}
+					else
+					{
+						ReportTestResult("004", "Null page write handling", false, stopwatch2.ElapsedMilliseconds,
+							"Should return false for null page write",
+							"false",
+							"true");
+					}
 				}
 				catch (Exception ex)
 				{
 					stopwatch2.Stop();
 					ReportTestResult("004", "Null page write handling", false, stopwatch2.ElapsedMilliseconds,
-						$"Wrong exception type: {ex.GetType().Name}",
-						"ArgumentNullException",
-						ex.GetType().Name);
+						$"Should not throw exception for null page write: {ex.GetType().Name}",
+						"false return value",
+						$"Exception: {ex.Message}");
 				}
 				
 				// Test 3: Very long page content

@@ -57,9 +57,11 @@ namespace FreeKi
 			IDataCollection? dataCollection = null;
 			IAuthentication? authentication = null;
 			StorageFiles? pageStorage = null;
+			StorageFiles? mediaStorage = null;
 			GitManager? gitManager = null;
 			PageManager? pageManager = null;
 			PagesApiHandler? pagesApiHandler = null;
+			MediaApiHandler? mediaApiHandler = null;
 			FreeKiServer? server = null;
 			ReachableGames.RGWebSocket.WebServer? webServer = null;
 			
@@ -69,7 +71,7 @@ namespace FreeKi
 				dataCollection = CommandLineHelpersServer.CreateDataCollection("prometheus", new Dictionary<string, string>() { { "process", "FreeKi" } }, logger);
 				authentication = await CommandLineHelpersServer.CreateAuthentication(o.auth_config!, logger).ConfigureAwait(false);
 				pageStorage = new StorageFiles(Path.Combine(o.storage_config!, "pages"), logger);  // pages and media are stored in different folder roots
-				string mediaRoot = Path.Combine(o.storage_config!, "media");
+				mediaStorage = new StorageFiles(Path.Combine(o.storage_config!, "media"), logger);  // separate storage for media files
 				gitManager = CommandLineHelpersServer.CreateGitManager(o.storage_config!, o.git_config!, logger);  // root of git is at the actual root
 				List<string> advertiseUrls = GetAdvertiseUrls(o.advertise_urls!);
 
@@ -77,9 +79,12 @@ namespace FreeKi
 				pageManager = new PageManager(pageStorage, gitManager, logger);
 				pagesApiHandler = new PagesApiHandler(pageManager, authentication, logger);
 
+				// Create MediaApiHandler
+				mediaApiHandler = new MediaApiHandler(mediaStorage, gitManager, authentication, logger);
+
 				// The reason this takes in a CancellationTokenSource is Docker/someone may hit ^C and want to shutdown the server.
 				// The reason we explicitly call Shutdown is the server itself may exit for other reasons, and we need to make sure it shuts down in either case.
-				server = new FreeKiServer(advertiseUrls, o.static_root!, o.storage_config!, authentication, mediaRoot, dataCollection, logger, gitManager, pageManager, tokenSrc);
+				server = new FreeKiServer(advertiseUrls, o.static_root!, dataCollection, logger, gitManager, pageManager, tokenSrc);
 
 				// Set up a websocket handler that forwards connections, disconnections, and messages to the ClusterServer
 				ConnectionManagerReject connectionMgr = new ConnectionManagerReject(logger);
@@ -90,7 +95,7 @@ namespace FreeKi
 				webServer.RegisterExactEndpoint("/health", (HttpListenerContext) => { return Task.FromResult((200, "text/plain", new byte[0])); } );
 
 				webServer.RegisterPrefixEndpoint("/api/pages", pagesApiHandler.GetPages);
-				webServer.RegisterPrefixEndpoint("/api/media", server.GetMedia);
+				webServer.RegisterPrefixEndpoint("/api/media", mediaApiHandler.GetMedia);
 				webServer.RegisterPrefixEndpoint("/", server.GetClient);
 
 				webServer.Start();  // this starts the webserver in a separate thread

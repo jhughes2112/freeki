@@ -1,5 +1,4 @@
-﻿using Authentication;
-using DataCollection;
+﻿using DataCollection;
 using Logging;
 using Storage;
 using System;
@@ -17,11 +16,8 @@ namespace FreeKi
 	{
 		private List<string>                 _advertiseUrls;
 		private string                       _staticRootFolder;
-		private string                       _dataFolder;
 		private IDataCollection              _dataCollection;
 		private ILogging                     _logger;
-		private IAuthentication              _authentication;
-		private string                       _mediaRoot;                  // media is whatever is found in that folder or added to it via other means, and are raw assets served up directly
 		private GitManager                   _gitManager;
 		private PageManager                  _pageManager;
 		private Task                         _updateThread                = Task.CompletedTask;
@@ -37,19 +33,16 @@ namespace FreeKi
 		const long                           kGitPushInterval             = 60 * 5;   // five minutes
 		const long                           kPageRefreshInterval         = 60 * 5;   // five minutes
 
-		public FreeKiServer(List<string> advertiseUrls, string staticRootFolder, string dataFolder, IAuthentication authentication, string mediaRoot, IDataCollection dataCollection, ILogging logger, GitManager gitManager, PageManager pageManager, CancellationTokenSource tokenSrc)
+		public FreeKiServer(List<string> advertiseUrls, string staticRootFolder, IDataCollection dataCollection, ILogging logger, GitManager gitManager, PageManager pageManager, CancellationTokenSource tokenSrc)
 		{
 			logger.Log(EVerbosity.Info, $"FreeKiServer initializing.");
 			_advertiseUrls           = advertiseUrls;
 			_staticRootFolder        = staticRootFolder;
-			_dataFolder              = dataFolder;
 			_dataCollection          = dataCollection;
 			_logger                  = logger;
 			_cancellationTokenSrc    = tokenSrc;
-			_authentication          = authentication;
 			_gitManager              = gitManager;
 			_pageManager             = pageManager;
-			_mediaRoot               = mediaRoot;
 
 			// Start running the update threads
 			_cancellationTokenSrcUpdate = new CancellationTokenSource();
@@ -125,40 +118,6 @@ namespace FreeKi
 					// Get the remaining path after the base URL
 					string relPath = requestPath.Substring(baseUri.AbsolutePath.Length).TrimStart('/');
 					return await ServeStaticFile(_staticRootFolder, relPath).ConfigureAwait(false);
-				}
-			}
-
-			return (401, "text/plain", System.Text.Encoding.UTF8.GetBytes($"Request from unexpected source does not match any AdvertiseURL: {requestUri}"));
-		}
-
-		public async Task<(int, string, byte[])> GetMedia(HttpListenerContext httpListenerContext)
-		{
-			Uri? requestUri = httpListenerContext.Request.Url;
-			if (requestUri == null)
-			{
-				return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Invalid request URL"));
-			}
-
-			// Use AbsolutePath (without query string) for more reliable comparison
-			string requestPath = requestUri.AbsolutePath;
-			
-			for (int i = 0; i < _advertiseUrls.Count; i++)
-			{
-				Uri baseUri = new Uri(_advertiseUrls[i]);
-				
-				// Check if request path starts with the base path
-				if (requestPath.StartsWith(baseUri.AbsolutePath, StringComparison.OrdinalIgnoreCase))
-				{
-					// Get the remaining path after the base URL
-					string remainingPath = requestPath.Substring(baseUri.AbsolutePath.Length).TrimStart('/');
-					
-					// Check if it starts with "media/"
-					if (remainingPath.StartsWith("media/", StringComparison.OrdinalIgnoreCase))
-					{
-						// Extract the media file path after "media/"
-						string mediaPath = remainingPath.Substring("media/".Length);
-						return await ServeStaticFile(_mediaRoot, mediaPath).ConfigureAwait(false);
-					}
 				}
 			}
 

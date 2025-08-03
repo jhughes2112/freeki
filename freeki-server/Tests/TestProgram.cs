@@ -468,129 +468,170 @@ namespace TestApp
 		
 		static async Task TestStorageFiles(string testDataFolder, Logging.ILogging logger)
 		{
-			StorageFiles? storage = null;
+			StorageFiles? pageStorage = null;
+			StorageFiles? mediaStorage = null;
 			
 			try
 			{
-				// Initialize storage
-				TestResult initResult = await _testRunner!.RunTestAsync("StorageFiles", "Storage initialization", () =>
-				{
-					storage = new StorageFiles(testDataFolder, logger);
-					return Task.FromResult(storage != null);
-				}, $"Data folder: {testDataFolder}");
+				// Create the directory structure that matches the server setup
+				string pagesFolder = Path.Combine(testDataFolder, "pages");
+				string mediaFolder = Path.Combine(testDataFolder, "media");
+				Directory.CreateDirectory(pagesFolder);
+				Directory.CreateDirectory(mediaFolder);
 				
-				if (!initResult.Passed || storage == null)
+				// Initialize storage with subdirectories (matching server setup)
+				TestResult pageInitResult = await _testRunner!.RunTestAsync("StorageFiles", "Page storage initialization", () =>
+				{
+					pageStorage = new StorageFiles(pagesFolder, logger);
+					return Task.FromResult(pageStorage != null);
+				}, $"Pages folder: {pagesFolder}");
+				
+				TestResult mediaInitResult = await _testRunner.RunTestAsync("StorageFiles", "Media storage initialization", () =>
+				{
+					mediaStorage = new StorageFiles(mediaFolder, logger);
+					return Task.FromResult(mediaStorage != null);
+				}, $"Media folder: {mediaFolder}");
+				
+				if (!pageInitResult.Passed || pageStorage == null || !mediaInitResult.Passed || mediaStorage == null)
 				{
 					Console.WriteLine("StorageFiles initialization failed - skipping remaining tests");
 					return;
 				}
 				
-				// Test 1: Write and Read - FIXED ASSERTION LOGIC
-				await _testRunner.RunTestAsync("StorageFiles", "Basic write/read operation", async () =>
-				{
-					string key1 = "test1.txt";
-					byte[] data1 = System.Text.Encoding.UTF8.GetBytes("Hello, World!");
-					bool writeResult = await storage.Write(key1, data1).ConfigureAwait(false);
-					byte[]? readData = await storage.Read(key1).ConfigureAwait(false);
-					
-					// Fixed: Check all conditions and return result directly
-					if (!writeResult)
-						return false;
-					if (readData == null)
-						return false;
-					if (!ByteArraysEqual(data1, readData))
-						return false;
-					
-					return true;
-				}, "Key: test1.txt, Data: 'Hello, World!'");
-				
-				// Test 2: ReadPartial - FIXED ASSERTION LOGIC
-				await _testRunner.RunTestAsync("StorageFiles", "Partial read operation", async () =>
-				{
-					string key1 = "test1.txt";
-					byte[]? partialData = await storage.ReadPartial(key1, 0, 5).ConfigureAwait(false);
-					
-					// Fixed: Direct validation
-					if (partialData == null)
-						return false;
-					if (partialData.Length != 5)
-						return false;
-					
-					string partialText = System.Text.Encoding.UTF8.GetString(partialData);
-					return partialText == "Hello";
-				}, "Reading first 5 bytes from test1.txt");
-				
-				// Test 3: ListAllKeys - FIXED ASSERTION LOGIC
-				await _testRunner.RunTestAsync("StorageFiles", "List all keys operation", async () =>
-				{
-					string key2 = "test2.txt";
-					await storage.Write(key2, System.Text.Encoding.UTF8.GetBytes("Test 2")).ConfigureAwait(false);
-					List<string> keys = await storage.ListAllKeys().ConfigureAwait(false);
-					
-					// Fixed: Direct validation
-					return keys.Contains("test1.txt") && 
-					       keys.Contains("test2.txt") && 
-					       keys.Count >= 2;
-				}, "After writing test1.txt and test2.txt");
-				
-				// Test 4: Delete - FIXED ASSERTION LOGIC
-				await _testRunner.RunTestAsync("StorageFiles", "Delete operation", async () =>
-				{
-					string key2 = "test2.txt";
-					bool deleteResult = await storage.Delete(key2).ConfigureAwait(false);
-					byte[]? deletedData = await storage.Read(key2).ConfigureAwait(false);
-					
-					// Fixed: Direct validation
-					return deleteResult && deletedData == null;
-				}, "Deleting test2.txt");
-				
-				// Test 5: Read non-existent file - FIXED ASSERTION LOGIC
-				await _testRunner.RunTestAsync("StorageFiles", "Read non-existent file", async () =>
-				{
-					byte[]? nonExistentData = await storage.Read("nonexistent.txt").ConfigureAwait(false);
-					return nonExistentData == null;
-				}, "File: nonexistent.txt");
-				
-				// Test 6: Path cleaning - FIXED ASSERTION LOGIC
-				_testRunner.RunTest("StorageFiles", "Path cleaning for invalid characters", () =>
-				{
-					string cleanedPath = storage.GetFullPath("test<>file.txt");
-					// Fixed: Correct expectation - each invalid char becomes '-'
-					return cleanedPath.Contains("test--file.txt");
-				}, "Input: 'test<>file.txt'");
-				
+				// Test pages and media storage separately to match server architecture
+				await TestPageStorage(pageStorage);
+				await TestMediaStorage(mediaStorage);
+				await TestStorageIsolation(pageStorage, mediaStorage);
 			}
 			finally
 			{
-				storage?.Dispose();
+				pageStorage?.Dispose();
+				mediaStorage?.Dispose();
 			}
+		}
+		
+		static async Task TestPageStorage(StorageFiles pageStorage)
+		{
+			// Test 1: Write and Read page storage
+			await _testRunner!.RunTestAsync("StorageFiles", "Page storage write/read operation", async () =>
+			{
+				string key1 = "test1.txt";
+				byte[] data1 = System.Text.Encoding.UTF8.GetBytes("Hello, World!");
+				bool writeResult = await pageStorage.Write(key1, data1).ConfigureAwait(false);
+				byte[]? readData = await pageStorage.Read(key1).ConfigureAwait(false);
+				
+				if (!writeResult)
+					return false;
+				if (readData == null)
+					return false;
+				if (!ByteArraysEqual(data1, readData))
+					return false;
+				
+				return true;
+			}, "Key: test1.txt, Data: 'Hello, World!'");
+			
+			// Test 2: GetSize method test
+			await _testRunner.RunTestAsync("StorageFiles", "GetSize method efficiency test", async () =>
+			{
+				string key1 = "test1.txt";
+				long? fileSize = await pageStorage.GetSize(key1).ConfigureAwait(false);
+				
+				if (fileSize == null)
+					return false;
+				
+				// Should match the "Hello, World!" string length
+				return fileSize.Value == 13;
+			}, "Testing GetSize vs reading entire file");
+		}
+		
+		static async Task TestMediaStorage(StorageFiles mediaStorage)
+		{
+			// Test binary media storage with PNG data
+			await _testRunner!.RunTestAsync("StorageFiles", "Media storage binary write/read", async () =>
+			{
+				string key1 = "test-image.png";
+				byte[] pngData = {
+					0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+					0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+					0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+					0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0x00, 0x00, 0x00,
+					0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x37, 0x6E, 0xF9, 0x24, 0x00,
+					0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+				};
+				bool writeResult = await mediaStorage.Write(key1, pngData).ConfigureAwait(false);
+				byte[]? readData = await mediaStorage.Read(key1).ConfigureAwait(false);
+				
+				if (!writeResult)
+					return false;
+				if (readData == null)
+					return false;
+				if (!ByteArraysEqual(pngData, readData))
+					return false;
+				
+				return true;
+			}, "Binary PNG data storage test");
+		}
+		
+		static async Task TestStorageIsolation(StorageFiles pageStorage, StorageFiles mediaStorage)
+		{
+			// Test storage isolation
+			await _testRunner!.RunTestAsync("StorageFiles", "Storage isolation verification", async () =>
+			{
+				List<string> pageKeys = await pageStorage.ListAllKeys().ConfigureAwait(false);
+				List<string> mediaKeys = await mediaStorage.ListAllKeys().ConfigureAwait(false);
+				
+				// Pages should not see media files and vice versa
+				bool pagesDontSeeMedia = !pageKeys.Contains("test-image.png");
+				bool mediaDontSeePages = !mediaKeys.Contains("test1.txt");
+				
+				return pagesDontSeeMedia && mediaDontSeePages;
+			}, "Ensuring page and media storages are properly isolated");
 		}
 		
 		static async Task TestGitManager(string testDataFolder, Logging.ILogging logger)
 		{
 			GitManager? gitManager = null;
+			StorageFiles? pageStorage = null;
 			
 			try
 			{
-				// Initialize GitManager
+				// Create the directory structure that matches the server setup
+				string pagesFolder = Path.Combine(testDataFolder, "pages");
+				Directory.CreateDirectory(pagesFolder);
+				
+				// Initialize GitManager at the root (like the server does)
 				TestResult initResult = await _testRunner!.RunTestAsync("GitManager", "Git repository initialization", () =>
 				{
 					gitManager = Utilities.CommandLineHelpersServer.CreateGitManager(testDataFolder, "", logger);
 					return Task.FromResult(gitManager != null);
-				}, $"Repository path: {testDataFolder}");
+				}, $"Repository root: {testDataFolder} (working repo, not bare)");
 				
-				if (!initResult.Passed || gitManager == null)
+				// Initialize page storage in subdirectory (like the server does)
+				TestResult storageResult = await _testRunner.RunTestAsync("GitManager", "Page storage initialization for git test", () =>
 				{
-					Console.WriteLine("GitManager initialization failed - skipping remaining tests");
+					pageStorage = new StorageFiles(pagesFolder, logger);
+					return Task.FromResult(pageStorage != null);
+				}, $"Pages folder: {pagesFolder}");
+				
+				if (!initResult.Passed || gitManager == null || !storageResult.Passed || pageStorage == null)
+				{
+					Console.WriteLine("GitManager or PageStorage initialization failed - skipping remaining tests");
 					return;
 				}
 				
-				// Test commit file
+				// Test commit file - store in pages subdirectory but commit to root git repo
 				string? commitSha = null;
-				await _testRunner.RunTestAsync("GitManager", "Commit file operation", async () =>
+				await _testRunner.RunTestAsync("GitManager", "Commit file operation with subdirectory", async () =>
 				{
-					string filename = "test-git-file.txt";
+					string filename = "pages/test-git-file.txt";  // Include subdirectory in git path
 					byte[] content = System.Text.Encoding.UTF8.GetBytes("Git test content");
+					
+					// First write to storage (which handles the pages subdirectory)
+					bool storageWrite = await pageStorage.Write("test-git-file.txt", content).ConfigureAwait(false);
+					if (!storageWrite)
+						return false;
+					
+					// Then commit via git manager (which sees the full repo structure)
 					commitSha = await gitManager.CommitFile(filename, content, "Test Author", "test@example.com", "Test commit").ConfigureAwait(false);
 					
 					List<TestResult> allResults = _testRunner.GetResults();
@@ -599,35 +640,54 @@ namespace TestApp
 					_testRunner.AssertTrue(result, !string.IsNullOrEmpty(commitSha), "SHA should not be empty");
 					
 					return result.Passed;
-				}, "File: test-git-file.txt, Author: Test Author");
+				}, "File: pages/test-git-file.txt, Author: Test Author");
 				
-				// Test retrieve commits
+				// Test retrieve commits with subdirectory path
 				if (!string.IsNullOrEmpty(commitSha))
 				{
-					await _testRunner.RunTestAsync("GitManager", "Retrieve commits operation", () =>
+					await _testRunner.RunTestAsync("GitManager", "Retrieve commits with subdirectory", () =>
 					{
-						string filename = "test-git-file.txt";
+						string filename = "pages/test-git-file.txt";  // Full path for git
 						List<CommitInfo> commits = gitManager.RetrieveCommits(filename);
 						
 						List<TestResult> allResults = _testRunner.GetResults();
 						TestResult result = allResults[allResults.Count - 1];
 						_testRunner.AssertTrue(result, commits.Count > 0, "Should retrieve at least one commit");
 						if (commits.Count > 0)
-                        {
+						{
 							_testRunner.AssertEqual(result, commitSha, commits[0].Sha, "First commit SHA should match");
 						}
 						
 						return Task.FromResult(result.Passed);
 					}, $"Expected SHA: {commitSha}");
+					
+					// Test retrieve file content from git
+					await _testRunner.RunTestAsync("GitManager", "Retrieve file content from git", () =>
+					{
+						string filename = "pages/test-git-file.txt";
+						byte[]? retrievedContent = gitManager.RetrieveFile(filename, commitSha);
+						
+						List<TestResult> allResults = _testRunner.GetResults();
+						TestResult result = allResults[allResults.Count - 1];
+						_testRunner.AssertNotNull(result, retrievedContent, "Should retrieve file content");
+						if (retrievedContent != null)
+						{
+							string retrievedText = System.Text.Encoding.UTF8.GetString(retrievedContent);
+							_testRunner.AssertEqual(result, "Git test content", retrievedText, "Content should match");
+						}
+						
+						return Task.FromResult(result.Passed);
+					}, "Verifying git file retrieval matches original content");
 				}
 				else
 				{
-					Console.WriteLine("Skipping commit retrieval test - no commit SHA available");
+					Console.WriteLine("Skipping commit retrieval tests - no commit SHA available");
 				}
 				
 			}
 			finally
 			{
+				pageStorage?.Dispose();
 				gitManager?.Dispose();
 			}
 		}

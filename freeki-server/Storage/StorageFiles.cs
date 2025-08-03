@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Security;
 using System.Threading.Tasks;
 
 namespace Storage
@@ -253,6 +252,32 @@ namespace Storage
 			string combinedPath = Path.Combine(_dataFolder, cleaned);
 			string fullPath = Path.GetFullPath(combinedPath);
 			return fullPath;
+		}
+
+		// Get the size in bytes of the data for the given key without reading the entire file
+		public Task<long?> GetSize(string key)
+		{
+			string filename = GetFullPath(key);
+			if (filename.StartsWith(_dataFolder, StringComparison.OrdinalIgnoreCase))
+			{
+				try
+				{
+					if (File.Exists(filename))
+					{
+						FileInfo fileInfo = new FileInfo(filename);
+						return Task.FromResult<long?>(fileInfo.Length);
+					}
+				}
+				catch (Exception ex)
+				{
+					_logger.Log(EVerbosity.Warning, $"StorageFiles.GetSize {key} exception {ex.Message}");
+				}
+			}
+			else
+			{
+				_logger.Log(EVerbosity.Error, $"StorageFiles.GetSize {key} -> {filename} attempts path traversal {_dataFolder}");
+			}
+			return Task.FromResult<long?>(null);
 		}
 	}
 }
