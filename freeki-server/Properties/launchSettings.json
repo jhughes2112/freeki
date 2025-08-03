@@ -1,0 +1,17 @@
+{
+  "profiles": {
+    "FreeKi Server": {
+      "commandName": "Project",
+      "commandLineArgs": "--log_config console,5 \r\n--conn_bindurl http://+:22222/ \r\n--auth_config always \r\n--storage_config file,data\r\n--git_config ../freeki-data,,,main",
+      "workingDirectory": "D:\\Github\\freeki",
+      "hotReloadEnabled": false,
+      "buildConfiguration": "Debug"
+    },
+    "Test Program": {
+      "commandName": "Project",
+      "workingDirectory": "D:\\Github\\freeki",
+      "hotReloadEnabled": false,
+      "buildConfiguration": "TestMode"
+    }
+  }
+}
