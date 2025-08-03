@@ -14,6 +14,7 @@ using Storage;
 using Authentication;
 using System.Net;
 using System.IO;
+using Users;
 
 namespace FreeKi
 {
@@ -62,6 +63,7 @@ namespace FreeKi
 			PageManager? pageManager = null;
 			PagesApiHandler? pagesApiHandler = null;
 			MediaApiHandler? mediaApiHandler = null;
+			UserApiHandler? userApiHandler = null;
 			FreeKiServer? server = null;
 			ReachableGames.RGWebSocket.WebServer? webServer = null;
 			
@@ -82,6 +84,9 @@ namespace FreeKi
 				// Create MediaApiHandler
 				mediaApiHandler = new MediaApiHandler(mediaStorage, gitManager, authentication, logger);
 
+				// Create UserApiHandler
+				userApiHandler = new UserApiHandler(authentication, logger);
+
 				// The reason this takes in a CancellationTokenSource is Docker/someone may hit ^C and want to shutdown the server.
 				// The reason we explicitly call Shutdown is the server itself may exit for other reasons, and we need to make sure it shuts down in either case.
 				server = new FreeKiServer(advertiseUrls, o.static_root!, dataCollection, logger, gitManager, pageManager, tokenSrc);
@@ -93,6 +98,7 @@ namespace FreeKi
 				// (responseCode, responseContentType, responseContent)
 				webServer.RegisterExactEndpoint("/metrics", async (HttpListenerContext context) => { return (200, "text/plain", await dataCollection.Generate()); });
 				webServer.RegisterExactEndpoint("/health", (HttpListenerContext) => { return Task.FromResult((200, "text/plain", new byte[0])); } );
+				webServer.RegisterExactEndpoint("/api/user/me", userApiHandler.GetCurrentUser);
 
 				webServer.RegisterPrefixEndpoint("/api/pages", pagesApiHandler.GetPages);
 				webServer.RegisterPrefixEndpoint("/api/media", mediaApiHandler.GetMedia);
@@ -117,6 +123,7 @@ namespace FreeKi
 
 				webServer?.UnregisterExactEndpoint("/metrics");
 				webServer?.UnregisterExactEndpoint("/health");
+				webServer?.UnregisterExactEndpoint("/api/user/me");
 
 				if (server != null)
 				{

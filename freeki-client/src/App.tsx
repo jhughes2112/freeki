@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Box, 
   AppBar, 
@@ -26,6 +26,7 @@ import FolderTree from './FolderTree'
 import PageViewer from './PageViewer'
 import PageEditor from './PageEditor'
 import PageMetadata from './PageMetadata'
+import { useUserSettings } from './useUserSettings'
 
 export interface WikiPage {
   id: string
@@ -79,15 +80,21 @@ const samplePages: WikiPage[] = [
   }
 ]
 
-const COMPANY_NAME = "Your Company"
-const WIKI_TITLE = "FreeKi Wiki"
-
 export default function App() {
+  const { settings, userInfo, isLoaded, updateSetting } = useUserSettings()
   const [selectedPage, setSelectedPage] = useState<WikiPage>(samplePages[0])
   const [isEditing, setIsEditing] = useState<boolean>(false)
   const [pages, setPages] = useState<WikiPage[]>(samplePages)
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [sidebarWidth, setSidebarWidth] = useState<number>(300)
+
+  // Wait for settings to load before rendering
+  if (!isLoaded) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Typography>Loading...</Typography>
+      </Box>
+    )
+  }
 
   const handlePageSelect = (page: WikiPage) => {
     if (!page.isFolder) {
@@ -131,39 +138,35 @@ export default function App() {
   }
 
   const handleNewPage = () => {
-    // Placeholder for new page functionality
     console.log('New page')
   }
 
   const handleHistory = () => {
-    // Placeholder for history functionality
     console.log('History')
   }
 
   const handleDelete = () => {
-    // Placeholder for delete functionality
     console.log('Delete page')
   }
 
-  const handleSettings = () => {
-    // Placeholder for settings functionality
+  const handleSettingsClick = () => {
     console.log('Settings')
   }
 
   const handleAccount = () => {
-    // Placeholder for account functionality
     console.log('Account')
   }
 
   const handleSidebarResize = (e: React.MouseEvent) => {
     const startX = e.clientX
-    const startWidth = sidebarWidth
+    const startWidth = settings.sidebarWidth
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = startWidth + (e.clientX - startX)
       const minWidth = 200
       const maxWidth = 500
-      setSidebarWidth(Math.max(minWidth, Math.min(maxWidth, newWidth)))
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+      updateSetting('sidebarWidth', clampedWidth)
     }
 
     const handleMouseUp = () => {
@@ -188,10 +191,10 @@ export default function App() {
               src="/logo.png"
               sx={{ mr: 2, width: 32, height: 32, backgroundColor: 'white' }}
             >
-              {COMPANY_NAME.charAt(0)}
+              {settings.companyName.charAt(0)}
             </Avatar>
             <Typography variant="h6" sx={{ mr: 4 }}>
-              {WIKI_TITLE}
+              {settings.wikiTitle}
             </Typography>
           </Box>
 
@@ -284,12 +287,30 @@ export default function App() {
             
             <Divider orientation="vertical" flexItem sx={{ backgroundColor: 'rgba(255,255,255,0.3)', mx: 1 }} />
             
-            <IconButton color="inherit" onClick={handleSettings} title="Administration">
+            <IconButton color="inherit" onClick={handleSettingsClick} title="Administration">
               <Settings />
             </IconButton>
             
-            <IconButton color="inherit" onClick={handleAccount} title="Account">
-              <AccountCircle />
+            <IconButton 
+              color="inherit" 
+              onClick={handleAccount} 
+              title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Account"}
+              sx={{ p: 0.5 }}
+            >
+              {userInfo?.gravatarUrl ? (
+                <Avatar 
+                  src={userInfo.gravatarUrl}
+                  sx={{ 
+                    width: 32, 
+                    height: 32,
+                    border: '2px solid rgba(255,255,255,0.3)'
+                  }}
+                >
+                  {userInfo.fullName.charAt(0)}
+                </Avatar>
+              ) : (
+                <AccountCircle />
+              )}
             </IconButton>
           </Box>
         </Toolbar>
@@ -300,7 +321,7 @@ export default function App() {
         {/* Left Sidebar */}
         <Box 
           sx={{ 
-            width: sidebarWidth,
+            width: settings.sidebarWidth,
             borderRight: '1px solid #e0e0e0',
             height: '100%',
             flexShrink: 0,
@@ -353,7 +374,7 @@ export default function App() {
             </Box>
 
             {/* Right Metadata Panel */}
-            {!selectedPage.isFolder && (
+            {!selectedPage.isFolder && settings.showMetadataPanel && (
               <Box 
                 sx={{ 
                   width: 280,
@@ -380,7 +401,7 @@ export default function App() {
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          Copyright (c) {currentYear} {COMPANY_NAME} powered by FreeKi
+          Copyright (c) {currentYear} {settings.companyName} powered by FreeKi
         </Typography>
       </Box>
     </Box>
