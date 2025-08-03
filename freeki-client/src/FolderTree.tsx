@@ -1,45 +1,163 @@
-import React from 'react'
-import { DndContext, closestCenter } from '@dnd-kit/core'
-import { useSortable, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
-import { List, ListItem, ListItemText, Paper } from '@mui/material'
+import React, { useState } from 'react'
+import {
+  Box,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Collapse,
+  IconButton,
+  Typography
+} from '@mui/material'
+import {
+  ExpandMore,
+  ChevronRight,
+  Folder,
+  Description
+} from '@mui/icons-material'
+import type { WikiPage } from './App'
 
-const initialItems = ['Home', 'Docs', 'API', 'FAQ']
+interface FolderTreeProps {
+  pages: WikiPage[]
+  selectedPage: WikiPage
+  onPageSelect: (page: WikiPage) => void
+}
 
-function SortableItem({ id }: { id: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id })
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition
+interface TreeNodeProps {
+  page: WikiPage
+  level: number
+  selectedPage: WikiPage
+  onPageSelect: (page: WikiPage) => void
+  expandedNodes: Set<string>
+  onToggleExpanded: (pageId: string) => void
+}
+
+function TreeNode({ 
+  page, 
+  level, 
+  selectedPage, 
+  onPageSelect, 
+  expandedNodes, 
+  onToggleExpanded 
+}: TreeNodeProps) {
+  const isExpanded = expandedNodes.has(page.id)
+  const isSelected = selectedPage.id === page.id
+  const hasChildren = page.children && page.children.length > 0
+
+  const handleClick = () => {
+    if (page.isFolder && hasChildren) {
+      onToggleExpanded(page.id)
+    }
+    onPageSelect(page)
+  }
+
+  const handleExpandClick = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    onToggleExpanded(page.id)
   }
 
   return (
-    <ListItem ref={setNodeRef} style={style} {...attributes} {...listeners} sx={{ cursor: 'grab' }}>
-      <ListItemText primary={id} />
-    </ListItem>
+    <>
+      <ListItem
+        onClick={handleClick}
+        sx={{
+          pl: 2 + level * 2,
+          backgroundColor: isSelected ? 'action.selected' : 'transparent',
+          '&:hover': {
+            backgroundColor: 'action.hover'
+          },
+          borderRadius: 1,
+          mx: 1,
+          mb: 0.5,
+          cursor: 'pointer'
+        }}
+      >
+        <ListItemIcon sx={{ minWidth: 36 }}>
+          {page.isFolder && hasChildren ? (
+            <IconButton
+              size="small"
+              onClick={handleExpandClick}
+              sx={{ p: 0.5 }}
+            >
+              {isExpanded ? <ExpandMore /> : <ChevronRight />}
+            </IconButton>
+          ) : (
+            <Box sx={{ width: 24 }} />
+          )}
+        </ListItemIcon>
+        
+        <ListItemIcon sx={{ minWidth: 32 }}>
+          {page.isFolder ? <Folder /> : <Description />}
+        </ListItemIcon>
+        
+        <ListItemText
+          primary={
+            <Typography
+              variant="body2"
+              sx={{
+                fontWeight: isSelected ? 'bold' : 'normal',
+                color: isSelected ? 'primary.main' : 'text.primary'
+              }}
+            >
+              {page.title}
+            </Typography>
+          }
+        />
+      </ListItem>
+      
+      {page.isFolder && hasChildren && (
+        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+          <List component="div" disablePadding>
+            {page.children?.map((child) => (
+              <TreeNode
+                key={child.id}
+                page={child}
+                level={level + 1}
+                selectedPage={selectedPage}
+                onPageSelect={onPageSelect}
+                expandedNodes={expandedNodes}
+                onToggleExpanded={onToggleExpanded}
+              />
+            ))}
+          </List>
+        </Collapse>
+      )}
+    </>
   )
 }
 
-export default function FolderTree() {
-  const [items, setItems] = React.useState(initialItems)
+export default function FolderTree({ pages, selectedPage, onPageSelect }: FolderTreeProps) {
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['projects']))
+
+  const handleToggleExpanded = (pageId: string) => {
+    const newExpanded = new Set(expandedNodes)
+    if (newExpanded.has(pageId)) {
+      newExpanded.delete(pageId)
+    } else {
+      newExpanded.add(pageId)
+    }
+    setExpandedNodes(newExpanded)
+  }
 
   return (
-    <DndContext collisionDetection={closestCenter} onDragEnd={(event) => {
-      const { active, over } = event
-      if (active.id !== over?.id) {
-        const oldIndex = items.indexOf(active.id as string)
-        const newIndex = items.indexOf(over?.id as string)
-        const newItems = [...items]
-        newItems.splice(oldIndex, 1)
-        newItems.splice(newIndex, 0, active.id as string)
-        setItems(newItems)
-      }
-    }}>
-      <SortableContext items={items} strategy={verticalListSortingStrategy}>
-        <List>
-          {items.map(id => <SortableItem key={id} id={id} />)}
-        </List>
-      </SortableContext>
-    </DndContext>
+    <Box sx={{ height: '100%', overflow: 'auto', p: 1 }}>
+      <Typography variant="h6" sx={{ p: 1, fontWeight: 'bold' }}>
+        Pages
+      </Typography>
+      
+      <List component="nav" dense>
+        {pages.map((page) => (
+          <TreeNode
+            key={page.id}
+            page={page}
+            level={0}
+            selectedPage={selectedPage}
+            onPageSelect={onPageSelect}
+            expandedNodes={expandedNodes}
+            onToggleExpanded={handleToggleExpanded}
+          />
+        ))}
+      </List>
+    </Box>
   )
 }
