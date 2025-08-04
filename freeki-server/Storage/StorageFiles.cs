@@ -156,7 +156,7 @@ namespace Storage
 					DirectoryInfo di = Directory.CreateDirectory(subfolder);
 				}
 
-				for (int i = 0; i < 10;) // retry on I/O exceptions
+				for (int i = 0; i < 10; i++) // retry on I/O exceptions
 				{
 					// Temp files are not guaranteed to be on the same volume, so we make it in the same folder, even though it's pretty gross that a file might somehow escape and dangle here forever.
 					string tempFilename = Path.Combine(subfolder ??  string.Empty, Path.GetRandomFileName());
@@ -164,8 +164,9 @@ namespace Storage
 					{
 						await File.WriteAllBytesAsync(tempFilename, data).ConfigureAwait(false);
 
-						// Attempt atomic replace
-						File.Replace(tempFilename, filename, null); // null for no backup
+						// Delete target file first (ignoring if it doesn't exist), then move temp file into place
+						try { File.Delete(filename); } catch { /* ignore if file doesn't exist */ }
+						File.Move(tempFilename, filename);
 						return true;
 					}
 					catch (IOException ioe)

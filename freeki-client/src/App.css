@@ -1,42 +1,157 @@
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
+  max-width: none;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Main layout container */
+.main-layout {
+  display: flex;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* Sidebar panel - slides off-screen when collapsed */
+.sidebar-panel {
+  width: var(--sidebar-width, 300px);
+  min-width: var(--sidebar-width, 300px);
+  max-width: var(--sidebar-width, 300px);
+  height: 100%;
+  position: relative;
+  background-color: var(--freeki-sidebar-background);
+  border-right: 1px solid var(--freeki-border-color);
+  overflow: hidden;
+  flex-shrink: 0;
+  z-index: 5;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.sidebar-panel.collapsed {
+  transform: translateX(calc(-1 * var(--sidebar-width, 300px)));
+}
+
+/* Metadata panel - slides off-screen when collapsed */
+.metadata-panel {
+  width: var(--metadata-width, 280px);
+  min-width: var(--metadata-width, 280px);
+  max-width: var(--metadata-width, 280px);
+  height: 100%;
+  position: relative;
+  background-color: var(--freeki-metadata-panel-background);
+  border-left: 1px solid var(--freeki-border-color);
+  overflow: hidden;
+  flex-shrink: 0;
+  z-index: 5;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.metadata-panel.collapsed {
+  transform: translateX(var(--metadata-width, 280px));
+}
+
+/* Center content area - expands to use space when panels collapse */
+.center-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  z-index: 15;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When sidebar is collapsed, center content expands left to fill the space */
+.center-content.sidebar-collapsed {
+  margin-left: calc(-1 * var(--sidebar-width, 300px));
+}
+
+/* When metadata panel is collapsed, center content expands right to fill the space */
+.center-content.metadata-collapsed {
+  margin-right: -280px;
+}
+
+/* Panel content fade animation */
+.fade-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 100%;
+  width: 100%;
+}
+
+.fade-panel.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Chevron buttons positioned within panels */
+.chevron-button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  opacity: 0.8;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+
+/* Sidebar chevron - positioned on right edge of sidebar */
+.chevron-button.sidebar-open {
+  right: -12px;
+}
+
+.chevron-button.sidebar-open:hover {
+  opacity: 1;
+  right: -8px;
+}
+
+/* When sidebar is closed, this chevron moves with it off-screen */
+.chevron-button.sidebar-closed {
+  right: -12px;
+  opacity: 0.6;
+  background-color: rgba(255, 255, 255, 0.95);
+}
+
+/* Metadata panel chevron - positioned on left edge of metadata panel */
+.chevron-button.metadata-open {
+  left: -12px;
+}
+
+.chevron-button.metadata-open:hover {
+  opacity: 1;
+  left: -8px;
+}
+
+/* When metadata panel is closed, this chevron moves with it off-screen */
+.chevron-button.metadata-closed {
+  left: -12px;
+  opacity: 0.6;
+  background-color: rgba(255, 255, 255, 0.95);
 }
 
 .card {
   padding: 2em;
+  text-align: initial;
 }
 
 .read-the-docs {
   color: #888;
+  text-align: initial;
+}
+
+.read-the-docs a {
+  color: #888;
+  text-decoration: none;
 }

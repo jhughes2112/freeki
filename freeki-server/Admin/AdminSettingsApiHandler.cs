@@ -92,13 +92,8 @@ namespace Admin
                 }
                 else
                 {
-                    // Return default settings if no config file exists
-                    object defaultSettings = GetDefaultSettings();
-                    string jsonSettings = JsonSerializer.Serialize(defaultSettings, new JsonSerializerOptions 
-                    { 
-                        WriteIndented = true 
-                    });
-                    return (200, "application/json", Encoding.UTF8.GetBytes(jsonSettings));
+                    // Return 404 when no config file exists - let client handle defaults
+                    return (404, "application/json", Encoding.UTF8.GetBytes("{}"));
                 }
             }
             catch (Exception ex)
@@ -155,45 +150,6 @@ namespace Admin
                 _logger.Log(EVerbosity.Error, $"AdminSettingsApiHandler.HandleSaveSettings: Error saving admin settings from {accountId}: {ex.Message}");
                 return (500, "text/plain", Encoding.UTF8.GetBytes("Internal server error"));
             }
-        }
-
-        private object GetDefaultSettings()
-        {
-            return new
-            {
-                companyName = "Your Company",
-                companyLogoPath = "/logo.png",
-                wikiTitle = "FreeKi Wiki",
-                colorSchemes = new
-                {
-                    light = new
-                    {
-                        appBarBackground = "#1976d2",
-                        sidebarBackground = "#fafafa",
-                        sidebarSelectedBackground = "rgba(25, 118, 210, 0.12)",
-                        sidebarHoverBackground = "rgba(0, 0, 0, 0.04)",
-                        metadataPanelBackground = "#f9f9f9",
-                        viewModeBackground = "#ffffff",
-                        editModeBackground = "#ffffff",
-                        textPrimary = "#000000",
-                        textSecondary = "#666666",
-                        borderColor = "#e0e0e0"
-                    },
-                    dark = new
-                    {
-                        appBarBackground = "#1565c0",
-                        sidebarBackground = "#2b2b2b",
-                        sidebarSelectedBackground = "rgba(144, 202, 249, 0.16)",
-                        sidebarHoverBackground = "rgba(255, 255, 255, 0.08)",
-                        metadataPanelBackground = "#1e1e1e",
-                        viewModeBackground = "#121212",
-                        editModeBackground = "#1e1e1e",
-                        textPrimary = "#ffffff",
-                        textSecondary = "#b3b3b3",
-                        borderColor = "#404040"
-                    }
-                }
-            };
         }
     }
 }

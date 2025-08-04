@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
-import { 
-  Box, 
-  AppBar, 
-  Toolbar, 
-  Typography, 
-  TextField, 
-  Button, 
+import {
+  Box,
+  AppBar,
+  Toolbar,
+  Typography,
+  TextField,
+  Button,
   IconButton,
   Avatar,
   Divider,
   InputAdornment,
   Snackbar,
-  Alert
+  Alert,
+  useTheme,
+  useMediaQuery,
+  Drawer
 } from '@mui/material'
 import {
   Search,
@@ -25,7 +28,10 @@ import {
   AccountCircle,
   LightMode,
   DarkMode,
-  Monitor
+  Monitor,
+  Menu as MenuIcon,
+  ChevronLeft,
+  ChevronRight
 } from '@mui/icons-material'
 import FolderTree from './FolderTree'
 import PageViewer from './PageViewer'
@@ -35,7 +41,16 @@ import AdminSettingsDialog from './AdminSettingsDialog'
 import { useUserSettings } from './useUserSettings'
 import type { ColorScheme } from './adminSettings'
 import { DEFAULT_ADMIN_SETTINGS, fetchAdminSettings } from './adminSettings'
+import { applyTheme } from './themeUtils'
 import apiClient from './apiClient'
+import './App.css'
+
+// FadePanelContent: fade in/out children based on visible prop
+const FadePanelContent = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (
+  <div className={`fade-panel${visible ? '' : ' hidden'}`}>
+    {children}
+  </div>
+)
 
 export interface WikiPage {
   id: string
@@ -48,26 +63,6 @@ export interface WikiPage {
   updatedAt?: string
   author?: string
   version?: number
-}
-
-// Theme application function
-function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme }, currentTheme: 'light' | 'dark' | 'auto') {
-  const colorScheme = currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches) 
-    ? colorSchemes.dark 
-    : colorSchemes.light
-
-  const root = document.documentElement
-
-  root.style.setProperty('--freeki-app-bar-background', colorScheme.appBarBackground)
-  root.style.setProperty('--freeki-sidebar-background', colorScheme.sidebarBackground)
-  root.style.setProperty('--freeki-sidebar-selected-background', colorScheme.sidebarSelectedBackground)
-  root.style.setProperty('--freeki-sidebar-hover-background', colorScheme.sidebarHoverBackground)
-  root.style.setProperty('--freeki-metadata-panel-background', colorScheme.metadataPanelBackground)
-  root.style.setProperty('--freeki-view-mode-background', colorScheme.viewModeBackground)
-  root.style.setProperty('--freeki-edit-mode-background', colorScheme.editModeBackground)
-  root.style.setProperty('--freeki-text-primary', colorScheme.textPrimary)
-  root.style.setProperty('--freeki-text-secondary', colorScheme.textSecondary)
-  root.style.setProperty('--freeki-border-color', colorScheme.borderColor)
 }
 
 // Example content structure
@@ -114,11 +109,17 @@ export default function App() {
   const [selectedPage, setSelectedPage] = useState<WikiPage>(samplePages[0])
   const [isEditing, setIsEditing] = useState<boolean>(false)
   const [pages, setPages] = useState<WikiPage[]>(samplePages)
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState<string>('') // Search query state
   const [showAdminSettings, setShowAdminSettings] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
-  const [showError, setShowError] = useState<boolean>(false)
+  const [showError, setShowError] = useState<Boolean>(false)
   const [adminColorSchemes, setAdminColorSchemes] = useState<{ light: ColorScheme; dark: ColorScheme }>(DEFAULT_ADMIN_SETTINGS.colorSchemes)
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [isMetadataPanelOpen, setIsMetadataPanelOpen] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false)
 
   // Set up the error handler for the API client
   useEffect(() => {
@@ -165,6 +166,12 @@ export default function App() {
     }
   }, [settings.theme, isLoaded, adminColorSchemes])
 
+  // Automatically collapse panels on small screens and expand on large screens
+  useEffect(() => {
+    setIsSidebarCollapsed(isMobile)
+    setIsMetadataCollapsed(isMobile)
+  }, [isMobile])
+
   // Handle theme changes from admin dialog
   const handleThemeChange = (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => {
     setAdminColorSchemes(colorSchemes)
@@ -206,17 +213,20 @@ export default function App() {
       </Box>
     )
   }
-
-  const handleCloseError = () => {
-    setShowError(false)
-  }
-
-  const handlePageSelect = (page: WikiPage) => {
-    if (!page.isFolder) {
-      setSelectedPage(page)
-      setIsEditing(false)
+  
+    const handleCloseError = () => {
+      setShowError(false)
     }
-  }
+  
+    const handlePageSelect = (page: WikiPage) => {
+      if (!page.isFolder) {
+        setSelectedPage(page)
+        setIsEditing(false)
+        if (isMobile) {
+          setIsSidebarOpen(false)
+        }
+      }
+    }
 
   const handleEdit = () => {
     setIsEditing(true)
@@ -313,10 +323,39 @@ export default function App() {
     const handleMouseUp = () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
     }
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
+
+  const handleMetadataResize = (e: React.MouseEvent) => {
+    const startX = e.clientX
+    const startWidth = settings.metadataWidth || 280
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = startWidth - (e.clientX - startX) // Subtract because we're resizing from the left edge
+      const minWidth = 200
+      const maxWidth = 400
+      const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
+      updateSetting('metadataWidth', clampedWidth)
+    }
+
+    const handleMouseUp = () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
   }
 
   const currentYear = new Date().getFullYear()
@@ -329,6 +368,7 @@ export default function App() {
         autoHideDuration={6000}
         onClose={handleCloseError}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        role="alert"
       >
         <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
           {errorMessage}
@@ -336,17 +376,30 @@ export default function App() {
       </Snackbar>
 
       {/* Top Banner/AppBar */}
-      <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)', zIndex: 1300 }}>
+      <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)', color: 'var(--freeki-app-bar-text-color)', zIndex: 1300 }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           {/* Left side - Logo and Title */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            {isMobile && (
+              <IconButton
+                color="inherit"
+                edge="start"
+                onClick={() => setIsSidebarOpen(true)}
+                sx={{ mr: 1 }}
+                aria-label="Open navigation menu"
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
             <Avatar
               src="/logo.png"
+              alt={`${settings.companyName} logo`}
               sx={{ mr: 2, width: 32, height: 32, backgroundColor: 'white' }}
+              aria-label={settings.companyName}
             >
               {settings.companyName.charAt(0)}
             </Avatar>
-            <Typography variant="h6" sx={{ mr: 4 }}>
+            <Typography variant="h6" sx={{ mr: 4 }} variantMapping={{ h6: 'div' }}>
               {settings.wikiTitle}
             </Typography>
           </Box>
@@ -384,6 +437,7 @@ export default function App() {
                   color: 'rgba(255,255,255,0.7)',
                 },
               }}
+              aria-label="Search pages"
             />
           </Box>
 
@@ -399,6 +453,7 @@ export default function App() {
                       startIcon={<Save />}
                       onClick={() => handleSave(selectedPage.content)}
                       sx={{ color: 'white' }}
+                      aria-label="Save changes"
                     >
                       Save
                     </Button>
@@ -407,6 +462,7 @@ export default function App() {
                       startIcon={<Cancel />}
                       onClick={handleCancel}
                       sx={{ color: 'white', borderColor: 'white' }}
+                      aria-label="Cancel editing"
                     >
                       Cancel
                     </Button>
@@ -417,6 +473,7 @@ export default function App() {
                     color="secondary"
                     startIcon={<Edit />}
                     onClick={handleEdit}
+                    aria-label="Edit page"
                   >
                     Edit
                   </Button>
@@ -424,16 +481,16 @@ export default function App() {
               </>
             )}
 
-            <IconButton color="inherit" onClick={handleNewPage} title="New Page">
+            <IconButton color="inherit" onClick={handleNewPage} title="New Page" aria-label="Create new page">
               <Add />
             </IconButton>
 
-            <IconButton color="inherit" onClick={handleHistory} title="History">
+            <IconButton color="inherit" onClick={handleHistory} title="History" aria-label="View page history">
               <History />
             </IconButton>
 
             {!selectedPage.isFolder && (
-              <IconButton color="inherit" onClick={handleDelete} title="Delete">
+              <IconButton color="inherit" onClick={handleDelete} title="Delete" aria-label="Delete page">
                 <Delete />
               </IconButton>
             )}
@@ -442,7 +499,7 @@ export default function App() {
 
             {/* Only show admin settings gear if user is admin */}
             {userInfo?.isAdmin && (
-              <IconButton color="inherit" onClick={handleSettingsClick} title="Administration">
+              <IconButton color="inherit" onClick={handleSettingsClick} title="Administration" aria-label="Open administration settings">
                 <Settings />
               </IconButton>
             )}
@@ -452,15 +509,18 @@ export default function App() {
               onClick={handleAccount}
               title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Account"}
               sx={{ p: 0.5 }}
+              aria-label="Account"
             >
               {userInfo?.gravatarUrl ? (
                 <Avatar
                   src={userInfo.gravatarUrl}
+                  alt={userInfo.fullName}
                   sx={{
                     width: 32,
                     height: 32,
                     border: '2px solid rgba(255,255,255,0.3)'
                   }}
+                  aria-label={userInfo.fullName}
                 >
                   {userInfo.fullName.charAt(0)}
                 </Avatar>
@@ -474,6 +534,7 @@ export default function App() {
               color="inherit"
               onClick={handleThemeToggle}
               title={getThemeTooltip()}
+              aria-label={getThemeTooltip()}
             >
               {getThemeIcon()}
             </IconButton>
@@ -481,49 +542,94 @@ export default function App() {
         </Toolbar>
       </AppBar>
 
-      {/* Main Content Area */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* Main Content Area with z-index layered approach */}
+      <div className="main-layout" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left Sidebar */}
-        <Box
-          sx={{
-            width: settings.sidebarWidth,
-            borderRight: '1px solid var(--freeki-border-color)',
-            height: '100%',
-            flexShrink: 0,
+        {isMobile ? (
+          <Drawer
+            anchor="left"
+            open={isSidebarOpen && !isSidebarCollapsed}
+            onClose={() => setIsSidebarOpen(false)}
+            sx={{
+              '& .MuiDrawer-paper': {
+                width: Math.min(300, window.innerWidth * 0.8),
+                backgroundColor: 'var(--freeki-sidebar-background)'
+              }
+            }}
+            role="navigation"
+            aria-label="Sidebar navigation"
+          >
+            <FadePanelContent visible={!isSidebarCollapsed}>
+              <FolderTree
+                pages={pages}
+                selectedPage={selectedPage}
+                onPageSelect={handlePageSelect}
+              />
+            </FadePanelContent>
+          </Drawer>
+        ) : (
+          <div 
+            className={`sidebar-panel${isSidebarCollapsed ? ' collapsed' : ''}`}
+            style={{ '--sidebar-width': `${settings.sidebarWidth}px` } as React.CSSProperties}
+          >
+            <FadePanelContent visible={!isSidebarCollapsed}>
+              <FolderTree
+                pages={pages}
+                selectedPage={selectedPage}
+                onPageSelect={handlePageSelect}
+              />
+              {!isSidebarCollapsed && (
+                <Box
+                  onMouseDown={handleSidebarResize}
+                  tabIndex={0}
+                  aria-label="Sidebar width resizer"
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    width: 4,
+                    height: '100%',
+                    backgroundColor: 'transparent',
+                    cursor: 'col-resize',
+                    '&:hover': {
+                      backgroundColor: 'primary.main',
+                    },
+                    zIndex: 1
+                  }}
+                />
+              )}
+            </FadePanelContent>
+            
+            {/* Chevron button */}
+            <div className={`chevron-button ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}>
+              <IconButton
+                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                size="small"
+                title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
+              >
+                {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+              </IconButton>
+            </div>
+          </div>
+        )}
+
+        {/* Center Content Area - expands when panels are collapsed */}
+        <div 
+          className="center-content"
+          style={{ 
+            flex: 1,
+            display: 'flex', 
+            flexDirection: 'column', 
+            overflow: 'hidden', 
             position: 'relative',
-            backgroundColor: 'var(--freeki-sidebar-background)'
+            marginLeft: isSidebarCollapsed ? `-${settings.sidebarWidth}px` : '0',
+            marginRight: isMetadataCollapsed ? `-${settings.metadataWidth || 280}px` : '0',
+            transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          <FolderTree
-            pages={pages}
-            selectedPage={selectedPage}
-            onPageSelect={handlePageSelect}
-          />
-
-          {/* Resize Handle */}
-          <Box
-            onMouseDown={handleSidebarResize}
-            sx={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              width: 4,
-              height: '100%',
-              backgroundColor: 'transparent',
-              cursor: 'col-resize',
-              '&:hover': {
-                backgroundColor: 'primary.main',
-              },
-              zIndex: 1
-            }}
-          />
-        </Box>
-
-        {/* Center Content */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }} role="main">
             {/* Main Content */}
-            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+            <Box sx={{ flex: 1, overflow: 'auto' }} role="main">
               {isEditing ? (
                 <PageEditor
                   page={selectedPage}
@@ -537,35 +643,149 @@ export default function App() {
                 />
               )}
             </Box>
-
-            {/* Right Metadata Panel */}
-            {!selectedPage.isFolder && settings.showMetadataPanel && (
-              <Box
-                sx={{
-                  width: 280,
-                  borderLeft: '1px solid var(--freeki-border-color)',
-                  backgroundColor: 'var(--freeki-metadata-panel-background)',
-                  overflow: 'auto'
-                }}
-              >
-                <PageMetadata page={selectedPage} />
-              </Box>
-            )}
           </Box>
-        </Box>
-      </Box>
+        </div>
+
+        {/* Right Metadata Panel */}
+        {!selectedPage.isFolder && settings.showMetadataPanel && (
+          isMobile ? (
+            <Drawer
+              anchor="right"
+              open={isMetadataPanelOpen && !isMetadataCollapsed}
+              onClose={() => setIsMetadataPanelOpen(false)}
+              sx={{
+                '& .MuiDrawer-paper': {
+                  width: Math.min(280, window.innerWidth * 0.8),
+                  borderLeft: '1px solid var(--freeki-border-color)',
+                  backgroundColor: 'var(--freeki-metadata-panel-background)'
+                }
+              }}
+              role="complementary"
+              aria-label="Page metadata"
+            >
+              <FadePanelContent visible={!isMetadataCollapsed}>
+                <PageMetadata page={selectedPage} />
+              </FadePanelContent>
+            </Drawer>
+          ) : (
+            <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}`} 
+              style={{ '--metadata-width': `${settings.metadataWidth}px` } as React.CSSProperties}
+            >
+              <FadePanelContent visible={!isMetadataCollapsed}>
+                <PageMetadata page={selectedPage} />
+              </FadePanelContent>
+              
+              {/* Add metadata splitter */}
+              {!isMetadataCollapsed && (
+                <Box
+                  onMouseDown={handleMetadataResize}
+                  tabIndex={0}
+                  aria-label="Metadata panel width resizer"
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: 4,
+                    height: '100%',
+                    backgroundColor: 'transparent',
+                    cursor: 'col-resize',
+                    '&:hover': {
+                      backgroundColor: 'primary.main',
+                    },
+                    zIndex: 1
+                  }}
+                />
+              )}
+              
+              {/* Chevron button */}
+              <div className={`chevron-button ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}>
+                <IconButton
+                  onClick={() => setIsMetadataCollapsed(!isMetadataCollapsed)}
+                  size="small"
+                  title={isMetadataCollapsed ? "Show Details" : "Hide Details"}
+                >
+                  {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+                </IconButton>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* Fixed position chevron buttons for when panels are collapsed */}
+        {isSidebarCollapsed && !isMobile && (
+          <div 
+            style={{
+              position: 'fixed',
+              left: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 1305,
+              backgroundColor: 'white',
+              border: '1px solid #e0e0e0',
+              borderRadius: '50%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '32px',
+              height: '32px',
+              opacity: 0.7
+            }}
+          >
+            <IconButton
+              onClick={() => setIsSidebarCollapsed(false)}
+              size="small"
+              title="Show Sidebar"
+            >
+              <ChevronRight />
+            </IconButton>
+          </div>
+        )}
+
+        {isMetadataCollapsed && !isMobile && !selectedPage.isFolder && settings.showMetadataPanel && (
+          <div 
+            style={{
+              position: 'fixed',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 1305,
+              backgroundColor: 'white',
+              border: '1px solid #e0e0e0',
+              borderRadius: '50%',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '32px',
+              height: '32px',
+              opacity: 0.7
+            }}
+          >
+            <IconButton
+              onClick={() => setIsMetadataCollapsed(false)}
+              size="small"
+              title="Show Details"
+            >
+              <ChevronLeft />
+            </IconButton>
+          </div>
+        )}
+      </div>
 
       {/* Footer */}
       <Box
         sx={{
           borderTop: '1px solid var(--freeki-border-color)',
-          backgroundColor: 'var(--freeki-sidebar-background)',
+          backgroundColor: 'var(--freeki-footer-background)',
           py: 1,
           px: 2,
           textAlign: 'center'
         }}
+        component="footer"
+        role="contentinfo"
       >
-        <Typography variant="caption" sx={{ color: 'var(--freeki-text-secondary)' }}>
+        <Typography variant="caption" sx={{ color: 'var(--freeki-footer-text-color)' }}>
           Copyright (c) {currentYear} {settings.companyName} powered by FreeKi
         </Typography>
       </Box>

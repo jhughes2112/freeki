@@ -12,6 +12,7 @@ export interface AdminSettings {
 
 export interface ColorScheme {
   appBarBackground: string
+  appBarTextColor: string
   sidebarBackground: string
   sidebarSelectedBackground: string
   sidebarHoverBackground: string
@@ -21,10 +22,13 @@ export interface ColorScheme {
   textPrimary: string
   textSecondary: string
   borderColor: string
+  footerBackground: string
+  footerTextColor: string
 }
 
 const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   appBarBackground: '#1976d2',
+  appBarTextColor: '#ffffff',
   sidebarBackground: '#fafafa',
   sidebarSelectedBackground: 'rgba(25, 118, 210, 0.12)',
   sidebarHoverBackground: 'rgba(0, 0, 0, 0.04)',
@@ -33,11 +37,14 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   editModeBackground: '#ffffff',
   textPrimary: '#000000',
   textSecondary: '#666666',
-  borderColor: '#e0e0e0'
+  borderColor: '#e0e0e0',
+  footerBackground: '#fafafa',
+  footerTextColor: '#666666'
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
   appBarBackground: '#1565c0',
+  appBarTextColor: '#ffffff',
   sidebarBackground: '#2b2b2b',
   sidebarSelectedBackground: 'rgba(144, 202, 249, 0.16)',
   sidebarHoverBackground: 'rgba(255, 255, 255, 0.08)',
@@ -46,7 +53,9 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   editModeBackground: '#1e1e1e',
   textPrimary: '#ffffff',
   textSecondary: '#b3b3b3',
-  borderColor: '#404040'
+  borderColor: '#404040',
+  footerBackground: '#2b2b2b',
+  footerTextColor: '#b3b3b3'
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
@@ -70,6 +79,12 @@ async function fetchAdminSettings(): Promise<AdminSettings | null> {
   if (response.error && (response.error.status === 401 || response.error.status === 403)) {
     console.info('Admin settings not available - insufficient permissions')
     return null
+  }
+  
+  // If error is 404, no settings file exists yet - use defaults without error
+  if (response.error && response.error.status === 404) {
+    console.info('No admin settings file found - using defaults')
+    return DEFAULT_ADMIN_SETTINGS
   }
   
   // For other errors, return defaults (error UI already shown by apiClient)

@@ -3,13 +3,12 @@
     <StartupCommand>npm run dev</StartupCommand>
     <JavaScriptTestRoot>src\</JavaScriptTestRoot>
     <JavaScriptTestFramework>Vitest</JavaScriptTestFramework>
+  </PropertyGroup>
 
+  <!-- These only apply when building (e.g., Build menu or Ctrl+Shift+B), not when debugging (F5) -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <ShouldRunBuildScript>true</ShouldRunBuildScript>
-
-    <!-- Proper path: current dir + ../freeki-client build output -->
     <BuildCommand>npm --prefix ../freeki-client run build</BuildCommand>
-
-    <!-- Output folder: relative to project, slash is required -->
     <BuildOutputFolder>$(MSBuildProjectDirectory)/static-root</BuildOutputFolder>
   </PropertyGroup>
 </Project>

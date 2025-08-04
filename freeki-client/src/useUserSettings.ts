@@ -12,6 +12,7 @@ export interface UserInfo {
 
 export interface UserSettings {
   sidebarWidth: number
+  metadataWidth: number  // Add this line
   theme: 'light' | 'dark' | 'auto'
   companyName: string
   wikiTitle: string
@@ -26,6 +27,7 @@ export interface UserSettings {
 
 const DEFAULT_SETTINGS: UserSettings = {
   sidebarWidth: 300,
+  metadataWidth: 280,  // Add this line
   theme: 'light',
   companyName: 'Your Company',
   wikiTitle: 'FreeKi Wiki',
