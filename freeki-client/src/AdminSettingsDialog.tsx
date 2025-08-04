@@ -29,6 +29,7 @@ interface AdminSettingsDialogProps {
   open: boolean
   onClose: () => void
   onThemeChange?: (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => void
+  initialSettings?: { light: ColorScheme; dark: ColorScheme }
 }
 
 interface ColorInputProps {
@@ -76,19 +77,40 @@ function ColorInput({ label, value, onChange }: ColorInputProps) {
 }
 
 // Admin settings component that only shows for admin users
-function AdminSettingsDialog({ open, onClose, onThemeChange }: AdminSettingsDialogProps) {
-  const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS)
+function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: AdminSettingsDialogProps) {
+  const [settings, setSettings] = useState<AdminSettings>(() => {
+    // Use initialSettings if available to construct the full admin settings
+    if (initialSettings) {
+      return {
+        ...DEFAULT_ADMIN_SETTINGS,
+        colorSchemes: initialSettings
+      }
+    }
+    return DEFAULT_ADMIN_SETTINGS
+  })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(!!initialSettings)
 
-  // Load settings when dialog opens
+  // Initialize settings with initialSettings when available
   useEffect(() => {
-    if (open) {
+    if (initialSettings && !hasLoadedSettings) {
+      setSettings(prevSettings => ({
+        ...prevSettings,
+        colorSchemes: initialSettings
+      }))
+      setHasLoadedSettings(true)
+    }
+  }, [initialSettings, hasLoadedSettings])
+
+  // Load settings when dialog opens - but only if not already loaded
+  useEffect(() => {
+    if (open && !hasLoadedSettings) {
       loadSettings()
     }
-  }, [open])
+  }, [open, hasLoadedSettings])
 
   // Apply theme changes in real-time
   useEffect(() => {
@@ -104,6 +126,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange }: AdminSettingsDial
       const loadedSettings = await fetchAdminSettings()
       if (loadedSettings) {
         setSettings(loadedSettings)
+        setHasLoadedSettings(true)
       } else {
         setError('Unable to load admin settings - insufficient permissions')
       }

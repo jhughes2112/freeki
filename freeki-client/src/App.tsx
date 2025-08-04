@@ -22,7 +22,10 @@ import {
   History,
   Delete,
   Settings,
-  AccountCircle
+  AccountCircle,
+  LightMode,
+  DarkMode,
+  Monitor
 } from '@mui/icons-material'
 import FolderTree from './FolderTree'
 import PageViewer from './PageViewer'
@@ -125,7 +128,7 @@ export default function App() {
     })
   }, [])
 
-  // Load admin color schemes on app start
+  // Load admin color schemes ONLY on app start (once)
   useEffect(() => {
     async function loadColorSchemes() {
       try {
@@ -138,7 +141,7 @@ export default function App() {
       }
     }
     loadColorSchemes()
-  }, [])
+  }, []) // Empty dependency array - only run once on mount
 
   // Apply theme whenever settings or admin color schemes change
   useEffect(() => {
@@ -147,9 +150,52 @@ export default function App() {
     }
   }, [adminColorSchemes, settings.theme, isLoaded])
 
+  // Listen for OS theme changes when in auto mode
+  useEffect(() => {
+    if (settings.theme === 'auto') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+      const handleChange = () => {
+        if (isLoaded) {
+          applyTheme(adminColorSchemes, settings.theme)
+        }
+      }
+      
+      mediaQuery.addEventListener('change', handleChange)
+      return () => mediaQuery.removeEventListener('change', handleChange)
+    }
+  }, [settings.theme, isLoaded, adminColorSchemes])
+
   // Handle theme changes from admin dialog
   const handleThemeChange = (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => {
     setAdminColorSchemes(colorSchemes)
+  }
+
+  // Handle theme toggle button click
+  const handleThemeToggle = () => {
+    const nextTheme = settings.theme === 'light' ? 'dark' : settings.theme === 'dark' ? 'auto' : 'light'
+    updateSetting('theme', nextTheme)
+  }
+
+  // Get current theme icon based on theme setting
+  const getThemeIcon = () => {
+    if (settings.theme === 'light') {
+      return <LightMode />
+    } else if (settings.theme === 'dark') {
+      return <DarkMode />
+    } else {
+      return <Monitor />
+    }
+  }
+
+  // Get theme tooltip text
+  const getThemeTooltip = () => {
+    if (settings.theme === 'light') {
+      return 'Switch to Dark Mode'
+    } else if (settings.theme === 'dark') {
+      return 'Switch to Auto Mode'
+    } else {
+      return 'Switch to Light Mode'
+    }
   }
 
   // Wait for settings to load before rendering
@@ -422,6 +468,15 @@ export default function App() {
                 <AccountCircle />
               )}
             </IconButton>
+
+            {/* Theme Toggle Button */}
+            <IconButton
+              color="inherit"
+              onClick={handleThemeToggle}
+              title={getThemeTooltip()}
+            >
+              {getThemeIcon()}
+            </IconButton>
           </Box>
         </Toolbar>
       </AppBar>
@@ -520,6 +575,7 @@ export default function App() {
         open={showAdminSettings}
         onClose={() => setShowAdminSettings(false)}
         onThemeChange={handleThemeChange}
+        initialSettings={adminColorSchemes}
       />
     </Box>
   )

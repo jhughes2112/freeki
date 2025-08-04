@@ -2,7 +2,7 @@
   "profiles": {
     "FreeKi Server": {
       "commandName": "Project",
-      "commandLineArgs": "--log_config console,3\r\n--conn_bindurl http://+:22222/ \r\n--advertise_urls http://localhost:22222/\r\n--auth_config always \r\n--storage_config data\r\n--static_root ../freeki-client/static-root\r\n--gitremote_config ../../freeki-data,,,main",
+      "commandLineArgs": "--log_config console,3\r\n--conn_bindurl http://+:22222/ \r\n--advertise_urls http://localhost:22222/\r\n--auth_config always \r\n--storage_config ../data\r\n--static_root ../freeki-client/static-root\r\n--gitremote_config ../../freeki-data,,,main",
       "workingDirectory": "D:\\Github\\freeki\\freeki-server",
       "hotReloadEnabled": false,
       "buildConfiguration": "Debug"

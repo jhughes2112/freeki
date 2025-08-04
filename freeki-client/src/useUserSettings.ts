@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import apiClient from './apiClient'
 
 export interface UserInfo {
@@ -81,7 +81,8 @@ export function useUserSettings() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   
-  const deviceKey = getDeviceKey()
+  // Memoize deviceKey to prevent recalculation on every render
+  const deviceKey = useMemo(() => getDeviceKey(), [])
   
   useEffect(() => {
     async function loadData() {

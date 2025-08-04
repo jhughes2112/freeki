@@ -158,27 +158,29 @@ namespace Storage
 
 				for (int i = 0; i < 10;) // retry on I/O exceptions
 				{
-					string tempFilename = Path.GetTempFileName();
+					// Temp files are not guaranteed to be on the same volume, so we make it in the same folder, even though it's pretty gross that a file might somehow escape and dangle here forever.
+					string tempFilename = Path.Combine(subfolder ??  string.Empty, Path.GetRandomFileName());
 					try
 					{
-						// Write to temp file first
 						await File.WriteAllBytesAsync(tempFilename, data).ConfigureAwait(false);
 
-						// Atomically move temp file to final location
-						File.Move(tempFilename, filename);
+						// Attempt atomic replace
+						File.Replace(tempFilename, filename, null); // null for no backup
 						return true;
 					}
 					catch (IOException ioe)
 					{
 						_logger.Log(EVerbosity.Warning, $"StorageFiles.Write {key} i/o exception {ioe}");
-						i++;
 					}
 					catch (Exception e)
 					{
 						_logger.Log(EVerbosity.Error, $"StorageFiles.Write {key} exception {e}");
-						return false;
 					}
-					File.Delete(tempFilename);
+					finally
+					{
+						try { if (File.Exists(tempFilename)) File.Delete(tempFilename); }
+						catch { /* swallow cleanup failures */ }
+					}
 				}
 				_logger.Log(EVerbosity.Error, $"StorageFiles.Write {key} aborted after 10 exceptions");
 			}
