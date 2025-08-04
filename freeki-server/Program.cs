@@ -15,6 +15,7 @@ using Authentication;
 using System.Net;
 using System.IO;
 using Users;
+using Admin;
 
 namespace FreeKi
 {
@@ -59,11 +60,13 @@ namespace FreeKi
 			IAuthentication? authentication = null;
 			StorageFiles? pageStorage = null;
 			StorageFiles? mediaStorage = null;
+			StorageFiles? adminStorage = null;
 			GitManager? gitManager = null;
 			PageManager? pageManager = null;
 			PagesApiHandler? pagesApiHandler = null;
 			MediaApiHandler? mediaApiHandler = null;
 			UserApiHandler? userApiHandler = null;
+			AdminSettingsApiHandler? adminSettingsApiHandler = null;
 			FreeKiServer? server = null;
 			ReachableGames.RGWebSocket.WebServer? webServer = null;
 			
@@ -72,9 +75,10 @@ namespace FreeKi
 				logger = CommandLineHelpersServer.CreateLogger("FreeKi", o.log_config!);
 				dataCollection = CommandLineHelpersServer.CreateDataCollection("prometheus", new Dictionary<string, string>() { { "process", "FreeKi" } }, logger);
 				authentication = await CommandLineHelpersServer.CreateAuthentication(o.auth_config!, logger).ConfigureAwait(false);
+				gitManager = CommandLineHelpersServer.CreateGitManager(o.storage_config!, o.git_config!, logger);  // this clones a remote repo before returning, so it must come before StorageFiles is created, otherwise the clone fails
 				pageStorage = new StorageFiles(Path.Combine(o.storage_config!, "pages"), logger);  // pages and media are stored in different folder roots
 				mediaStorage = new StorageFiles(Path.Combine(o.storage_config!, "media"), logger);  // separate storage for media files
-				gitManager = CommandLineHelpersServer.CreateGitManager(o.storage_config!, o.git_config!, logger);  // root of git is at the actual root
+				adminStorage = new StorageFiles(o.storage_config!, logger);  // admin storage at root for freeki.config
 				List<string> advertiseUrls = GetAdvertiseUrls(o.advertise_urls!);
 
 				// Create PageManager and PagesApiHandler
@@ -86,6 +90,9 @@ namespace FreeKi
 
 				// Create UserApiHandler
 				userApiHandler = new UserApiHandler(authentication, logger);
+
+				// Create AdminSettingsApiHandler
+				adminSettingsApiHandler = new AdminSettingsApiHandler(adminStorage, authentication, logger);
 
 				// The reason this takes in a CancellationTokenSource is Docker/someone may hit ^C and want to shutdown the server.
 				// The reason we explicitly call Shutdown is the server itself may exit for other reasons, and we need to make sure it shuts down in either case.
@@ -99,6 +106,7 @@ namespace FreeKi
 				webServer.RegisterExactEndpoint("/metrics", async (HttpListenerContext context) => { return (200, "text/plain", await dataCollection.Generate()); });
 				webServer.RegisterExactEndpoint("/health", (HttpListenerContext) => { return Task.FromResult((200, "text/plain", new byte[0])); } );
 				webServer.RegisterExactEndpoint("/api/user/me", userApiHandler.GetCurrentUser);
+				webServer.RegisterExactEndpoint("/api/admin/settings", adminSettingsApiHandler.HandleAdminSettings);
 
 				webServer.RegisterPrefixEndpoint("/api/pages", pagesApiHandler.GetPages);
 				webServer.RegisterPrefixEndpoint("/api/media", mediaApiHandler.GetMedia);
@@ -124,6 +132,7 @@ namespace FreeKi
 				webServer?.UnregisterExactEndpoint("/metrics");
 				webServer?.UnregisterExactEndpoint("/health");
 				webServer?.UnregisterExactEndpoint("/api/user/me");
+				webServer?.UnregisterExactEndpoint("/api/admin/settings");
 
 				if (server != null)
 				{
@@ -141,6 +150,8 @@ namespace FreeKi
 				// Dispose of resources that implement IDisposable
 				// Note: PageManager (in FreeKiServer) should NOT dispose of storage since it didn't create it
 				pageStorage?.Dispose();
+				mediaStorage?.Dispose();
+				adminStorage?.Dispose();
 				dataCollection?.Dispose();
 				gitManager?.Dispose();
 				logger?.Dispose();

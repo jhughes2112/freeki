@@ -8,6 +8,13 @@ using Logging;
 
 namespace Users
 {
+    //-------------------
+    /*
+    | Method | URL             | Purpose                     |
+    | ------ | --------------- | --------------------------- |
+    | GET    | `/api/user/me`  | Get current user info       |
+    */
+    // Handles all /api/user endpoints
     public class UserApiHandler
     {
         private IAuthentication _authentication;

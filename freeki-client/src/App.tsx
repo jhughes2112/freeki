@@ -9,7 +9,9 @@ import {
   IconButton,
   Avatar,
   Divider,
-  InputAdornment
+  InputAdornment,
+  Snackbar,
+  Alert
 } from '@mui/material'
 import {
   Search,
@@ -26,6 +28,7 @@ import FolderTree from './FolderTree'
 import PageViewer from './PageViewer'
 import PageEditor from './PageEditor'
 import PageMetadata from './PageMetadata'
+import AdminSettingsDialog from './AdminSettingsDialog'
 import { useUserSettings } from './useUserSettings'
 
 export interface WikiPage {
@@ -40,6 +43,113 @@ export interface WikiPage {
   author?: string
   version?: number
 }
+
+export interface ApiError {
+  message: string
+  status: number
+  statusText: string
+  isNetworkError: boolean
+}
+
+export interface ApiResponse<T> {
+  success: boolean
+  data?: T
+  error?: ApiError
+}
+
+// Central API client class for all server communication
+class ApiClient {
+  private showError: (message: string) => void = () => {}
+
+  setErrorHandler(handler: (message: string) => void): void {
+    this.showError = handler
+  }
+
+  private async makeRequest<T>(
+    url: string, 
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const response = await fetch(url, options)
+      
+      if (response.ok) {
+        let data: T
+        const contentType = response.headers.get('content-type')
+        
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json()
+        } else {
+          data = response as unknown as T
+        }
+        
+        return { success: true, data }
+      } else {
+        const error: ApiError = {
+          message: `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+          statusText: response.statusText,
+          isNetworkError: false
+        }
+        
+        // Only show error UI for non-permission errors
+        if (response.status !== 401 && response.status !== 403) {
+          this.showError(error.message)
+        }
+        
+        console.error('API Error:', error)
+        return { success: false, error }
+      }
+    } catch (err) {
+      const error: ApiError = {
+        message: err instanceof Error ? err.message : 'Unknown network error',
+        status: 0,
+        statusText: 'Network Error',
+        isNetworkError: true
+      }
+      
+      this.showError('Network error - please check your connection')
+      console.error('API Error:', error)
+      return { success: false, error }
+    }
+  }
+
+  async get<T>(url: string): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>(url, { method: 'GET' })
+  }
+
+  async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const options: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }
+    
+    if (data !== undefined) {
+      options.body = JSON.stringify(data)
+    }
+    
+    return this.makeRequest<T>(url, options)
+  }
+
+  async put<T>(url: string, data?: any): Promise<ApiResponse<T>> {
+    const options: RequestInit = {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' }
+    }
+    
+    if (data !== undefined) {
+      options.body = JSON.stringify(data)
+    }
+    
+    return this.makeRequest<T>(url, options)
+  }
+
+  async delete<T>(url: string): Promise<ApiResponse<T>> {
+    return this.makeRequest<T>(url, { method: 'DELETE' })
+  }
+}
+
+// Global API client instance
+const apiClient = new ApiClient()
 
 // Example content structure
 const samplePages: WikiPage[] = [
@@ -86,6 +196,17 @@ export default function App() {
   const [isEditing, setIsEditing] = useState<boolean>(false)
   const [pages, setPages] = useState<WikiPage[]>(samplePages)
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [showAdminSettings, setShowAdminSettings] = useState<boolean>(false)
+  const [errorMessage, setErrorMessage] = useState<string>('')
+  const [showError, setShowError] = useState<boolean>(false)
+
+  // Set up the error handler for the API client
+  useEffect(() => {
+    apiClient.setErrorHandler((message: string) => {
+      setErrorMessage(message)
+      setShowError(true)
+    })
+  }, [])
 
   // Wait for settings to load before rendering
   if (!isLoaded) {
@@ -94,6 +215,10 @@ export default function App() {
         <Typography>Loading...</Typography>
       </Box>
     )
+  }
+
+  const handleCloseError = () => {
+    setShowError(false)
   }
 
   const handlePageSelect = (page: WikiPage) => {
@@ -107,7 +232,13 @@ export default function App() {
     setIsEditing(true)
   }
 
-  const handleSave = (content: string) => {
+  const handleSave = async (content: string) => {
+    // This would use the API client for real save operations
+    // const response = await apiClient.put(`/api/pages/${selectedPage.id}`, { content })
+    // if (response.success) {
+    //   // Update local state
+    // }
+    
     const updatedPage = { 
       ...selectedPage, 
       content,
@@ -137,7 +268,12 @@ export default function App() {
     setIsEditing(false)
   }
 
-  const handleNewPage = () => {
+  const handleNewPage = async () => {
+    // Example API call using the centralized client
+    // const response = await apiClient.post('/api/pages', { title: 'New Page', content: '' })
+    // if (response.success) {
+    //   // Handle successful creation
+    // }
     console.log('New page')
   }
 
@@ -145,12 +281,16 @@ export default function App() {
     console.log('History')
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
+    // const response = await apiClient.delete(`/api/pages/${selectedPage.id}`)
+    // if (response.success) {
+    //   // Handle successful deletion
+    // }
     console.log('Delete page')
   }
 
   const handleSettingsClick = () => {
-    console.log('Settings')
+    setShowAdminSettings(true)
   }
 
   const handleAccount = () => {
@@ -182,6 +322,18 @@ export default function App() {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Error Snackbar */}
+      <Snackbar 
+        open={showError} 
+        autoHideDuration={6000} 
+        onClose={handleCloseError}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
+          {errorMessage}
+        </Alert>
+      </Snackbar>
+
       {/* Top Banner/AppBar */}
       <AppBar position="static" sx={{ backgroundColor: '#1976d2', zIndex: 1300 }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
@@ -287,9 +439,12 @@ export default function App() {
             
             <Divider orientation="vertical" flexItem sx={{ backgroundColor: 'rgba(255,255,255,0.3)', mx: 1 }} />
             
-            <IconButton color="inherit" onClick={handleSettingsClick} title="Administration">
-              <Settings />
-            </IconButton>
+            {/* Only show admin settings gear if user is admin */}
+            {userInfo?.isAdmin && (
+              <IconButton color="inherit" onClick={handleSettingsClick} title="Administration">
+                <Settings />
+              </IconButton>
+            )}
             
             <IconButton 
               color="inherit" 
@@ -404,6 +559,15 @@ export default function App() {
           Copyright (c) {currentYear} {settings.companyName} powered by FreeKi
         </Typography>
       </Box>
+
+      {/* Admin Settings Dialog */}
+      <AdminSettingsDialog
+        open={showAdminSettings}
+        onClose={() => setShowAdminSettings(false)}
+      />
     </Box>
   )
 }
+
+// Export the API client for use in other components
+export { apiClient }
