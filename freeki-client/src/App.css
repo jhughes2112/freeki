@@ -90,31 +90,45 @@
   pointer-events: none;
 }
 
-/* Chevron buttons attached to center content edges */
+/* Chevron buttons - base styling without colors */
 .chevron-button {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background-color: rgba(255, 255, 255, 0.95);
-  border: 1px solid #ccc;
-  border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  border: none;
+  border-radius: 20%;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 32px;
   height: 32px;
-  opacity: 0.8;
+  opacity: 0.9;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   cursor: pointer;
-  color: #333; /* Dark color for chevron icon */
 }
 
 .chevron-button:hover {
   opacity: 1;
-  background-color: white;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Theme classes for chevron buttons */
+.chevron-sidebar-theme {
+  background-color: var(--freeki-sidebar-background);
+  color: var(--freeki-text-primary);
+}
+
+.chevron-sidebar-theme:hover {
+  background-color: var(--freeki-sidebar-hover-background);
+}
+
+.chevron-metadata-theme {
+  background-color: var(--freeki-metadata-panel-background);
+  color: var(--freeki-text-primary);
+}
+
+.chevron-metadata-theme:hover {
+  background-color: var(--freeki-sidebar-hover-background);
 }
 
 /* Wide screen chevron buttons - attached to center content */
@@ -124,15 +138,15 @@
 
 .chevron-button.chevron-wide-screen.sidebar-open,
 .chevron-button.chevron-wide-screen.sidebar-closed {
-  left: -8px;
+  left: -9px;
 }
 
 .chevron-button.chevron-wide-screen.metadata-open,
 .chevron-button.chevron-wide-screen.metadata-closed {
-  right: -8px;
+  right: -9px;
 }
 
-/* Narrow screen chevron buttons - absolutely positioned at main layout level */
+/* Narrow screen chevron buttons - attached to panels and slide with them */
 .chevron-button.chevron-narrow-screen {
   display: none; /* Hide on wide screens by default */
 }
@@ -141,7 +155,7 @@
 @media (max-width: 900px) {
   /* Position panels as overlays instead of flex items */
   .sidebar-panel {
-    width: 90vw;
+    width: 90vw; /* Use 90% of viewport width */
     min-width: 90vw;
     max-width: 90vw;
     position: absolute;  /* KEY CHANGE: Make it an overlay */
@@ -151,7 +165,7 @@
   }
   
   .metadata-panel {
-    width: 90vw;
+    width: 90vw; /* Use 90% of viewport width */
     min-width: 90vw;
     max-width: 90vw;
     position: absolute;  /* KEY CHANGE: Make it an overlay */
@@ -160,13 +174,13 @@
     z-index: 100;
   }
   
-  /* Transform rules for panel visibility */
-  .sidebar-panel:not(.narrow-opened) {
-    transform: translateX(-90vw);
+  /* Transform rules for panel visibility - only show 10px when collapsed */
+  .sidebar-panel.collapsed:not(.narrow-opened) {
+    transform: translateX(calc(-90vw + 10px)) !important; /* Hide most but leave 10px visible */
   }
   
-  .metadata-panel:not(.narrow-opened) {
-    transform: translateX(90vw);
+  .metadata-panel.collapsed:not(.narrow-opened) {
+    transform: translateX(calc(90vw - 10px)) !important; /* Hide most but leave 10px visible */
   }
   
   .sidebar-panel.narrow-opened {
@@ -185,7 +199,7 @@
     margin-right: 0 !important;
     width: 100% !important;
     flex: 1 !important;
-    z-index: 150 !important; /* Increase to be above panels */
+    z-index: 50 !important; /* Lower than panels so panel slivers show above */
   }
   
   /* Hide wide screen chevrons on narrow screens */
@@ -193,11 +207,24 @@
     display: none !important;
   }
   
-  /* Show narrow screen chevrons on narrow screens */
+  /* Show and position narrow screen chevrons on narrow screens */
   .chevron-button.chevron-narrow-screen {
     display: flex !important;
     opacity: 0.9 !important;
     z-index: 250 !important; /* Higher than panels */
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  
+  /* Sidebar chevron - positioned on the right edge of sidebar panel */
+  .chevron-button.chevron-narrow-screen.sidebar-chevron {
+    right: -16px; /* Stick out from the right edge of sidebar */
+  }
+  
+  /* Metadata chevron - positioned on the left edge of metadata panel */
+  .chevron-button.chevron-narrow-screen.metadata-chevron {
+    left: -16px; /* Stick out from the left edge of metadata panel */
   }
 }
 

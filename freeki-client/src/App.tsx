@@ -363,7 +363,9 @@ const handleSidebarToggle = () => {
     // Opening sidebar on narrow screen - close metadata panel
     setIsMetadataCollapsed(true)
   }
-  setIsSidebarCollapsed(!isSidebarCollapsed)
+  
+  const newSidebarState = !isSidebarCollapsed
+  setIsSidebarCollapsed(newSidebarState)
 }
 
 const handleMetadataToggle = () => {
@@ -371,10 +373,12 @@ const handleMetadataToggle = () => {
     // Opening metadata panel on narrow screen - close sidebar  
     setIsSidebarCollapsed(true)
   }
-  setIsMetadataCollapsed(!isMetadataCollapsed)
+  
+  const newMetadataState = !isMetadataCollapsed
+  setIsMetadataCollapsed(newMetadataState)
 }
 
-// Replace the resize handlers to use layout settings
+  // Replace the resize handlers to use layout settings
   const handleSidebarResize = (e: React.MouseEvent) => {
     const startX = e.clientX
     const startWidth = settings.wideScreenLayout.sidebarWidth // Use layout setting
@@ -610,8 +614,18 @@ const handleMetadataToggle = () => {
         {/* Left Sidebar - always use panel, never drawer */}
         <div 
           className={`sidebar-panel${isSidebarCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isSidebarCollapsed ? ' narrow-opened' : ''}`}
-          style={{ '--sidebar-width': `${isNarrowScreen ? 300 : settings.wideScreenLayout.sidebarWidth}px` } as React.CSSProperties}
+          style={{ '--sidebar-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.sidebarWidth + 'px'}` } as React.CSSProperties}
         >
+          {/* Narrow screen chevron button - attached to sidebar panel and slides with it */}
+          <button
+            className={`chevron-button chevron-narrow-screen chevron-sidebar-theme sidebar-chevron ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            onClick={handleSidebarToggle}
+            aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+            title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+          >
+            {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+          </button>
+
           <FadePanelContent visible={!isSidebarCollapsed}>
             <FolderTree
               pages={pages}
@@ -660,7 +674,7 @@ const handleMetadataToggle = () => {
         >
           {/* Wide screen chevron buttons - attached to center content */}
           <button
-            className={`chevron-button chevron-wide-screen ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            className={`chevron-button chevron-wide-screen chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
             onClick={handleSidebarToggle}
             aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
             title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
@@ -670,7 +684,7 @@ const handleMetadataToggle = () => {
           
           {!selectedPage.isFolder && settings.showMetadataPanel && (
             <button
-              className={`chevron-button chevron-wide-screen ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+              className={`chevron-button chevron-wide-screen chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
               onClick={handleMetadataToggle}
               aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
               title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
@@ -701,8 +715,18 @@ const handleMetadataToggle = () => {
         {/* Right Metadata Panel - always use panel, never drawer */}  
         {!selectedPage.isFolder && settings.showMetadataPanel && (
           <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isMetadataCollapsed ? ' narrow-opened' : ''}`} 
-            style={{ '--metadata-width': `${isNarrowScreen ? 280 : settings.wideScreenLayout.metadataWidth}px` } as React.CSSProperties}
+            style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
           >
+            {/* Narrow screen chevron button - attached to metadata panel and slides with it */}
+            <button
+              className={`chevron-button chevron-narrow-screen chevron-metadata-theme metadata-chevron ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+              onClick={handleMetadataToggle}
+              aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+              title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+            >
+              {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+            </button>
+
             <FadePanelContent visible={!isMetadataCollapsed}>
               <PageMetadata page={selectedPage} />
             </FadePanelContent>
@@ -731,40 +755,6 @@ const handleMetadataToggle = () => {
           </div>
         )}
 
-        {/* Narrow screen chevron buttons positioned at main layout level to be above everything */}
-        <button
-          className={`chevron-button chevron-narrow-screen ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
-          onClick={handleSidebarToggle}
-          aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-          title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-          style={{
-            position: 'absolute',
-            left: '8px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            zIndex: 1000
-          }}
-        >
-          {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
-        </button>
-        
-        {!selectedPage.isFolder && settings.showMetadataPanel && (
-          <button
-            className={`chevron-button chevron-narrow-screen ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
-            onClick={handleMetadataToggle}
-            aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
-            title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
-            style={{
-              position: 'absolute',
-              right: '8px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              zIndex: 1000
-            }}
-          >
-            {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
-          </button>
-        )}
       </div>
 
       {/* Footer */}
