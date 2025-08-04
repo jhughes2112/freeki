@@ -1,13 +1,11 @@
 # COPILOT EDITS OPERATIONAL GUIDELINES
 
 ## TOOL USE
-* If `edit_file` appears to fail, try it again multiple times. It often succeeds even when `get_file` doesn’t show the changes yet.
-* Similarly, if `get_file` appears to fail, retry several times.
-* If `edit_file` reports "no change", that is not necessarily an error—it may mean the intended changes were already present. Always review the file contents to determine if the edit succeeded or not.
-* If any tool fails, output **exactly how you called it**, including parameters and filenames, so I can debug or guide you.
-* If tools consistently fail, just stop and give me a summary of what you want to do, and I'll prompt you with that in a fresh session.
+* If `edit_file` appears to fail, use `get_file` to verify if the change has happened or not, sometimes the change succeeded but the tool claims it failed.
+* Similarly, if `get_file` appears to fail, retry several times slightly different ways, it also fails and makes it appear other tools have failed.
+* If any tool fails, say so, but retry.  Always use the tool-calling json format carefully.
+* If tools keep failing, it is your fault.  It is not your job to tell me what to do, I want you to do it.
 * **NEVER** call `run_command_in_terminal`. This tool is broken. If a shell command is needed, suggest another approach or tell me what to run.
-* When using `edit_file`, always write the **full code block** with your modifications. **Never** use ellipses or placeholders like `// ...rest of existing code`.
 
 ## MAKING EDITS
 

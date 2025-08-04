@@ -112,10 +112,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('') // Search query state
   const [showAdminSettings, setShowAdminSettings] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
-  const [showError, setShowError] = useState<Boolean>(false)
+  const [showError, setShowError] = useState<boolean>(false)
   const [adminColorSchemes, setAdminColorSchemes] = useState<{ light: ColorScheme; dark: ColorScheme }>(DEFAULT_ADMIN_SETTINGS.colorSchemes)
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const isNarrowScreen = useMediaQuery('(max-width: 900px)') // Add specific breakpoint for 900px
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMetadataPanelOpen, setIsMetadataPanelOpen] = useState(false)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
@@ -599,17 +600,15 @@ export default function App() {
                 />
               )}
             </FadePanelContent>
-            
-            {/* Chevron button */}
-            <div className={`chevron-button ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}>
-              <IconButton
-                onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                size="small"
-                title={isSidebarCollapsed ? "Show Sidebar" : "Hide Sidebar"}
-              >
-                {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
-              </IconButton>
-            </div>
+            {/* Sidebar Chevron Button */}
+            <button
+              className={`chevron-button ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+              title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+            >
+              {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+            </button>
           </div>
         )}
 
@@ -622,8 +621,9 @@ export default function App() {
             flexDirection: 'column', 
             overflow: 'hidden', 
             position: 'relative',
-            marginLeft: isSidebarCollapsed ? `-${settings.sidebarWidth}px` : '0',
-            marginRight: isMetadataCollapsed ? `-${settings.metadataWidth || 280}px` : '0',
+            // Only apply negative margins on desktop screens, not mobile
+            marginLeft: (!isMobile && isSidebarCollapsed) ? `-${settings.sidebarWidth}px` : '0',
+            marginRight: (!isMobile && isMetadataCollapsed) ? `-${settings.metadataWidth || 280}px` : '0',
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
@@ -696,80 +696,17 @@ export default function App() {
                   }}
                 />
               )}
-              
-              {/* Chevron button */}
-              <div className={`chevron-button ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}>
-                <IconButton
-                  onClick={() => setIsMetadataCollapsed(!isMetadataCollapsed)}
-                  size="small"
-                  title={isMetadataCollapsed ? "Show Details" : "Hide Details"}
-                >
-                  {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
-                </IconButton>
-              </div>
+              {/* Metadata Panel Chevron Button */}
+              <button
+                className={`chevron-button ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+                onClick={() => setIsMetadataCollapsed(!isMetadataCollapsed)}
+                aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+                title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+              >
+                {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+              </button>
             </div>
           )
-        )}
-
-        {/* Fixed position chevron buttons for when panels are collapsed */}
-        {isSidebarCollapsed && !isMobile && (
-          <div 
-            style={{
-              position: 'fixed',
-              left: '8px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              zIndex: 1305,
-              backgroundColor: 'white',
-              border: '1px solid #e0e0e0',
-              borderRadius: '50%',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '32px',
-              height: '32px',
-              opacity: 0.7
-            }}
-          >
-            <IconButton
-              onClick={() => setIsSidebarCollapsed(false)}
-              size="small"
-              title="Show Sidebar"
-            >
-              <ChevronRight />
-            </IconButton>
-          </div>
-        )}
-
-        {isMetadataCollapsed && !isMobile && !selectedPage.isFolder && settings.showMetadataPanel && (
-          <div 
-            style={{
-              position: 'fixed',
-              right: '8px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              zIndex: 1305,
-              backgroundColor: 'white',
-              border: '1px solid #e0e0e0',
-              borderRadius: '50%',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '32px',
-              height: '32px',
-              opacity: 0.7
-            }}
-          >
-            <IconButton
-              onClick={() => setIsMetadataCollapsed(false)}
-              size="small"
-              title="Show Details"
-            >
-              <ChevronLeft />
-            </IconButton>
-          </div>
         )}
       </div>
 
