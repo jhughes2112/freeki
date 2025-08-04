@@ -19,17 +19,10 @@ import {
   Image,
   Upload,
   Close,
-  Folder,
   Description
 } from '@mui/icons-material'
 import apiService from './apiService'
-
-interface MediaFile {
-  filepath: string
-  size: number
-  contentType: string
-  lastModified: string
-}
+import type { MediaFile } from './apiService'
 
 interface MediaPickerProps {
   value: string
@@ -199,12 +192,12 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
                   mediaFiles.map((file) => (
                     <ListItem
                       key={file.filepath}
-                      button
                       onClick={() => handleSelect(file.filepath)}
                       sx={{
                         border: '1px solid #e0e0e0',
                         borderRadius: 1,
                         mb: 1,
+                        cursor: 'pointer',
                         '&:hover': {
                           backgroundColor: 'action.hover'
                         }
@@ -215,11 +208,11 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
                       </ListItemIcon>
                       <ListItemText
                         primary={file.filepath}
-                        secondary={`${file.contentType} • ${(file.size / 1024).toFixed(1)} KB • ${new Date(file.lastModified).toLocaleDateString()}`}
+                        secondary={`${file.contentType} • ${(file.size / 1024).toFixed(1)} KB${file.lastModified ? ` • ${new Date(file.lastModified).toLocaleDateString()}` : ''}`}
                       />
                     </ListItem>
-                  ))
-                )}
+                  )))
+                }
               </List>
             </>
           )}

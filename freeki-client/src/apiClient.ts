@@ -161,14 +161,33 @@ class ApiClient {
 
   // Internal method to create request options with defaults
   private async createRequestOptions(options: RequestInit = {}): Promise<RequestInit> {
-    const headers: Record<string, string> = {
-      ...this.config.defaultHeaders,
-      ...(options.headers as Record<string, string> || {})
+    const headers = new Headers()
+    
+    // Add default headers
+    for (const [key, value] of Object.entries(this.config.defaultHeaders || {})) {
+      headers.set(key, value)
+    }
+    
+    // Add request-specific headers
+    if (options.headers) {
+      if (options.headers instanceof Headers) {
+        for (const [key, value] of options.headers.entries()) {
+          headers.set(key, value)
+        }
+      } else if (Array.isArray(options.headers)) {
+        for (const [key, value] of options.headers) {
+          headers.set(key, value)
+        }
+      } else {
+        for (const [key, value] of Object.entries(options.headers)) {
+          headers.set(key, value)
+        }
+      }
     }
 
     // Add auth token if available
     if (this.authToken) {
-      headers['Authorization'] = this.authToken
+      headers.set('Authorization', this.authToken)
     }
 
     return {
@@ -276,8 +295,6 @@ class ApiClient {
         const timeoutController = new AbortController()
         const timeoutId = setTimeout(() => timeoutController.abort(), this.config.timeout)
         
-        // Handle timeout differently based on browser support
-        const timeoutSignal = timeoutController.signal
         finalOptions.signal = controller.signal
           
         // Clear timeout if request completes
@@ -389,8 +406,12 @@ class ApiClient {
 
   async post<T>(url: string, data?: unknown, options?: { headers?: Record<string, string> }, requestId?: string): Promise<ApiResponse<T>> {
     const requestOptions: RequestInit = {
-      method: 'POST',
-      ...options
+      method: 'POST'
+    }
+    
+    // Handle headers properly
+    if (options?.headers) {
+      requestOptions.headers = new Headers(options.headers)
     }
     
     if (data !== undefined) {
@@ -399,12 +420,19 @@ class ApiClient {
       } else if (typeof data === 'string') {
         // For raw text content
         requestOptions.body = data
-        if (!requestOptions.headers) requestOptions.headers = {}
-        if (!requestOptions.headers['Content-Type']) {
-          requestOptions.headers['Content-Type'] = 'text/plain'
+        if (!requestOptions.headers) {
+          requestOptions.headers = new Headers()
+        }
+        if (requestOptions.headers instanceof Headers && !requestOptions.headers.get('Content-Type')) {
+          requestOptions.headers.set('Content-Type', 'text/plain')
         }
       } else {
-        requestOptions.headers = { 'Content-Type': 'application/json', ...requestOptions.headers }
+        if (!requestOptions.headers) {
+          requestOptions.headers = new Headers()
+        }
+        if (requestOptions.headers instanceof Headers) {
+          requestOptions.headers.set('Content-Type', 'application/json')
+        }
         requestOptions.body = JSON.stringify(data)
       }
     }
@@ -414,8 +442,12 @@ class ApiClient {
 
   async put<T>(url: string, data?: unknown, options?: { headers?: Record<string, string> }, requestId?: string): Promise<ApiResponse<T>> {
     const requestOptions: RequestInit = {
-      method: 'PUT',
-      ...options
+      method: 'PUT'
+    }
+    
+    // Handle headers properly
+    if (options?.headers) {
+      requestOptions.headers = new Headers(options.headers)
     }
     
     if (data !== undefined) {
@@ -424,12 +456,19 @@ class ApiClient {
       } else if (typeof data === 'string') {
         // For raw text content
         requestOptions.body = data
-        if (!requestOptions.headers) requestOptions.headers = {}
-        if (!requestOptions.headers['Content-Type']) {
-          requestOptions.headers['Content-Type'] = 'text/plain'
+        if (!requestOptions.headers) {
+          requestOptions.headers = new Headers()
+        }
+        if (requestOptions.headers instanceof Headers && !requestOptions.headers.get('Content-Type')) {
+          requestOptions.headers.set('Content-Type', 'text/plain')
         }
       } else {
-        requestOptions.headers = { 'Content-Type': 'application/json', ...requestOptions.headers }
+        if (!requestOptions.headers) {
+          requestOptions.headers = new Headers()
+        }
+        if (requestOptions.headers instanceof Headers) {
+          requestOptions.headers.set('Content-Type', 'application/json')
+        }
         requestOptions.body = JSON.stringify(data)
       }
     }
@@ -483,10 +522,10 @@ class ApiClient {
       }
     }
     
-    return this.post<T>(url, formData, requestId)
+    return this.post<T>(url, formData, undefined, requestId)
   }
 
-  async uploadFiles<T>(url: string, files: File[], additionalData?: Record<string, String>, requestId?: string): Promise<ApiResponse<T>> {
+  async uploadFiles<T>(url: string, files: File[], additionalData?: Record<string, string>, requestId?: string): Promise<ApiResponse<T>> {
     const formData = new FormData()
     
     files.forEach((file, index) => {
@@ -499,7 +538,7 @@ class ApiClient {
       }
     }
     
-    return this.post<T>(url, formData, requestId)
+    return this.post<T>(url, formData, undefined, requestId)
   }
 
   async downloadFile(url: string, requestId?: string): Promise<ApiResponse<Blob>> {

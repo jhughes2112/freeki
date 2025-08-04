@@ -1,7 +1,7 @@
 import apiClient from './apiClient'
-import { WikiPage } from './App'
-import { UserInfo } from './useUserSettings'
-import { AdminSettings } from './adminSettings'
+import type { WikiPage } from './App'
+import type { UserInfo } from './useUserSettings'
+import type { AdminSettings } from './adminSettings'
 
 // Type definitions for API requests - MUST match server expectations exactly
 export interface PageCreateRequest {

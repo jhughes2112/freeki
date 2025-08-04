@@ -24,29 +24,6 @@ export interface UserSettings {
   autoSaveInterval: number
 }
 
-export interface AdminSettings {
-  companyName: string
-  companyLogoPath: string
-  wikiTitle: string
-  colorSchemes: {
-    light: ColorScheme
-    dark: ColorScheme
-  }
-}
-
-export interface ColorScheme {
-  appBarBackground: string
-  sidebarBackground: string
-  sidebarSelectedBackground: string
-  sidebarHoverBackground: string
-  metadataPanelBackground: string
-  viewModeBackground: string
-  editModeBackground: string
-  textPrimary: string
-  textSecondary: string
-  borderColor: string
-}
-
 const DEFAULT_SETTINGS: UserSettings = {
   sidebarWidth: 300,
   theme: 'light',
@@ -58,42 +35,6 @@ const DEFAULT_SETTINGS: UserSettings = {
   defaultEditMode: 'wysiwyg',
   autoSave: true,
   autoSaveInterval: 30
-}
-
-const DEFAULT_LIGHT_SCHEME: ColorScheme = {
-  appBarBackground: '#1976d2',
-  sidebarBackground: '#fafafa',
-  sidebarSelectedBackground: 'rgba(25, 118, 210, 0.12)',
-  sidebarHoverBackground: 'rgba(0, 0, 0, 0.04)',
-  metadataPanelBackground: '#f9f9f9',
-  viewModeBackground: '#ffffff',
-  editModeBackground: '#ffffff',
-  textPrimary: '#000000',
-  textSecondary: '#666666',
-  borderColor: '#e0e0e0'
-}
-
-const DEFAULT_DARK_SCHEME: ColorScheme = {
-  appBarBackground: '#1565c0',
-  sidebarBackground: '#2b2b2b',
-  sidebarSelectedBackground: 'rgba(144, 202, 249, 0.16)',
-  sidebarHoverBackground: 'rgba(255, 255, 255, 0.08)',
-  metadataPanelBackground: '#1e1e1e',
-  viewModeBackground: '#121212',
-  editModeBackground: '#1e1e1e',
-  textPrimary: '#ffffff',
-  textSecondary: '#b3b3b3',
-  borderColor: '#404040'
-}
-
-const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
-  companyName: 'Your Company',
-  companyLogoPath: '/logo.png',
-  wikiTitle: 'FreeKi Wiki',
-  colorSchemes: {
-    light: DEFAULT_LIGHT_SCHEME,
-    dark: DEFAULT_DARK_SCHEME
-  }
 }
 
 function getDeviceKey(): string {
