@@ -29,7 +29,7 @@ namespace Users
         public Task<(int, string, byte[])> GetCurrentUser(HttpListenerContext httpListenerContext)
         {
             // Authenticate the request
-            (string? accountId, string? fullName, string? email, string[]? roles) = AuthenticateRequest(httpListenerContext);
+            (string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
             if (accountId == null)
             {
                 _logger.Log(EVerbosity.Error, $"{httpListenerContext.Request.Url} Unauthorized");
@@ -49,20 +49,6 @@ namespace Users
 
             string jsonResponse = JsonSerializer.Serialize(userInfo);
             return Task.FromResult((200, "application/json", Encoding.UTF8.GetBytes(jsonResponse)));
-        }
-
-        private (string?, string?, string?, string[]?) AuthenticateRequest(HttpListenerContext httpListenerContext)
-        {
-            string[]? authHeader = httpListenerContext.Request.Headers.GetValues("Authorization");
-            if (authHeader == null || authHeader.Length < 1)
-                return (null, null, null, null);
-
-            string token = authHeader[0];
-            if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                token = token.Substring("Bearer ".Length).Trim();
-            }
-            return _authentication.Authenticate(token);
         }
 
         private string GetGravatarUrl(string email)

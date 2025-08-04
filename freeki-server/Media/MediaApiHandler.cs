@@ -43,7 +43,7 @@ namespace FreeKi
 		public async Task<(int, string, byte[])> GetMedia(HttpListenerContext httpListenerContext)
 		{
 			// Authenticate the request
-			(string? accountId, string? fullName, string? email, string[]? roles) = AuthenticateRequest(httpListenerContext);
+            (string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
 			if (accountId == null)
 			{
 				_logger.Log(EVerbosity.Error, $"{httpListenerContext.Request.Url} Unauthorized");
@@ -55,22 +55,6 @@ namespace FreeKi
 			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : "System@Freeki";
 
 			return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
-		}
-
-		private (string?, string?, string?, string[]?) AuthenticateRequest(HttpListenerContext httpListenerContext)
-		{
-			string[]? authHeader = httpListenerContext.Request.Headers.GetValues("Authorization");
-			if (authHeader == null || authHeader.Length < 1)
-				return (null, null, null, null);
-
-			// A proper OAuth header includes the Bearer prefix, but a lazier Always-Accept client can just put the following in the header:
-			// accountId<->full name<->email<->role,role,role
-			string token = authHeader[0];
-			if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-			{
-				token = token.Substring("Bearer ".Length).Trim();
-			}
-			return _authentication.Authenticate(token);
 		}
 
 		public async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string gitAuthorName, string gitAuthorEmail)

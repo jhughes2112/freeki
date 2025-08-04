@@ -36,7 +36,7 @@ namespace Admin
         public async Task<(int, string, byte[])> HandleAdminSettings(HttpListenerContext httpListenerContext)
         {
             // Authenticate the request - required for all operations
-            (string? accountId, string? fullName, string? email, string[]? roles) = AuthenticateRequest(httpListenerContext);
+            (string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
             if (accountId == null)
             {
                 _logger.Log(EVerbosity.Error, $"{httpListenerContext.Request.Url} Unauthorized");
@@ -44,20 +44,6 @@ namespace Admin
             }
 
             return await HandleRequest(httpListenerContext, accountId, roles).ConfigureAwait(false);
-        }
-
-        private (string?, string?, string?, string[]?) AuthenticateRequest(HttpListenerContext httpListenerContext)
-        {
-            string[]? authHeader = httpListenerContext.Request.Headers.GetValues("Authorization");
-            if (authHeader == null || authHeader.Length < 1)
-                return (null, null, null, null);
-
-            string token = authHeader[0];
-            if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                token = token.Substring("Bearer ".Length).Trim();
-            }
-            return _authentication.Authenticate(token);
         }
 
         public async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string accountId, string[]? roles)

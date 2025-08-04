@@ -23,9 +23,24 @@ namespace Authentication
 			_logger     = logger;
 		}
 
+		// Call this with httpListenerContext.Request.Headers.GetValues("Authorization");
+		public (string?, string?, string?, string[]?) AuthenticateRequest(string[]? authorizationHeaders)
+		{
+			string? token = null;
+			if (authorizationHeaders != null && authorizationHeaders.Length > 0)
+			{
+				token = authorizationHeaders[0];
+				if (token!=null && token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+				{
+					token = token.Substring("Bearer ".Length).Trim();
+				}
+			}
+			return Authenticate(token);
+		}
+
 		// Actual functionality of the JWT validation uses the RSA key list
 		// (accountId, full name, email, roles[])
-		public (string?, string?, string?, string[]?) Authenticate(string jwt)
+		public (string?, string?, string?, string[]?) Authenticate(string? jwt)
 		{
 			string?   accountId = null;
 			string?   fullName  = null;
@@ -33,67 +48,74 @@ namespace Authentication
 			string[]? roles     = null;
 			try
 			{
-				// Split the JWT into its parts
-				string[] parts = jwt.Split('.');
-				if (parts.Length == 3)
+				if (string.IsNullOrEmpty(jwt)==false)
 				{
-					string header = parts[0];
-					string payload = parts[1];
-					string signature = parts[2];
-
-					// Decode the header and payload
-					string decodedHeader = UrlHelper.Base64UrlDecode(header);
-					string decodedPayload = UrlHelper.Base64UrlDecode(payload);
-
-					JwtHeader? jwtheader = JsonSerializer.Deserialize<JwtHeader>(decodedHeader);
-					JwtPayload? jwtpayload = JsonSerializer.Deserialize<JwtPayload>(decodedPayload);
-
-					// Extract the 'kid' from the JWT header
-					if (jwtheader!=null && jwtpayload!=null && jwtheader.kid!=null)
+					// Split the JWT into its parts
+					string[] parts = jwt.Split('.');
+					if (parts.Length == 3)
 					{
-						// Find the corresponding key
-						if (_publicKeys.TryGetValue(jwtheader.kid, out RSA? rsa))
-						{
-							// Verify the signature
-							string signedData = header + "." + payload;
-							byte[] signedBytes = Encoding.UTF8.GetBytes(signedData);
-							byte[] signatureBytes = UrlHelper.Base64UrlDecodeBytes(signature);
+						string header = parts[0];
+						string payload = parts[1];
+						string signature = parts[2];
 
-							if (rsa.VerifyData(signedBytes, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
+						// Decode the header and payload
+						string decodedHeader = UrlHelper.Base64UrlDecode(header);
+						string decodedPayload = UrlHelper.Base64UrlDecode(payload);
+
+						JwtHeader? jwtheader = JsonSerializer.Deserialize<JwtHeader>(decodedHeader);
+						JwtPayload? jwtpayload = JsonSerializer.Deserialize<JwtPayload>(decodedPayload);
+
+						// Extract the 'kid' from the JWT header
+						if (jwtheader!=null && jwtpayload!=null && jwtheader.kid!=null)
+						{
+							// Find the corresponding key
+							if (_publicKeys.TryGetValue(jwtheader.kid, out RSA? rsa))
 							{
-								long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-								if (jwtpayload.exp > now)
+								// Verify the signature
+								string signedData = header + "." + payload;
+								byte[] signedBytes = Encoding.UTF8.GetBytes(signedData);
+								byte[] signatureBytes = UrlHelper.Base64UrlDecodeBytes(signature);
+
+								if (rsa.VerifyData(signedBytes, signatureBytes, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
 								{
-									string allGroups = jwtpayload.groups==null ? string.Empty : string.Join(' ', jwtpayload.groups);
-									_logger.Log(EVerbosity.Info, $"Successful authentication for {jwtpayload.sub} {jwtpayload.email ?? "NO-EMAIL"} {allGroups}");
-									accountId = jwtpayload.sub;
-									fullName  = jwtpayload.name;
-									email     = jwtpayload.email;
-									roles     = jwtpayload.groups==null ? Array.Empty<string>() : jwtpayload.groups;
+									long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+									if (jwtpayload.exp > now)
+									{
+										string allGroups = jwtpayload.groups==null ? string.Empty : string.Join(' ', jwtpayload.groups);
+										_logger.Log(EVerbosity.Info, $"Successful authentication for {jwtpayload.sub} {jwtpayload.email ?? "NO-EMAIL"} {allGroups}");
+										accountId = jwtpayload.sub;
+										fullName  = jwtpayload.name;
+										email     = jwtpayload.email;
+										roles     = jwtpayload.groups==null ? Array.Empty<string>() : jwtpayload.groups;
+									}
+									else
+									{
+										_logger.Log(EVerbosity.Error, $"JWT has expired now {now} JWT: {jwt}");
+									}
 								}
 								else
 								{
-									_logger.Log(EVerbosity.Error, $"JWT has expired now {now} JWT: {jwt}");
+									_logger.Log(EVerbosity.Error, $"Invalid signature for JWT: {jwt}");
 								}
 							}
 							else
 							{
-								_logger.Log(EVerbosity.Error, $"Invalid signature for JWT: {jwt}");
+								_logger.Log(EVerbosity.Error, $"Public key not found for the given kid {jwt}");
 							}
 						}
 						else
 						{
-							_logger.Log(EVerbosity.Error, $"Public key not found for the given kid {jwt}");
+							_logger.Log(EVerbosity.Error, $"JWT header does not contain kid {jwt}");
 						}
 					}
 					else
 					{
-						_logger.Log(EVerbosity.Error, $"JWT header does not contain kid {jwt}");
+						_logger.Log(EVerbosity.Error, "Invalid JWT format");
 					}
 				}
 				else
 				{
-					_logger.Log(EVerbosity.Error, "Invalid JWT format");
+					_logger.Log(EVerbosity.Error, "JWT is null or empty");
 				}
 			}
 			catch (Exception ex)

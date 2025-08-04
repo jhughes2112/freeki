@@ -1,4 +1,5 @@
 ﻿using Logging;
+using System;
 
 namespace Authentication
 {
@@ -14,7 +15,7 @@ namespace Authentication
 
 		// This is set up to be a very simple format that is implicitly trusted (and should never be used in production).
 		// accountId<->full name<->email<->role,role,role
-		public (string?, string?, string?, string[]?) Authenticate(string jwt)
+		public (string?, string?, string?, string[]?) Authenticate(string? jwt)
 		{
 			string?   accountId = null;
 			string?   fullName  = null;
@@ -23,7 +24,7 @@ namespace Authentication
 
 			if (jwt!=null)
 			{
-				string[] parts = jwt.Split('<', '>');
+				string[] parts = jwt.Split("<->");
 				if (parts.Length >= 4)
 				{
 					accountId = parts[0];
@@ -38,6 +39,22 @@ namespace Authentication
 				}
 			}
 			return (accountId, fullName, email, roles);
+		}
+
+		// Call this with httpListenerContext.Request.Headers.GetValues("Authorization");
+		public (string?, string?, string?, string[]?) AuthenticateRequest(string[]? authorizationHeaders)
+		{
+			// Always allow means any user who connects gets admin user, unless they provide a real login.
+			string token = "adminAccount<->Admin User<->admin@localhost<->Admin";
+			if (authorizationHeaders != null && authorizationHeaders.Length > 0)
+			{
+				token = authorizationHeaders[0];
+				if (token!=null && token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+				{
+					token = token.Substring("Bearer ".Length).Trim();
+				}
+			}
+			return Authenticate(token);
 		}
 	}
 }
