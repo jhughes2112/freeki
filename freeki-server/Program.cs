@@ -75,7 +75,7 @@ namespace FreeKi
 				logger = CommandLineHelpersServer.CreateLogger("FreeKi", o.log_config!);
 				dataCollection = CommandLineHelpersServer.CreateDataCollection("prometheus", new Dictionary<string, string>() { { "process", "FreeKi" } }, logger);
 				authentication = await CommandLineHelpersServer.CreateAuthentication(o.auth_config!, logger).ConfigureAwait(false);
-				gitManager = CommandLineHelpersServer.CreateGitManager(o.storage_config!, o.git_config!, logger);  // this clones a remote repo before returning, so it must come before StorageFiles is created, otherwise the clone fails
+				gitManager = CommandLineHelpersServer.CreateGitManager(o.storage_config!, o.gitremote_config!, logger);  // this clones a remote repo before returning, so it must come before StorageFiles is created, otherwise the clone fails
 				pageStorage = new StorageFiles(Path.Combine(o.storage_config!, "pages"), logger);  // pages and media are stored in different folder roots
 				mediaStorage = new StorageFiles(Path.Combine(o.storage_config!, "media"), logger);  // separate storage for media files
 				adminStorage = new StorageFiles(o.storage_config!, logger);  // admin storage at root for freeki.config

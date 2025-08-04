@@ -6,19 +6,20 @@ RUN dotnet publish --nologo -c Release -o /output -r linux-musl-x64 /p:PublishPr
 
 # Stage 2: Build the frontend
 FROM node:20-alpine AS build-frontend
-WORKDIR /app
+WORKDIR /source
 COPY freeki-client/. .
-RUN npm install && npm run build
+RUN npm install
+RUN npm run build && mkdir /output && cp -r static-root/* /output/
 
 # Stage 3: Final runtime image
 FROM mcr.microsoft.com/dotnet/runtime:9.0-alpine AS runtime
-WORKDIR /
+WORKDIR /freeki-server
 
 # Copy built backend binary
 COPY --from=build-backend /output /freeki-server
 
 # Copy built frontend into a static folder
-COPY --from=build-frontend /app/dist /freeki-client
+COPY --from=build-frontend /output /freeki-client
 
 # Add user and fix permissions
 RUN adduser --disabled-password --home /app --gecos '' noprivileges && chown -R noprivileges /freeki-server && chown -R noprivileges /freeki-client

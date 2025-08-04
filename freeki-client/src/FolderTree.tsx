@@ -62,22 +62,23 @@ function TreeNode({
         onClick={handleClick}
         sx={{
           pl: 2 + level * 2,
-          backgroundColor: isSelected ? 'action.selected' : 'transparent',
+          backgroundColor: isSelected ? 'var(--freeki-sidebar-selected-background)' : 'transparent',
           '&:hover': {
-            backgroundColor: 'action.hover'
+            backgroundColor: 'var(--freeki-sidebar-hover-background)'
           },
           borderRadius: 1,
           mx: 1,
           mb: 0.5,
-          cursor: 'pointer'
+          cursor: 'pointer',
+          color: 'var(--freeki-text-primary)'
         }}
       >
-        <ListItemIcon sx={{ minWidth: 36 }}>
+        <ListItemIcon sx={{ minWidth: 36, color: 'var(--freeki-text-primary)' }}>
           {page.isFolder && hasChildren ? (
             <IconButton
               size="small"
               onClick={handleExpandClick}
-              sx={{ p: 0.5 }}
+              sx={{ p: 0.5, color: 'var(--freeki-text-primary)' }}
             >
               {isExpanded ? <ExpandMore /> : <ChevronRight />}
             </IconButton>
@@ -86,7 +87,7 @@ function TreeNode({
           )}
         </ListItemIcon>
         
-        <ListItemIcon sx={{ minWidth: 32 }}>
+        <ListItemIcon sx={{ minWidth: 32, color: 'var(--freeki-text-primary)' }}>
           {page.isFolder ? <Folder /> : <Description />}
         </ListItemIcon>
         
@@ -96,7 +97,7 @@ function TreeNode({
               variant="body2"
               sx={{
                 fontWeight: isSelected ? 'bold' : 'normal',
-                color: isSelected ? 'primary.main' : 'text.primary'
+                color: isSelected ? 'primary.main' : 'var(--freeki-text-primary)'
               }}
             >
               {page.title}
@@ -140,8 +141,17 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
   }
 
   return (
-    <Box sx={{ height: '100%', overflow: 'auto', p: 1 }}>
-      <Typography variant="h6" sx={{ p: 1, fontWeight: 'bold' }}>
+    <Box sx={{ 
+      height: '100%', 
+      overflow: 'auto', 
+      p: 1,
+      color: 'var(--freeki-text-primary)'
+    }}>
+      <Typography variant="h6" sx={{ 
+        p: 1, 
+        fontWeight: 'bold',
+        color: 'var(--freeki-text-primary)'
+      }}>
         Pages
       </Typography>
       

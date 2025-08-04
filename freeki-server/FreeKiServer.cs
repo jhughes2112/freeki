@@ -8,6 +8,7 @@ using System.Net;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using HeyRed.Mime;
 
 namespace FreeKi
 {
@@ -105,18 +106,18 @@ namespace FreeKi
 				return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Invalid request URL"));
 			}
 
-			// Use AbsolutePath (without query string) for more reliable comparison
-			string requestPath = requestUri.AbsolutePath;
+			// Use AbsoluteUri so it has http://localhost:7777/subpath/api/pages?q=asdasd or whatever.  We're only checking to see if this matches one of the advertised URLs.
+			string requestPath = requestUri.AbsoluteUri;
 			
 			for (int i = 0; i < _advertiseUrls.Count; i++)
 			{
 				Uri baseUri = new Uri(_advertiseUrls[i]);
 				
 				// Check if request path starts with the base path
-				if (requestPath.StartsWith(baseUri.AbsolutePath, StringComparison.OrdinalIgnoreCase))
+				if (requestPath.StartsWith(baseUri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))
 				{
 					// Get the remaining path after the base URL
-					string relPath = requestPath.Substring(baseUri.AbsolutePath.Length).TrimStart('/');
+					string relPath = requestPath.Substring(baseUri.AbsoluteUri.Length).TrimStart('/');
 					return await ServeStaticFile(_staticRootFolder, relPath).ConfigureAwait(false);
 				}
 			}
@@ -148,23 +149,7 @@ namespace FreeKi
 				return (404, "text/plain", Encoding.UTF8.GetBytes("Not Found"));
 			}
 
-			string contentType = Path.GetExtension(fullPathNormalized).ToLowerInvariant() switch
-			{
-				".html" => "text/html",
-				".htm" => "text/html",
-				".js" => "application/javascript",
-				".css" => "text/css",
-				".json" => "application/json",
-				".png" => "image/png",
-				".jpg" => "image/jpeg",
-				".jpeg" => "image/jpeg",
-				".gif" => "image/gif",
-				".svg" => "image/svg+xml",
-				".ico" => "image/x-icon",
-				".txt" => "text/plain",
-				_ => "application/octet-stream"
-			};
-
+			string contentType = MimeTypesMap.GetMimeType(Path.GetFileName(fullPathNormalized).ToLowerInvariant());
 			byte[] content = await File.ReadAllBytesAsync(fullPathNormalized).ConfigureAwait(false);
 			return (200, contentType, content);
 		}

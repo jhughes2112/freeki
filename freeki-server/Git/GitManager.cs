@@ -424,13 +424,9 @@ namespace Storage
 					CommitInfo commitInfo = new CommitInfo
 					{
 						Sha            = logEntry.Commit.Sha,
-						Message        = logEntry.Commit.Message,
 						AuthorName     = logEntry.Commit.Author.Name,
 						AuthorEmail    = logEntry.Commit.Author.Email,
 						AuthorDate     = logEntry.Commit.Author.When,
-						CommitterName  = logEntry.Commit.Committer.Name,
-						CommitterEmail = logEntry.Commit.Committer.Email,
-						CommitterDate  = logEntry.Commit.Committer.When
 					};
 					commits.Add(commitInfo);
 				}
@@ -542,16 +538,12 @@ namespace Storage
 		}
 	}
 
-	// Information about a Git commit
+	// Information about a Git commit - tightened to essential fields only
 	public class CommitInfo
 	{
-		public string         Sha            { get; set; } = string.Empty;
-		public string         Message        { get; set; } = string.Empty;
-		public string         AuthorName     { get; set; } = string.Empty;
-		public string         AuthorEmail    { get; set; } = string.Empty;
-		public DateTimeOffset AuthorDate     { get; set; }
-		public string         CommitterName  { get; set; } = string.Empty;
-		public string         CommitterEmail { get; set; } = string.Empty;
-		public DateTimeOffset CommitterDate  { get; set; }
+		public string         Sha         { get; set; } = string.Empty;
+		public string         AuthorName  { get; set; } = string.Empty;
+		public string         AuthorEmail { get; set; } = string.Empty;
+		public DateTimeOffset AuthorDate  { get; set; }
 	}
 }

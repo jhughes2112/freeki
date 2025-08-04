@@ -344,18 +344,18 @@ namespace FreeKi
 		}
 
 		// GET /api/pages?q=term - Search page metadata
-		private async Task<(int, string, byte[])> HandleSearchPages(string searchTerm)
+		private Task<(int, string, byte[])> HandleSearchPages(string searchTerm)
 		{
-			List<PageMetadata> pageMetadata = await _pageManager.SearchPages(searchTerm).ConfigureAwait(false);
-			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(pageMetadata);
-			return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
+			List<SearchResult> searchResults = _pageManager.SearchPages(searchTerm);
+			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(searchResults);
+			return Task.FromResult((200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse)));
 		}
 
 		// GET /api/pages?q=term&content=1 - Search page metadata and content
 		private async Task<(int, string, byte[])> HandleSearchPagesWithContent(string searchTerm)
 		{
-			List<PageMetadata> pageMetadata = await _pageManager.SearchPagesWithContent(searchTerm).ConfigureAwait(false);
-			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(pageMetadata);
+			List<SearchResult> searchResults = await _pageManager.SearchPagesWithContent(searchTerm).ConfigureAwait(false);
+			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(searchResults);
 			return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 		}
 

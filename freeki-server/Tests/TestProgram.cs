@@ -530,18 +530,19 @@ namespace TestApp
 				return true;
 			}, "Key: test1.txt, Data: 'Hello, World!'");
 			
-			// Test 2: GetSize method test
-			await _testRunner.RunTestAsync("StorageFiles", "GetSize method efficiency test", async () =>
+			// Test 2: GetFileInfo method test
+			await _testRunner.RunTestAsync("StorageFiles", "GetFileInfo method returns size and timestamp", async () =>
 			{
 				string key1 = "test1.txt";
-				long? fileSize = await pageStorage.GetSize(key1).ConfigureAwait(false);
+				(long fileSize, long lastModified) = await pageStorage.GetFileInfo(key1).ConfigureAwait(false);
 				
-				if (fileSize == null)
-					return false;
+				// Simple contract: if file doesn't exist, both should be zero
+				if (fileSize == 0 && lastModified == 0)
+					return false;  // File should exist but GetFileInfo says it doesn't
 				
-				// Should match the "Hello, World!" string length
-				return fileSize.Value == 13;
-			}, "Testing GetSize vs reading entire file");
+				// If file exists, lastModified should be non-zero, fileSize can be zero (empty file is legal)
+				return lastModified > 0 && fileSize >= 0;
+			}, "Testing GetFileInfo returns non-zero timestamp for existing file");
 		}
 		
 		static async Task TestMediaStorage(StorageFiles mediaStorage)

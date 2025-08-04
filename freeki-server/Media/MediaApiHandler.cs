@@ -5,9 +5,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 using System.Linq;
+using HeyRed.Mime;
 
 namespace FreeKi
 {
@@ -249,27 +249,28 @@ namespace FreeKi
 			{
 				List<string> mediaFiles = await _storage.ListAllKeys().ConfigureAwait(false);
 				
-				// Create response with file list and basic metadata
+				// Create response with file list and metadata including last modified time
 				List<object> mediaList = new List<object>();
 				foreach (string filepath in mediaFiles)
 				{
-					// Get file size efficiently without reading entire file
+					// Get file information efficiently without reading entire file
 					try
 					{
-						long? fileSize = await _storage.GetSize(filepath).ConfigureAwait(false);
-						if (fileSize != null)
+						(long size, long lastModifiedTimeUtcSeconds) = await _storage.GetFileInfo(filepath).ConfigureAwait(false);
+						if (size!=0 || lastModifiedTimeUtcSeconds!=0)
 						{
 							mediaList.Add(new
 							{
 								filepath = filepath,
-								size = fileSize.Value,
-								contentType = GetContentType(filepath)
+								size = size,
+								contentType = GetContentType(filepath),
+								lastModified = lastModifiedTimeUtcSeconds  // send this to the client in UTC time so the client can convert into local time
 							});
 						}
 					}
 					catch (Exception ex)
 					{
-						_logger.Log(EVerbosity.Warning, $"MediaApiHandler.HandleListAllMedia: Error getting size for file {filepath}: {ex.Message}");
+						_logger.Log(EVerbosity.Warning, $"MediaApiHandler.HandleListAllMedia: Error getting file info for {filepath}: {ex.Message}");
 					}
 				}
 
@@ -501,37 +502,8 @@ namespace FreeKi
 		// Helper method to determine content type based on file extension
 		private static string GetContentType(string filepath)
 		{
-			string extension = Path.GetExtension(filepath).ToLowerInvariant();
-			return extension switch
-			{
-				".html" => "text/html",
-				".htm" => "text/html",
-				".js" => "application/javascript",
-				".css" => "text/css",
-				".json" => "application/json",
-				".png" => "image/png",
-				".jpg" => "image/jpeg",
-				".jpeg" => "image/jpeg",
-				".gif" => "image/gif",
-				".svg" => "image/svg+xml",
-				".ico" => "image/x-icon",
-				".txt" => "text/plain",
-				".pdf" => "application/pdf",
-				".mp3" => "audio/mpeg",
-				".mp4" => "video/mp4",
-				".avi" => "video/x-msvideo",
-				".mov" => "video/quicktime",
-				".wav" => "audio/wav",
-				".zip" => "application/zip",
-				".rar" => "application/x-rar-compressed",
-				".doc" => "application/msword",
-				".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-				".xls" => "application/vnd.ms-excel",
-				".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-				".ppt" => "application/vnd.ms-powerpoint",
-				".pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-				_ => "application/octet-stream"
-			};
+			string contentType = MimeTypesMap.GetMimeType(Path.GetFileName(filepath).ToLowerInvariant());
+			return contentType;
 		}
 	}
 }

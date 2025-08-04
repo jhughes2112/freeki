@@ -30,6 +30,9 @@ import PageEditor from './PageEditor'
 import PageMetadata from './PageMetadata'
 import AdminSettingsDialog from './AdminSettingsDialog'
 import { useUserSettings } from './useUserSettings'
+import type { ColorScheme } from './adminSettings'
+import { DEFAULT_ADMIN_SETTINGS, fetchAdminSettings } from './adminSettings'
+import apiClient from './apiClient'
 
 export interface WikiPage {
   id: string
@@ -44,112 +47,25 @@ export interface WikiPage {
   version?: number
 }
 
-export interface ApiError {
-  message: string
-  status: number
-  statusText: string
-  isNetworkError: boolean
+// Theme application function
+function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme }, currentTheme: 'light' | 'dark' | 'auto') {
+  const colorScheme = currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches) 
+    ? colorSchemes.dark 
+    : colorSchemes.light
+
+  const root = document.documentElement
+
+  root.style.setProperty('--freeki-app-bar-background', colorScheme.appBarBackground)
+  root.style.setProperty('--freeki-sidebar-background', colorScheme.sidebarBackground)
+  root.style.setProperty('--freeki-sidebar-selected-background', colorScheme.sidebarSelectedBackground)
+  root.style.setProperty('--freeki-sidebar-hover-background', colorScheme.sidebarHoverBackground)
+  root.style.setProperty('--freeki-metadata-panel-background', colorScheme.metadataPanelBackground)
+  root.style.setProperty('--freeki-view-mode-background', colorScheme.viewModeBackground)
+  root.style.setProperty('--freeki-edit-mode-background', colorScheme.editModeBackground)
+  root.style.setProperty('--freeki-text-primary', colorScheme.textPrimary)
+  root.style.setProperty('--freeki-text-secondary', colorScheme.textSecondary)
+  root.style.setProperty('--freeki-border-color', colorScheme.borderColor)
 }
-
-export interface ApiResponse<T> {
-  success: boolean
-  data?: T
-  error?: ApiError
-}
-
-// Central API client class for all server communication
-class ApiClient {
-  private showError: (message: string) => void = () => {}
-
-  setErrorHandler(handler: (message: string) => void): void {
-    this.showError = handler
-  }
-
-  private async makeRequest<T>(
-    url: string, 
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
-    try {
-      const response = await fetch(url, options)
-      
-      if (response.ok) {
-        let data: T
-        const contentType = response.headers.get('content-type')
-        
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json()
-        } else {
-          data = response as unknown as T
-        }
-        
-        return { success: true, data }
-      } else {
-        const error: ApiError = {
-          message: `HTTP ${response.status}: ${response.statusText}`,
-          status: response.status,
-          statusText: response.statusText,
-          isNetworkError: false
-        }
-        
-        // Only show error UI for non-permission errors
-        if (response.status !== 401 && response.status !== 403) {
-          this.showError(error.message)
-        }
-        
-        console.error('API Error:', error)
-        return { success: false, error }
-      }
-    } catch (err) {
-      const error: ApiError = {
-        message: err instanceof Error ? err.message : 'Unknown network error',
-        status: 0,
-        statusText: 'Network Error',
-        isNetworkError: true
-      }
-      
-      this.showError('Network error - please check your connection')
-      console.error('API Error:', error)
-      return { success: false, error }
-    }
-  }
-
-  async get<T>(url: string): Promise<ApiResponse<T>> {
-    return this.makeRequest<T>(url, { method: 'GET' })
-  }
-
-  async post<T>(url: string, data?: any): Promise<ApiResponse<T>> {
-    const options: RequestInit = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }
-    
-    if (data !== undefined) {
-      options.body = JSON.stringify(data)
-    }
-    
-    return this.makeRequest<T>(url, options)
-  }
-
-  async put<T>(url: string, data?: any): Promise<ApiResponse<T>> {
-    const options: RequestInit = {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' }
-    }
-    
-    if (data !== undefined) {
-      options.body = JSON.stringify(data)
-    }
-    
-    return this.makeRequest<T>(url, options)
-  }
-
-  async delete<T>(url: string): Promise<ApiResponse<T>> {
-    return this.makeRequest<T>(url, { method: 'DELETE' })
-  }
-}
-
-// Global API client instance
-const apiClient = new ApiClient()
 
 // Example content structure
 const samplePages: WikiPage[] = [
@@ -199,6 +115,7 @@ export default function App() {
   const [showAdminSettings, setShowAdminSettings] = useState<boolean>(false)
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [showError, setShowError] = useState<boolean>(false)
+  const [adminColorSchemes, setAdminColorSchemes] = useState<{ light: ColorScheme; dark: ColorScheme }>(DEFAULT_ADMIN_SETTINGS.colorSchemes)
 
   // Set up the error handler for the API client
   useEffect(() => {
@@ -207,6 +124,33 @@ export default function App() {
       setShowError(true)
     })
   }, [])
+
+  // Load admin color schemes on app start
+  useEffect(() => {
+    async function loadColorSchemes() {
+      try {
+        const adminSettings = await fetchAdminSettings()
+        if (adminSettings) {
+          setAdminColorSchemes(adminSettings.colorSchemes)
+        }
+      } catch (error) {
+        console.warn('Failed to load admin color schemes:', error)
+      }
+    }
+    loadColorSchemes()
+  }, [])
+
+  // Apply theme whenever settings or admin color schemes change
+  useEffect(() => {
+    if (isLoaded) {
+      applyTheme(adminColorSchemes, settings.theme)
+    }
+  }, [adminColorSchemes, settings.theme, isLoaded])
+
+  // Handle theme changes from admin dialog
+  const handleThemeChange = (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => {
+    setAdminColorSchemes(colorSchemes)
+  }
 
   // Wait for settings to load before rendering
   if (!isLoaded) {
@@ -233,35 +177,42 @@ export default function App() {
   }
 
   const handleSave = async (content: string) => {
-    // This would use the API client for real save operations
-    // const response = await apiClient.put(`/api/pages/${selectedPage.id}`, { content })
-    // if (response.success) {
-    //   // Update local state
-    // }
-    
-    const updatedPage = { 
-      ...selectedPage, 
+    // Use the centralized API client for real save operations
+    const response = await apiClient.put(`/api/pages/${selectedPage.id}`, { 
       content,
-      updatedAt: new Date().toISOString(),
-      version: (selectedPage.version || 1) + 1
-    }
-    setSelectedPage(updatedPage)
+      title: selectedPage.title,
+      path: selectedPage.path
+    })
     
-    // Update the page in the pages array
-    const updatePagesRecursively = (pagesList: WikiPage[]): WikiPage[] => {
-      return pagesList.map(page => {
-        if (page.id === updatedPage.id) {
-          return updatedPage
-        }
-        if (page.children) {
-          return { ...page, children: updatePagesRecursively(page.children) }
-        }
-        return page
-      })
+    if (response.success) {
+      // Update local state with server response
+      const updatedPage = { 
+        ...selectedPage, 
+        content,
+        updatedAt: new Date().toISOString(),
+        version: (selectedPage.version || 1) + 1
+      }
+      setSelectedPage(updatedPage)
+      
+      // Update the page in the pages array
+      const updatePagesRecursively = (pagesList: WikiPage[]): WikiPage[] => {
+        return pagesList.map(page => {
+          if (page.id === updatedPage.id) {
+            return updatedPage
+          }
+          if (page.children) {
+            return { ...page, children: updatePagesRecursively(page.children) }
+          }
+          return page
+        })
+      }
+      
+      setPages(updatePagesRecursively(pages))
+      setIsEditing(false)
+    } else {
+      // Error handling is done by the apiClient
+      console.warn('Failed to save page:', response.error?.message)
     }
-    
-    setPages(updatePagesRecursively(pages))
-    setIsEditing(false)
   }
 
   const handleCancel = () => {
@@ -269,12 +220,16 @@ export default function App() {
   }
 
   const handleNewPage = async () => {
-    // Example API call using the centralized client
-    // const response = await apiClient.post('/api/pages', { title: 'New Page', content: '' })
-    // if (response.success) {
-    //   // Handle successful creation
-    // }
-    console.log('New page')
+    // Use centralized API client to create new page
+    const response = await apiClient.post('/api/pages?title=New%20Page&filepath=new-page.md', 
+      '# New Page\n\nStart writing your content here...'
+    )
+    
+    if (response.success) {
+      // Refresh pages list or add the new page to local state
+      console.log('Page created successfully:', response.data)
+      // You would typically refresh the pages list here or add to local state
+    }
   }
 
   const handleHistory = () => {
@@ -323,9 +278,9 @@ export default function App() {
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Error Snackbar */}
-      <Snackbar 
-        open={showError} 
-        autoHideDuration={6000} 
+      <Snackbar
+        open={showError}
+        autoHideDuration={6000}
         onClose={handleCloseError}
         anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
@@ -335,7 +290,7 @@ export default function App() {
       </Snackbar>
 
       {/* Top Banner/AppBar */}
-      <AppBar position="static" sx={{ backgroundColor: '#1976d2', zIndex: 1300 }}>
+      <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)', zIndex: 1300 }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           {/* Left side - Logo and Title */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
@@ -422,41 +377,41 @@ export default function App() {
                 )}
               </>
             )}
-            
+
             <IconButton color="inherit" onClick={handleNewPage} title="New Page">
               <Add />
             </IconButton>
-            
+
             <IconButton color="inherit" onClick={handleHistory} title="History">
               <History />
             </IconButton>
-            
+
             {!selectedPage.isFolder && (
               <IconButton color="inherit" onClick={handleDelete} title="Delete">
                 <Delete />
               </IconButton>
             )}
-            
+
             <Divider orientation="vertical" flexItem sx={{ backgroundColor: 'rgba(255,255,255,0.3)', mx: 1 }} />
-            
+
             {/* Only show admin settings gear if user is admin */}
             {userInfo?.isAdmin && (
               <IconButton color="inherit" onClick={handleSettingsClick} title="Administration">
                 <Settings />
               </IconButton>
             )}
-            
-            <IconButton 
-              color="inherit" 
-              onClick={handleAccount} 
+
+            <IconButton
+              color="inherit"
+              onClick={handleAccount}
               title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Account"}
               sx={{ p: 0.5 }}
             >
               {userInfo?.gravatarUrl ? (
-                <Avatar 
+                <Avatar
                   src={userInfo.gravatarUrl}
-                  sx={{ 
-                    width: 32, 
+                  sx={{
+                    width: 32,
                     height: 32,
                     border: '2px solid rgba(255,255,255,0.3)'
                   }}
@@ -474,22 +429,22 @@ export default function App() {
       {/* Main Content Area */}
       <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left Sidebar */}
-        <Box 
-          sx={{ 
+        <Box
+          sx={{
             width: settings.sidebarWidth,
-            borderRight: '1px solid #e0e0e0',
+            borderRight: '1px solid var(--freeki-border-color)',
             height: '100%',
             flexShrink: 0,
             position: 'relative',
-            backgroundColor: '#fafafa'
+            backgroundColor: 'var(--freeki-sidebar-background)'
           }}
         >
-          <FolderTree 
-            pages={pages} 
+          <FolderTree
+            pages={pages}
             selectedPage={selectedPage}
             onPageSelect={handlePageSelect}
           />
-          
+
           {/* Resize Handle */}
           <Box
             onMouseDown={handleSidebarResize}
@@ -515,13 +470,13 @@ export default function App() {
             {/* Main Content */}
             <Box sx={{ flex: 1, overflow: 'hidden' }}>
               {isEditing ? (
-                <PageEditor 
+                <PageEditor
                   page={selectedPage}
                   onSave={handleSave}
                   onCancel={handleCancel}
                 />
               ) : (
-                <PageViewer 
+                <PageViewer
                   page={selectedPage}
                   onEdit={handleEdit}
                 />
@@ -530,11 +485,11 @@ export default function App() {
 
             {/* Right Metadata Panel */}
             {!selectedPage.isFolder && settings.showMetadataPanel && (
-              <Box 
-                sx={{ 
+              <Box
+                sx={{
                   width: 280,
-                  borderLeft: '1px solid #e0e0e0',
-                  backgroundColor: '#f9f9f9',
+                  borderLeft: '1px solid var(--freeki-border-color)',
+                  backgroundColor: 'var(--freeki-metadata-panel-background)',
                   overflow: 'auto'
                 }}
               >
@@ -546,16 +501,16 @@ export default function App() {
       </Box>
 
       {/* Footer */}
-      <Box 
-        sx={{ 
-          borderTop: '1px solid #e0e0e0',
-          backgroundColor: '#f5f5f5',
+      <Box
+        sx={{
+          borderTop: '1px solid var(--freeki-border-color)',
+          backgroundColor: 'var(--freeki-sidebar-background)',
           py: 1,
           px: 2,
           textAlign: 'center'
         }}
       >
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{ color: 'var(--freeki-text-secondary)' }}>
           Copyright (c) {currentYear} {settings.companyName} powered by FreeKi
         </Typography>
       </Box>
@@ -564,6 +519,7 @@ export default function App() {
       <AdminSettingsDialog
         open={showAdminSettings}
         onClose={() => setShowAdminSettings(false)}
+        onThemeChange={handleThemeChange}
       />
     </Box>
   )

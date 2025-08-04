@@ -22,11 +22,13 @@ import {
   Folder,
   Description
 } from '@mui/icons-material'
+import apiService from './apiService'
 
 interface MediaFile {
   filepath: string
   size: number
   contentType: string
+  lastModified: string
 }
 
 interface MediaPickerProps {
@@ -36,28 +38,26 @@ interface MediaPickerProps {
   label?: string
 }
 
-// Reusable media picker component that will be enhanced later
+// Media picker component that uses centralized API service
 function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Media' }: MediaPickerProps) {
   const [open, setOpen] = useState(false)
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
   const [loading, setLoading] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const handleOpen = async () => {
     setOpen(true)
     setLoading(true)
+    setError(null)
     
     try {
-      // TEMPORARY: Mock media files for testing
-      // TODO: Replace with actual API call to /api/media
-      await new Promise(resolve => setTimeout(resolve, 500))
-      setMediaFiles([
-        { filepath: '/logo.png', size: 2048, contentType: 'image/png' },
-        { filepath: '/banner.jpg', size: 8192, contentType: 'image/jpeg' },
-        { filepath: '/icon.svg', size: 1024, contentType: 'image/svg+xml' }
-      ])
+      // Use centralized API service to fetch media files
+      const files = await apiService.getMediaFiles()
+      setMediaFiles(files)
     } catch (error) {
       console.warn('Failed to load media files:', error)
+      setError('Failed to load media files')
       setMediaFiles([])
     } finally {
       setLoading(false)
@@ -67,6 +67,7 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
   const handleClose = () => {
     setOpen(false)
     setUploadFile(null)
+    setError(null)
   }
 
   const handleSelect = (filePath: string) => {
@@ -78,6 +79,7 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
     const file = event.target.files?.[0]
     if (file) {
       setUploadFile(file)
+      setError(null)
     }
   }
 
@@ -85,16 +87,24 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
     if (!uploadFile) return
 
     setLoading(true)
+    setError(null)
+    
     try {
-      // TEMPORARY: Mock upload for testing
-      // TODO: Replace with actual API call to /api/media
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Use centralized API service to upload file
+      const result = await apiService.uploadMediaFile(uploadFile)
       
-      const newFilePath = `/uploads/${uploadFile.name}`
-      onChange(newFilePath)
-      handleClose()
+      if (result) {
+        onChange(result.filepath)
+        // Refresh the media files list
+        const updatedFiles = await apiService.getMediaFiles()
+        setMediaFiles(updatedFiles)
+        setUploadFile(null)
+      } else {
+        setError('Failed to upload file')
+      }
     } catch (error) {
       console.warn('Failed to upload file:', error)
+      setError('Failed to upload file')
     } finally {
       setLoading(false)
     }
@@ -135,6 +145,12 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
         </DialogTitle>
         
         <DialogContent>
+          {error && (
+            <Box sx={{ mb: 2, p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
+              <Typography color="error">{error}</Typography>
+            </Box>
+          )}
+          
           {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress />
@@ -199,7 +215,7 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
                       </ListItemIcon>
                       <ListItemText
                         primary={file.filepath}
-                        secondary={`${file.contentType} • ${(file.size / 1024).toFixed(1)} KB`}
+                        secondary={`${file.contentType} • ${(file.size / 1024).toFixed(1)} KB • ${new Date(file.lastModified).toLocaleDateString()}`}
                       />
                     </ListItem>
                   ))

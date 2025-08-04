@@ -21,20 +21,20 @@ namespace FreeKi
 
 		//-------------------
 		// Authentication
-		[Option("auth_config", Required = false, Default = "always", HelpText = "Authentication: always or openid,http://localhost:4205/.well-known/openid-configuration")]
+		[Option("auth_config", Required = true, Default = "always", HelpText = "Authentication: always or openid,http://localhost:4205/.well-known/openid-configuration")]
 		public string? auth_config { get; set; }
 
 		//-------------------
 		// Static content and hosting
-		[Option("advertise_urls", Required = false, Default = "http://localhost:7777/", HelpText = "Comma-separated list of URLs that requests should look like to the server. Example: 'http://localhost:7777/,https://example.com:8080/wiki/'")]
+		[Option("advertise_urls", Required = true, Default = "http://localhost:7777/", HelpText = "Comma-separated list of URLs that requests should look like to the server. Example: 'http://localhost:7777/,https://example.com:8080/wiki/'")]
 		public string? advertise_urls { get; set; }
 
-		[Option("static_root", Required = false, Default = "../freeki-client", HelpText = "Path to the static client files. Can be relative to the executable or an absolute path.")]
+		[Option("static_root", Required = false, Default = "../static-root", HelpText = "Path to the static client files. Can be relative to the executable or an absolute path.")]
 		public string? static_root { get; set; }
 
 		//-------------------
 		// Git Configuration
-		[Option("git_config", Required = false, Default = "../freeki-data", HelpText = "Git remote configuration: 'remote_url,username,password,branch' or 'remote_url,,,branch' for no auth. Example: '/mnt/local/remote,,,main'")]
-		public string? git_config { get; set; }
+		[Option("gitremote_config", Required = false, Default = "", HelpText = "Git remote configuration: 'remote_url,username,password,branch' or 'remote_url,,,branch' for no auth. Example: '/mnt/local/remote,,,main'")]
+		public string? gitremote_config { get; set; }
 	}
 }

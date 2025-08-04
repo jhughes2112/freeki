@@ -9,12 +9,21 @@ interface PageEditorProps {
 
 export default function PageEditor({ page, onSave, onCancel }: PageEditorProps) {
   return (
-    <Box sx={{ p: 3 }}>
-      <Typography variant="h4">
+    <Box sx={{ 
+      p: 3,
+      backgroundColor: 'var(--freeki-edit-mode-background)',
+      color: 'var(--freeki-text-primary)',
+      height: '100%'
+    }}>
+      <Typography variant="h4" sx={{ color: 'var(--freeki-text-primary)', mb: 2 }}>
         Editing: {page.title}
       </Typography>
-      <Button onClick={() => onSave(page.content)}>Save</Button>
-      <Button onClick={onCancel}>Cancel</Button>
+      <Button onClick={() => onSave(page.content)} variant="contained" sx={{ mr: 1 }}>
+        Save
+      </Button>
+      <Button onClick={onCancel} variant="outlined">
+        Cancel
+      </Button>
     </Box>
   )
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -13,7 +13,8 @@ import {
   AccordionDetails,
   Grid,
   IconButton,
-  Alert
+  Alert,
+  Divider
 } from '@mui/material'
 import {
   ExpandMore,
@@ -21,15 +22,61 @@ import {
   Save,
   Refresh
 } from '@mui/icons-material'
-import { AdminSettings, DEFAULT_ADMIN_SETTINGS, fetchAdminSettings, saveAdminSettings } from './adminSettings'
+import type { AdminSettings, ColorScheme } from './adminSettings'
+import { DEFAULT_ADMIN_SETTINGS, fetchAdminSettings, saveAdminSettings } from './adminSettings'
 
 interface AdminSettingsDialogProps {
   open: boolean
   onClose: () => void
+  onThemeChange?: (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => void
+}
+
+interface ColorInputProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}
+
+function ColorInput({ label, value, onChange }: ColorInputProps) {
+  const [displayValue, setDisplayValue] = useState(value)
+
+  useEffect(() => {
+    setDisplayValue(value)
+  }, [value])
+
+  const handleChange = (newValue: string) => {
+    setDisplayValue(newValue)
+    onChange(newValue)
+  }
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <TextField
+        label={label}
+        value={displayValue}
+        onChange={(e) => handleChange(e.target.value)}
+        size="small"
+        fullWidth
+        sx={{ flex: 1 }}
+      />
+      <input
+        type="color"
+        value={displayValue.startsWith('#') ? displayValue : '#000000'}
+        onChange={(e) => handleChange(e.target.value)}
+        style={{
+          width: 40,
+          height: 40,
+          border: 'none',
+          borderRadius: 4,
+          cursor: 'pointer'
+        }}
+      />
+    </Box>
+  )
 }
 
 // Admin settings component that only shows for admin users
-function AdminSettingsDialog({ open, onClose }: AdminSettingsDialogProps) {
+function AdminSettingsDialog({ open, onClose, onThemeChange }: AdminSettingsDialogProps) {
   const [settings, setSettings] = useState<AdminSettings>(DEFAULT_ADMIN_SETTINGS)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -42,6 +89,13 @@ function AdminSettingsDialog({ open, onClose }: AdminSettingsDialogProps) {
       loadSettings()
     }
   }, [open])
+
+  // Apply theme changes in real-time
+  useEffect(() => {
+    if (onThemeChange) {
+      onThemeChange(settings.colorSchemes)
+    }
+  }, [settings.colorSchemes, onThemeChange])
 
   const loadSettings = async () => {
     setLoading(true)
@@ -96,14 +150,40 @@ function AdminSettingsDialog({ open, onClose }: AdminSettingsDialogProps) {
     onClose()
   }
 
+  const updateLightColor = (property: keyof ColorScheme, value: string) => {
+    setSettings({
+      ...settings,
+      colorSchemes: {
+        ...settings.colorSchemes,
+        light: {
+          ...settings.colorSchemes.light,
+          [property]: value
+        }
+      }
+    })
+  }
+
+  const updateDarkColor = (property: keyof ColorScheme, value: string) => {
+    setSettings({
+      ...settings,
+      colorSchemes: {
+        ...settings.colorSchemes,
+        dark: {
+          ...settings.colorSchemes.dark,
+          [property]: value
+        }
+      }
+    })
+  }
+
   return (
     <Dialog 
       open={open} 
       onClose={handleClose} 
-      maxWidth="md" 
+      maxWidth="lg" 
       fullWidth
       PaperProps={{
-        sx: { height: '80vh' }
+        sx: { height: '90vh' }
       }}
     >
       <DialogTitle>
@@ -184,99 +264,187 @@ function AdminSettingsDialog({ open, onClose }: AdminSettingsDialogProps) {
               </Grid>
             </Box>
 
-            {/* Color Schemes - In Accordion for space saving */}
-            <Accordion>
+            {/* Theme Color Schemes */}
+            <Accordion defaultExpanded>
               <AccordionSummary expandIcon={<ExpandMore />}>
-                <Typography variant="h6">Color Schemes</Typography>
+                <Typography variant="h6">Theme Settings</Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>Light Mode Colors</Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
+                <Grid container spacing={4}>
+                  {/* Light Mode Theme */}
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+                      Light Mode Colors
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>
+                        Top/Bottom Lines
+                      </Typography>
+                      <ColorInput
                         label="App Bar Background"
-                        type="color"
                         value={settings.colorSchemes.light.appBarBackground}
-                        onChange={(e) => setSettings({
-                          ...settings,
-                          colorSchemes: {
-                            ...settings.colorSchemes,
-                            light: {
-                              ...settings.colorSchemes.light,
-                              appBarBackground: e.target.value
-                            }
-                          }
-                        })}
-                        fullWidth
-                        size="small"
+                        onChange={(value) => updateLightColor('appBarBackground', value)}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        label="Sidebar Background"
-                        type="color"
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        Folder Tree (Sidebar)
+                      </Typography>
+                      <ColorInput
+                        label="Background Color"
                         value={settings.colorSchemes.light.sidebarBackground}
-                        onChange={(e) => setSettings({
-                          ...settings,
-                          colorSchemes: {
-                            ...settings.colorSchemes,
-                            light: {
-                              ...settings.colorSchemes.light,
-                              sidebarBackground: e.target.value
-                            }
-                          }
-                        })}
-                        fullWidth
-                        size="small"
+                        onChange={(value) => updateLightColor('sidebarBackground', value)}
                       />
-                    </Grid>
+                      <ColorInput
+                        label="Selected Background"
+                        value={settings.colorSchemes.light.sidebarSelectedBackground}
+                        onChange={(value) => updateLightColor('sidebarSelectedBackground', value)}
+                      />
+                      <ColorInput
+                        label="Hover Background"
+                        value={settings.colorSchemes.light.sidebarHoverBackground}
+                        onChange={(value) => updateLightColor('sidebarHoverBackground', value)}
+                      />
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        View/Edit Areas
+                      </Typography>
+                      <ColorInput
+                        label="View Mode Background"
+                        value={settings.colorSchemes.light.viewModeBackground}
+                        onChange={(value) => updateLightColor('viewModeBackground', value)}
+                      />
+                      <ColorInput
+                        label="Edit Mode Background"
+                        value={settings.colorSchemes.light.editModeBackground}
+                        onChange={(value) => updateLightColor('editModeBackground', value)}
+                      />
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        Metadata/History Section
+                      </Typography>
+                      <ColorInput
+                        label="Panel Background"
+                        value={settings.colorSchemes.light.metadataPanelBackground}
+                        onChange={(value) => updateLightColor('metadataPanelBackground', value)}
+                      />
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        Font Colors
+                      </Typography>
+                      <ColorInput
+                        label="Primary Text"
+                        value={settings.colorSchemes.light.textPrimary}
+                        onChange={(value) => updateLightColor('textPrimary', value)}
+                      />
+                      <ColorInput
+                        label="Secondary Text"
+                        value={settings.colorSchemes.light.textSecondary}
+                        onChange={(value) => updateLightColor('textSecondary', value)}
+                      />
+                      <ColorInput
+                        label="Border Color"
+                        value={settings.colorSchemes.light.borderColor}
+                        onChange={(value) => updateLightColor('borderColor', value)}
+                      />
+                    </Box>
                   </Grid>
-                </Box>
 
-                <Box>
-                  <Typography variant="subtitle1" sx={{ mb: 2 }}>Dark Mode Colors</Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
+                  {/* Dark Mode Theme */}
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" sx={{ mb: 2, color: 'secondary.main' }}>
+                      Dark Mode Colors
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mt: 1 }}>
+                        Top/Bottom Lines
+                      </Typography>
+                      <ColorInput
                         label="App Bar Background"
-                        type="color"
                         value={settings.colorSchemes.dark.appBarBackground}
-                        onChange={(e) => setSettings({
-                          ...settings,
-                          colorSchemes: {
-                            ...settings.colorSchemes,
-                            dark: {
-                              ...settings.colorSchemes.dark,
-                              appBarBackground: e.target.value
-                            }
-                          }
-                        })}
-                        fullWidth
-                        size="small"
+                        onChange={(value) => updateDarkColor('appBarBackground', value)}
                       />
-                    </Grid>
-                    <Grid item xs={12} sm={6}>
-                      <TextField
-                        label="Sidebar Background"
-                        type="color"
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        Folder Tree (Sidebar)
+                      </Typography>
+                      <ColorInput
+                        label="Background Color"
                         value={settings.colorSchemes.dark.sidebarBackground}
-                        onChange={(e) => setSettings({
-                          ...settings,
-                          colorSchemes: {
-                            ...settings.colorSchemes,
-                            dark: {
-                              ...settings.colorSchemes.dark,
-                              sidebarBackground: e.target.value
-                            }
-                          }
-                        })}
-                        fullWidth
-                        size="small"
+                        onChange={(value) => updateDarkColor('sidebarBackground', value)}
                       />
-                    </Grid>
+                      <ColorInput
+                        label="Selected Background"
+                        value={settings.colorSchemes.dark.sidebarSelectedBackground}
+                        onChange={(value) => updateDarkColor('sidebarSelectedBackground', value)}
+                      />
+                      <ColorInput
+                        label="Hover Background"
+                        value={settings.colorSchemes.dark.sidebarHoverBackground}
+                        onChange={(value) => updateDarkColor('sidebarHoverBackground', value)}
+                      />
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        View/Edit Areas
+                      </Typography>
+                      <ColorInput
+                        label="View Mode Background"
+                        value={settings.colorSchemes.dark.viewModeBackground}
+                        onChange={(value) => updateDarkColor('viewModeBackground', value)}
+                      />
+                      <ColorInput
+                        label="Edit Mode Background"
+                        value={settings.colorSchemes.dark.editModeBackground}
+                        onChange={(value) => updateDarkColor('editModeBackground', value)}
+                      />
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        Metadata/History Section
+                      </Typography>
+                      <ColorInput
+                        label="Panel Background"
+                        value={settings.colorSchemes.dark.metadataPanelBackground}
+                        onChange={(value) => updateDarkColor('metadataPanelBackground', value)}
+                      />
+                      
+                      <Divider sx={{ my: 1 }} />
+                      
+                      <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+                        Font Colors
+                      </Typography>
+                      <ColorInput
+                        label="Primary Text"
+                        value={settings.colorSchemes.dark.textPrimary}
+                        onChange={(value) => updateDarkColor('textPrimary', value)}
+                      />
+                      <ColorInput
+                        label="Secondary Text"
+                        value={settings.colorSchemes.dark.textSecondary}
+                        onChange={(value) => updateDarkColor('textSecondary', value)}
+                      />
+                      <ColorInput
+                        label="Border Color"
+                        value={settings.colorSchemes.dark.borderColor}
+                        onChange={(value) => updateDarkColor('borderColor', value)}
+                      />
+                    </Box>
                   </Grid>
-                </Box>
+                </Grid>
               </AccordionDetails>
             </Accordion>
           </>

@@ -254,9 +254,12 @@ namespace Storage
 			return fullPath;
 		}
 
-		// Get the size in bytes of the data for the given key without reading the entire file
-		public Task<long?> GetSize(string key)
+		// Get file information including size and last modified time without reading the entire file
+		public Task<(long size, long lastModified)> GetFileInfo(string key)
 		{
+			long size = 0;
+			long lastModified = 0;
+
 			string filename = GetFullPath(key);
 			if (filename.StartsWith(_dataFolder, StringComparison.OrdinalIgnoreCase))
 			{
@@ -264,20 +267,21 @@ namespace Storage
 				{
 					if (File.Exists(filename))
 					{
-						FileInfo fileInfo = new FileInfo(filename);
-						return Task.FromResult<long?>(fileInfo.Length);
+						System.IO.FileInfo fileInfo = new System.IO.FileInfo(filename);
+						size = fileInfo.Length;
+						lastModified = ((DateTimeOffset)fileInfo.LastWriteTimeUtc).ToUnixTimeSeconds();
 					}
 				}
 				catch (Exception ex)
 				{
-					_logger.Log(EVerbosity.Warning, $"StorageFiles.GetSize {key} exception {ex.Message}");
+					_logger.Log(EVerbosity.Warning, $"StorageFiles.GetFileInfo {key} exception {ex.Message}");
 				}
 			}
 			else
 			{
-				_logger.Log(EVerbosity.Error, $"StorageFiles.GetSize {key} -> {filename} attempts path traversal {_dataFolder}");
+				_logger.Log(EVerbosity.Error, $"StorageFiles.GetFileInfo {key} -> {filename} attempts path traversal {_dataFolder}");
 			}
-			return Task.FromResult<long?>(null);
+			return Task.FromResult((size, lastModified));
 		}
 	}
 }

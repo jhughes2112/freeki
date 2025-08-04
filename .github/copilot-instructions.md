@@ -14,3 +14,6 @@ I prefer variable declarations and assignments to visually line up so the code i
 Don't use bulky XML-style comments, but do add a light description above a class and function, or inside the function if something needs explaining. 
 Fix all warnings if you can.  
 I like using nullables, and if async methods aren't async, remove the keyword and return Task.FromResult()
+
+When you try to use terminal commands, always use the semicolon between commands, NOT && because it does not work.
+Specifically: The token '&&' is not a valid statement separator in this version.
