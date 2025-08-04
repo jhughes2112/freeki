@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Box,
   AppBar,
@@ -12,9 +12,7 @@ import {
   InputAdornment,
   Snackbar,
   Alert,
-  useTheme,
-  useMediaQuery,
-  Drawer
+  useMediaQuery
 } from '@mui/material'
 import {
   Search,
@@ -29,7 +27,6 @@ import {
   LightMode,
   DarkMode,
   Monitor,
-  Menu as MenuIcon,
   ChevronLeft,
   ChevronRight
 } from '@mui/icons-material'
@@ -114,13 +111,11 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>('')
   const [showError, setShowError] = useState<boolean>(false)
   const [adminColorSchemes, setAdminColorSchemes] = useState<{ light: ColorScheme; dark: ColorScheme }>(DEFAULT_ADMIN_SETTINGS.colorSchemes)
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
-  const isNarrowScreen = useMediaQuery('(max-width: 900px)') // Add specific breakpoint for 900px
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [isMetadataPanelOpen, setIsMetadataPanelOpen] = useState(false)
+  const isNarrowScreen = useMediaQuery('(max-width: 900px)') // Single breakpoint for overlay behavior
+  
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false)
+  const [hasInitialized, setHasInitialized] = useState(false)
 
   // Set up the error handler for the API client
   useEffect(() => {
@@ -167,11 +162,67 @@ export default function App() {
     }
   }, [settings.theme, isLoaded, adminColorSchemes])
 
-  // Automatically collapse panels on small screens and expand on large screens
+  // Initialize collapsed state based on screen size - only run once on mount
   useEffect(() => {
-    setIsSidebarCollapsed(isMobile)
-    setIsMetadataCollapsed(isMobile)
-  }, [isMobile])
+    if (!hasInitialized) {
+      if (isNarrowScreen) {
+        // On narrow screens (including mobile), use narrow screen layout settings
+        setIsSidebarCollapsed(settings.narrowScreenLayout.sidebarCollapsed)
+        setIsMetadataCollapsed(settings.narrowScreenLayout.metadataCollapsed)
+      } else {
+        // On wide screens, use wide screen layout settings  
+        setIsSidebarCollapsed(settings.wideScreenLayout.sidebarCollapsed)
+        setIsMetadataCollapsed(settings.wideScreenLayout.metadataCollapsed)
+      }
+      setHasInitialized(true)
+    }
+  }, [isNarrowScreen, hasInitialized, settings.narrowScreenLayout, settings.wideScreenLayout])
+
+  // Handle screen size changes after initialization
+  useEffect(() => {
+    if (hasInitialized) {
+      if (isNarrowScreen) {
+        // Switching to narrow screen - save current wide screen state and load narrow state
+        updateSetting('wideScreenLayout', {
+          ...settings.wideScreenLayout,
+          sidebarCollapsed: isSidebarCollapsed,
+          metadataCollapsed: isMetadataCollapsed
+        })
+        setIsSidebarCollapsed(settings.narrowScreenLayout.sidebarCollapsed)
+        setIsMetadataCollapsed(settings.narrowScreenLayout.metadataCollapsed)
+      } else {
+        // Switching to wide screen - save current narrow state and load wide state
+        updateSetting('narrowScreenLayout', {
+          ...settings.narrowScreenLayout,
+          sidebarCollapsed: isSidebarCollapsed,
+          metadataCollapsed: isMetadataCollapsed
+        })
+        setIsSidebarCollapsed(settings.wideScreenLayout.sidebarCollapsed)
+        setIsMetadataCollapsed(settings.wideScreenLayout.metadataCollapsed)
+        // Panel widths are already in the layout object
+      }
+    }
+  }, [isNarrowScreen, hasInitialized])
+
+  // Update layout settings when panel states change
+  useEffect(() => {
+    if (hasInitialized) {
+      if (isNarrowScreen) {
+        updateSetting('narrowScreenLayout', {
+          ...settings.narrowScreenLayout,
+          sidebarCollapsed: isSidebarCollapsed,
+          metadataCollapsed: isMetadataCollapsed
+        })
+      } else {
+        updateSetting('wideScreenLayout', {
+          ...settings.wideScreenLayout,
+          sidebarCollapsed: isSidebarCollapsed,
+          metadataCollapsed: isMetadataCollapsed
+          // sidebarWidth and metadataWidth are already in the layout object
+        })
+      }
+    }
+  }, [isSidebarCollapsed, isMetadataCollapsed, hasInitialized, isNarrowScreen])
 
   // Handle theme changes from admin dialog
   const handleThemeChange = (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => {
@@ -223,9 +274,6 @@ export default function App() {
       if (!page.isFolder) {
         setSelectedPage(page)
         setIsEditing(false)
-        if (isMobile) {
-          setIsSidebarOpen(false)
-        }
       }
     }
 
@@ -309,16 +357,37 @@ export default function App() {
     console.log('Account')
   }
 
+  // Ensure only one panel can be open at a time on narrow screens
+const handleSidebarToggle = () => {
+  if (isNarrowScreen && !isSidebarCollapsed) {
+    // Opening sidebar on narrow screen - close metadata panel
+    setIsMetadataCollapsed(true)
+  }
+  setIsSidebarCollapsed(!isSidebarCollapsed)
+}
+
+const handleMetadataToggle = () => {
+  if (isNarrowScreen && !isMetadataCollapsed) {
+    // Opening metadata panel on narrow screen - close sidebar  
+    setIsSidebarCollapsed(true)
+  }
+  setIsMetadataCollapsed(!isMetadataCollapsed)
+}
+
+// Replace the resize handlers to use layout settings
   const handleSidebarResize = (e: React.MouseEvent) => {
     const startX = e.clientX
-    const startWidth = settings.sidebarWidth
+    const startWidth = settings.wideScreenLayout.sidebarWidth // Use layout setting
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = startWidth + (e.clientX - startX)
-      const minWidth = 200
-      const maxWidth = 500
+      const minWidth = 100
+      const maxWidth = window.innerWidth * 0.8
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
-      updateSetting('sidebarWidth', clampedWidth)
+      updateSetting('wideScreenLayout', {
+        ...settings.wideScreenLayout,
+        sidebarWidth: clampedWidth // Update layout setting
+      })
     }
 
     const handleMouseUp = () => {
@@ -334,16 +403,20 @@ export default function App() {
     document.body.style.userSelect = 'none'
   }
 
-  const handleMetadataResize = (e: React.MouseEvent) => {
+    const handleMetadataResize = (e: React.MouseEvent) => {
     const startX = e.clientX
-    const startWidth = settings.metadataWidth || 280
+    const startWidth = settings.wideScreenLayout.metadataWidth
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = startWidth - (e.clientX - startX) // Subtract because we're resizing from the left edge
-      const minWidth = 200
-      const maxWidth = 400
+      // Only enforce reasonable minimum (100px) and maximum (80% of viewport width)
+      const minWidth = 100
+      const maxWidth = window.innerWidth * 0.8
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
-      updateSetting('metadataWidth', clampedWidth)
+      updateSetting('wideScreenLayout', {
+        ...settings.wideScreenLayout,
+        metadataWidth: clampedWidth
+      })
     }
 
     const handleMouseUp = () => {
@@ -381,17 +454,6 @@ export default function App() {
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           {/* Left side - Logo and Title */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            {isMobile && (
-              <IconButton
-                color="inherit"
-                edge="start"
-                onClick={() => setIsSidebarOpen(true)}
-                sx={{ mr: 1 }}
-                aria-label="Open navigation menu"
-              >
-                <MenuIcon />
-              </IconButton>
-            )}
             <Avatar
               src="/logo.png"
               alt={`${settings.companyName} logo`}
@@ -544,73 +606,42 @@ export default function App() {
       </AppBar>
 
       {/* Main Content Area with z-index layered approach */}
-      <div className="main-layout" style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left Sidebar */}
-        {isMobile ? (
-          <Drawer
-            anchor="left"
-            open={isSidebarOpen && !isSidebarCollapsed}
-            onClose={() => setIsSidebarOpen(false)}
-            sx={{
-              '& .MuiDrawer-paper': {
-                width: Math.min(300, window.innerWidth * 0.8),
-                backgroundColor: 'var(--freeki-sidebar-background)'
-              }
-            }}
-            role="navigation"
-            aria-label="Sidebar navigation"
-          >
-            <FadePanelContent visible={!isSidebarCollapsed}>
-              <FolderTree
-                pages={pages}
-                selectedPage={selectedPage}
-                onPageSelect={handlePageSelect}
-              />
-            </FadePanelContent>
-          </Drawer>
-        ) : (
-          <div 
-            className={`sidebar-panel${isSidebarCollapsed ? ' collapsed' : ''}`}
-            style={{ '--sidebar-width': `${settings.sidebarWidth}px` } as React.CSSProperties}
-          >
-            <FadePanelContent visible={!isSidebarCollapsed}>
-              <FolderTree
-                pages={pages}
-                selectedPage={selectedPage}
-                onPageSelect={handlePageSelect}
-              />
-              {!isSidebarCollapsed && (
-                <Box
-                  onMouseDown={handleSidebarResize}
-                  tabIndex={0}
-                  aria-label="Sidebar width resizer"
-                  sx={{
-                    position: 'absolute',
-                    top: 0,
-                    right: 0,
-                    width: 4,
-                    height: '100%',
-                    backgroundColor: 'transparent',
-                    cursor: 'col-resize',
-                    '&:hover': {
-                      backgroundColor: 'primary.main',
-                    },
-                    zIndex: 1
-                  }}
-                />
-              )}
-            </FadePanelContent>
-            {/* Sidebar Chevron Button */}
-            <button
-              className={`chevron-button ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
-              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-              aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-              title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-            >
-              {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
-            </button>
-          </div>
-        )}
+      <div className={`main-layout${isNarrowScreen && (!isSidebarCollapsed || !isMetadataCollapsed) ? ' panel-open' : ''}`} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Left Sidebar - always use panel, never drawer */}
+        <div 
+          className={`sidebar-panel${isSidebarCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isSidebarCollapsed ? ' narrow-opened' : ''}`}
+          style={{ '--sidebar-width': `${isNarrowScreen ? 300 : settings.wideScreenLayout.sidebarWidth}px` } as React.CSSProperties}
+        >
+          <FadePanelContent visible={!isSidebarCollapsed}>
+            <FolderTree
+              pages={pages}
+              selectedPage={selectedPage}
+              onPageSelect={handlePageSelect}
+            />
+          </FadePanelContent>
+
+          {/* Add sidebar splitter */}
+          {!isSidebarCollapsed && !isNarrowScreen && (
+            <Box
+              onMouseDown={handleSidebarResize}
+              tabIndex={0}
+              aria-label="Sidebar width resizer"
+              sx={{
+                position: 'absolute',
+                top: 0,
+                right: 0,
+                width: 4,
+                height: '100%',
+                backgroundColor: 'transparent',
+                cursor: 'col-resize',
+                '&:hover': {
+                  backgroundColor: 'primary.main',
+                },
+                zIndex: 1
+              }}
+            />
+          )}
+        </div>
 
         {/* Center Content Area - expands when panels are collapsed */}
         <div 
@@ -621,12 +652,33 @@ export default function App() {
             flexDirection: 'column', 
             overflow: 'hidden', 
             position: 'relative',
-            // Only apply negative margins on desktop screens, not mobile
-            marginLeft: (!isMobile && isSidebarCollapsed) ? `-${settings.sidebarWidth}px` : '0',
-            marginRight: (!isMobile && isMetadataCollapsed) ? `-${settings.metadataWidth || 280}px` : '0',
+            // Only apply negative margins on desktop screens, not mobile or narrow screens
+            marginLeft: (!isNarrowScreen && isSidebarCollapsed) ? `-${settings.wideScreenLayout.sidebarWidth}px` : '0',
+            marginRight: (!isNarrowScreen && isMetadataCollapsed) ? `-${settings.wideScreenLayout.metadataWidth}px` : '0',
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
+          {/* Wide screen chevron buttons - attached to center content */}
+          <button
+            className={`chevron-button chevron-wide-screen ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            onClick={handleSidebarToggle}
+            aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+            title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+          >
+            {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+          </button>
+          
+          {!selectedPage.isFolder && settings.showMetadataPanel && (
+            <button
+              className={`chevron-button chevron-wide-screen ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+              onClick={handleMetadataToggle}
+              aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+              title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+            >
+              {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+            </button>
+          )}
+
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }} role="main">
             {/* Main Content */}
             <Box sx={{ flex: 1, overflow: 'auto' }} role="main">
@@ -646,67 +698,72 @@ export default function App() {
           </Box>
         </div>
 
-        {/* Right Metadata Panel */}
+        {/* Right Metadata Panel - always use panel, never drawer */}  
         {!selectedPage.isFolder && settings.showMetadataPanel && (
-          isMobile ? (
-            <Drawer
-              anchor="right"
-              open={isMetadataPanelOpen && !isMetadataCollapsed}
-              onClose={() => setIsMetadataPanelOpen(false)}
-              sx={{
-                '& .MuiDrawer-paper': {
-                  width: Math.min(280, window.innerWidth * 0.8),
-                  borderLeft: '1px solid var(--freeki-border-color)',
-                  backgroundColor: 'var(--freeki-metadata-panel-background)'
-                }
-              }}
-              role="complementary"
-              aria-label="Page metadata"
-            >
-              <FadePanelContent visible={!isMetadataCollapsed}>
-                <PageMetadata page={selectedPage} />
-              </FadePanelContent>
-            </Drawer>
-          ) : (
-            <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}`} 
-              style={{ '--metadata-width': `${settings.metadataWidth}px` } as React.CSSProperties}
-            >
-              <FadePanelContent visible={!isMetadataCollapsed}>
-                <PageMetadata page={selectedPage} />
-              </FadePanelContent>
-              
-              {/* Add metadata splitter */}
-              {!isMetadataCollapsed && (
-                <Box
-                  onMouseDown={handleMetadataResize}
-                  tabIndex={0}
-                  aria-label="Metadata panel width resizer"
-                  sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: 4,
-                    height: '100%',
-                    backgroundColor: 'transparent',
-                    cursor: 'col-resize',
-                    '&:hover': {
-                      backgroundColor: 'primary.main',
-                    },
-                    zIndex: 1
-                  }}
-                />
-              )}
-              {/* Metadata Panel Chevron Button */}
-              <button
-                className={`chevron-button ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
-                onClick={() => setIsMetadataCollapsed(!isMetadataCollapsed)}
-                aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
-                title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
-              >
-                {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
-              </button>
-            </div>
-          )
+          <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isMetadataCollapsed ? ' narrow-opened' : ''}`} 
+            style={{ '--metadata-width': `${isNarrowScreen ? 280 : settings.wideScreenLayout.metadataWidth}px` } as React.CSSProperties}
+          >
+            <FadePanelContent visible={!isMetadataCollapsed}>
+              <PageMetadata page={selectedPage} />
+            </FadePanelContent>
+            
+            {/* Add metadata splitter */}
+            {!isMetadataCollapsed && !isNarrowScreen && (
+              <Box
+                onMouseDown={handleMetadataResize}
+                tabIndex={0}
+                aria-label="Metadata panel width resizer"
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: 4,
+                  height: '100%',
+                  backgroundColor: 'transparent',
+                  cursor: 'col-resize',
+                  '&:hover': {
+                    backgroundColor: 'primary.main',
+                  },
+                  zIndex: 1
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Narrow screen chevron buttons positioned at main layout level to be above everything */}
+        <button
+          className={`chevron-button chevron-narrow-screen ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+          onClick={handleSidebarToggle}
+          aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+          title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+          style={{
+            position: 'absolute',
+            left: '8px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 1000
+          }}
+        >
+          {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+        </button>
+        
+        {!selectedPage.isFolder && settings.showMetadataPanel && (
+          <button
+            className={`chevron-button chevron-narrow-screen ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+            onClick={handleMetadataToggle}
+            aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+            title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+            style={{
+              position: 'absolute',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 1000
+            }}
+          >
+            {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+          </button>
         )}
       </div>
 

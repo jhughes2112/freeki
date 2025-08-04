@@ -24,7 +24,7 @@
   position: relative;
   background-color: var(--freeki-sidebar-background);
   border-right: 1px solid var(--freeki-border-color);
-  overflow: hidden;
+  overflow: visible;  /* Allow chevrons to extend outside panel bounds */
   flex-shrink: 0;
   z-index: 5;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -32,6 +32,7 @@
 
 .sidebar-panel.collapsed {
   transform: translateX(calc(-1 * var(--sidebar-width, 300px)));
+  overflow: visible; /* Ensure chevrons stay visible when panel is collapsed */
 }
 
 /* Metadata panel - slides off-screen when collapsed */
@@ -43,7 +44,7 @@
   position: relative;
   background-color: var(--freeki-metadata-panel-background);
   border-left: 1px solid var(--freeki-border-color);
-  overflow: hidden;
+  overflow: visible;  /* Allow chevrons to extend outside panel bounds */
   flex-shrink: 0;
   z-index: 5;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -51,6 +52,7 @@
 
 .metadata-panel.collapsed {
   transform: translateX(var(--metadata-width, 280px));
+  overflow: visible; /* Ensure chevrons stay visible when panel is collapsed */
 }
 
 /* Center content area - expands to use space when panels collapse */
@@ -74,37 +76,6 @@
   margin-right: calc(-1 * var(--metadata-width, 280px));
 }
 
-/* Responsive behavior: disable negative margins on smaller screens */
-@media (max-width: 900px) {
-  .center-content {
-    /* Override any inline styles for margins on small screens */
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-  }
-  
-  .center-content.sidebar-collapsed {
-    margin-left: 0 !important;
-  }
-  
-  .center-content.metadata-collapsed {
-    margin-right: 0 !important;
-  }
-  
-  /* Hide sidebar and metadata panels completely on small screens */
-  .sidebar-panel {
-    display: none;
-  }
-  
-  .metadata-panel {
-    display: none;
-  }
-  
-  /* Hide chevron buttons on small screens since panels are hidden */
-  .chevron-button {
-    display: none;
-  }
-}
-
 /* Panel content fade animation */
 .fade-panel {
   opacity: 1;
@@ -119,15 +90,15 @@
   pointer-events: none;
 }
 
-/* Chevron buttons with animated positioning and partial off-screen behavior */
+/* Chevron buttons attached to center content edges */
 .chevron-button {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  background-color: white;
-  border: 1px solid #e0e0e0;
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid #ccc;
   border-radius: 50%;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,54 +106,99 @@
   height: 32px;
   opacity: 0.8;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 10;
+  z-index: 1000;
   cursor: pointer;
+  color: #333; /* Dark color for chevron icon */
 }
 
-/* Sidebar chevron animations */
-.chevron-button.sidebar-open {
-  right: -12px; /* Partially visible when panel is open */
-  z-index: 12; /* Lower z-index - gets clipped by center content */
-}
-
-.chevron-button.sidebar-open:hover {
+.chevron-button:hover {
   opacity: 1;
-  right: -8px;
+  background-color: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-.chevron-button.sidebar-closed {
-  right: -20px; /* More off-screen when closed */
-  z-index: 25; /* Higher z-index - appears above center content */
-  opacity: 0.6;
-  background-color: rgba(255, 255, 255, 0.95);
+/* Wide screen chevron buttons - attached to center content */
+.chevron-button.chevron-wide-screen {
+  display: flex; /* Show on wide screens */
 }
 
-.chevron-button.sidebar-closed:hover {
-  opacity: 0.9;
-  right: -12px; /* Slides more into view on hover */
-}
-
-/* Metadata panel chevron animations */
-.chevron-button.metadata-open {
-  left: -12px; /* Partially visible when panel is open */
-  z-index: 12; /* Lower z-index - gets clipped by center content */
-}
-
-.chevron-button.metadata-open:hover {
-  opacity: 1;
+.chevron-button.chevron-wide-screen.sidebar-open,
+.chevron-button.chevron-wide-screen.sidebar-closed {
   left: -8px;
 }
 
-.chevron-button.metadata-closed {
-  left: -20px; /* More off-screen when closed */
-  z-index: 25; /* Higher z-index - appears above center content */
-  opacity: 0.6;
-  background-color: rgba(255, 255, 255, 0.95);
+.chevron-button.chevron-wide-screen.metadata-open,
+.chevron-button.chevron-wide-screen.metadata-closed {
+  right: -8px;
 }
 
-.chevron-button.metadata-closed:hover {
-  opacity: 0.9;
-  left: -12px; /* Slides more into view on hover */
+/* Narrow screen chevron buttons - absolutely positioned at main layout level */
+.chevron-button.chevron-narrow-screen {
+  display: none; /* Hide on wide screens by default */
+}
+
+/* Responsive behavior: narrow screens with overlay panels */
+@media (max-width: 900px) {
+  /* Position panels as overlays instead of flex items */
+  .sidebar-panel {
+    width: 90vw;
+    min-width: 90vw;
+    max-width: 90vw;
+    position: absolute;  /* KEY CHANGE: Make it an overlay */
+    left: 0;
+    top: 0;
+    z-index: 100;
+  }
+  
+  .metadata-panel {
+    width: 90vw;
+    min-width: 90vw;
+    max-width: 90vw;
+    position: absolute;  /* KEY CHANGE: Make it an overlay */
+    right: 0;
+    top: 0;
+    z-index: 100;
+  }
+  
+  /* Transform rules for panel visibility */
+  .sidebar-panel:not(.narrow-opened) {
+    transform: translateX(-90vw);
+  }
+  
+  .metadata-panel:not(.narrow-opened) {
+    transform: translateX(90vw);
+  }
+  
+  .sidebar-panel.narrow-opened {
+    transform: translateX(0) !important;
+    z-index: 200 !important; /* Above center content when opened */
+  }
+  
+  .metadata-panel.narrow-opened {
+    transform: translateX(0) !important;
+    z-index: 200 !important; /* Above center content when opened */
+  }
+  
+  /* Center content full width */
+  .center-content {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    width: 100% !important;
+    flex: 1 !important;
+    z-index: 150 !important; /* Increase to be above panels */
+  }
+  
+  /* Hide wide screen chevrons on narrow screens */
+  .chevron-button.chevron-wide-screen {
+    display: none !important;
+  }
+  
+  /* Show narrow screen chevrons on narrow screens */
+  .chevron-button.chevron-narrow-screen {
+    display: flex !important;
+    opacity: 0.9 !important;
+    z-index: 250 !important; /* Higher than panels */
+  }
 }
 
 .card {

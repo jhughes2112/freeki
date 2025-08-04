@@ -11,8 +11,6 @@ export interface UserInfo {
 }
 
 export interface UserSettings {
-  sidebarWidth: number
-  metadataWidth: number  // Add this line
   theme: 'light' | 'dark' | 'auto'
   companyName: string
   wikiTitle: string
@@ -23,11 +21,20 @@ export interface UserSettings {
   defaultEditMode: 'wysiwyg' | 'markdown'
   autoSave: boolean
   autoSaveInterval: number
+  // Layout settings for different screen modes
+  wideScreenLayout: {
+    sidebarCollapsed: boolean
+    metadataCollapsed: boolean
+    sidebarWidth: number
+    metadataWidth: number
+  }
+  narrowScreenLayout: {
+    sidebarCollapsed: boolean
+    metadataCollapsed: boolean
+  }
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
-  sidebarWidth: 300,
-  metadataWidth: 280,  // Add this line
   theme: 'light',
   companyName: 'Your Company',
   wikiTitle: 'FreeKi Wiki',
@@ -36,7 +43,17 @@ const DEFAULT_SETTINGS: UserSettings = {
   showMetadataPanel: true,
   defaultEditMode: 'wysiwyg',
   autoSave: true,
-  autoSaveInterval: 30
+  autoSaveInterval: 30,
+  wideScreenLayout: {
+    sidebarCollapsed: false,
+    metadataCollapsed: false,
+    sidebarWidth: 300,
+    metadataWidth: 280
+  },
+  narrowScreenLayout: {
+    sidebarCollapsed: true,
+    metadataCollapsed: true
+  }
 }
 
 function getDeviceKey(): string {
