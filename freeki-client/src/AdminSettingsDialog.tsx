@@ -31,7 +31,7 @@ const ADMIN_DIALOG_LIGHT_STYLE = {
   color: '#222c36',           // deep blue-gray for text
   border: '1px solid #dbe6ee',// soft blue border
   boxShadow: '0 4px 24px #00000055', // Dark shadow for light mode
-  borderRadius: 8,
+  borderRadius: 'var(--border-radius)', // Use CSS variable
   headerBg: '#eaf3fb',        // pale blue for header
   headerText: '#222c36',      // deep blue-gray for header text
   inputBg: '#ffffff',         // pure white for inputs
@@ -49,7 +49,7 @@ const ADMIN_DIALOG_DARK_STYLE = {
   color: '#e0e0e0',
   border: '1px solid #31343a',
   boxShadow: '0 8px 32px #ffffff33', // Light shadow for dark mode
-  borderRadius: 8,
+  borderRadius: 'var(--border-radius)', // Use CSS variable
   headerBg: '#222c36',
   headerText: '#f5f7fa',
   inputBg: '#23272b',
@@ -147,7 +147,7 @@ function SettingRow({
         px: 0.5,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         height: '100%'
       }}>
         {label}
@@ -349,7 +349,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
           color: style.color,
           boxShadow: style.boxShadow,
           border: style.border,
-          borderRadius: style.borderRadius
+          borderRadius: 'var(--freeki-border-radius)' // Use CSS variable
         }
       }}
       BackdropProps={{
@@ -440,22 +440,26 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
         ) : (
           <Stack spacing={1} sx={{ p: 0 }}>
             {/* General Settings */}
-            <Paper sx={{
-              p: 2,
-              backgroundColor: style.paperBg,
-              border: style.border,
-              boxShadow: 'none',
-              color: style.color,
-              mb: 0,
-              borderRadius: 2,
-              borderBottom: 'none'
-            }}>
+            <Paper 
+              className="freeki-flat"
+              sx={{
+                p: 2,
+                backgroundColor: style.paperBg,
+                color: style.color,
+                mb: 0,
+                borderRadius: 'var(--freeki-border-radius)'
+              }}>
               <Typography variant="h6" sx={{ mb: 2, color: style.color, fontWeight: 700, letterSpacing: '1px', fontSize: '1rem', py: 0 }}>
                 General Settings
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 2fr' }, gap: 2, alignItems: 'center' }}>
+                  <Box sx={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr auto' }, 
+                    gap: 2, 
+                    alignItems: 'stretch' 
+                  }}>
                     <TextField
                       label="Company Name"
                       value={settings.companyName}
@@ -467,7 +471,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                           backgroundColor: style.inputBg,
                           color: style.color,
                           fontWeight: 500,
-                          borderRadius: 1,
+                          borderRadius: 'var(--freeki-border-radius)',
                           fontSize: '1rem',
                           boxShadow: 'none',
                           '& fieldset': {
@@ -494,7 +498,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                           backgroundColor: style.inputBg,
                           color: style.color,
                           fontWeight: 500,
-                          borderRadius: 1,
+                          borderRadius: 'var(--freeki-border-radius)',
                           fontSize: '1rem',
                           boxShadow: 'none',
                           '& fieldset': {
@@ -510,48 +514,50 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                         }
                       }}
                     />
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <TextField
-                        label="Company Logo Path"
-                        value={settings.companyLogoPath}
-                        onChange={(e) => setSettings({ ...settings, companyLogoPath: e.target.value })}
-                        size="small"
-                        aria-label="Company Logo Path"
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            backgroundColor: style.inputBg,
-                            color: style.color,
-                            fontWeight: 500,
-                            borderRadius: 1,
-                            fontSize: '1rem',
-                            boxShadow: 'none',
-                            '& fieldset': {
-                              borderColor: style.inputBorder,
-                            },
-                            '&:hover fieldset': {
-                              borderColor: style.inputBorderHover,
-                            }
-                          },
-                          '& .MuiInputLabel-root': {
-                            color: style.color,
-                            fontWeight: 400
-                          }
-                        }}
-                      />
-                      <Photo 
-                        sx={{ 
-                          fontSize: 20,
+                    <TextField
+                      label="Company Logo Path"
+                      value={settings.companyLogoPath}
+                      onChange={(e) => setSettings({ ...settings, companyLogoPath: e.target.value })}
+                      size="small"
+                      aria-label="Company Logo Path"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: style.inputBg,
                           color: style.color,
-                          cursor: 'pointer',
-                          opacity: 0.7,
-                          '&:hover': {
-                            opacity: 1,
-                            color: style.inputBorderHover
+                          fontWeight: 500,
+                          borderRadius: 'var(--freeki-border-radius)',
+                          fontSize: '1rem',
+                          boxShadow: 'none',
+                          '& fieldset': {
+                            borderColor: style.inputBorder,
+                          },
+                          '&:hover fieldset': {
+                            borderColor: style.inputBorderHover,
                           }
-                        }}
-                        aria-label="Browse media files"
-                      />
-                    </Box>
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: style.color,
+                          fontWeight: 400
+                        }
+                      }}
+                    />
+                    <IconButton 
+                      onClick={() => {/* TODO: Open media browser */}}
+                      size="small"
+                      aria-label="Browse media files"
+                      sx={{ 
+                        color: style.color,
+                        opacity: 0.7,
+                        borderRadius: 'var(--freeki-border-radius)',
+                        '&:hover': {
+                          opacity: 1,
+                          color: style.inputBorderHover,
+                          backgroundColor: style.styleBoxBg
+                        }
+                      }}
+                    >
+                      <Photo fontSize="small" />
+                    </IconButton>
                   </Box>
                 </Grid>
               </Grid>
@@ -588,7 +594,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   p: 1
                 }}>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 1fr', alignItems: 'center', py: 0.5, px: 1, backgroundColor: style.paperBg, borderBottom: `1px solid ${style.inputBorder}`, color: style.color, gap: 1 }}>
-                    <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Element</Typography>
+                    <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>Element</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Light</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Dark</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Size</Typography>
@@ -619,7 +625,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   p: 1
                 }}>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 1fr', alignItems: 'center', py: 0.5, px: 1, backgroundColor: style.paperBg, borderBottom: `1px solid ${style.inputBorder}`, color: style.color, gap: 1 }}>
-                    <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Element</Typography>
+                    <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>Element</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Light</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Dark</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Size</Typography>

@@ -1,5 +1,88 @@
 import type { ColorScheme } from './adminSettings'
 
+// Function to inject global CSS for consistent styling across all MUI components
+export function injectGlobalStyles() {
+  // Check if styles are already injected
+  if (document.getElementById('freeki-global-styles')) {
+    return
+  }
+
+  const style = document.createElement('style')
+  style.id = 'freeki-global-styles'
+  style.textContent = `
+    /* Apply consistent border radius to all MUI components */
+    .MuiTextField-root .MuiOutlinedInput-root,
+    .MuiButton-root,
+    .MuiPaper-root,
+    .MuiDialog-paper,
+    .MuiCard-root,
+    .MuiChip-root,
+    .MuiAlert-root,
+    .MuiAutocomplete-paper,
+    .MuiMenu-paper,
+    .MuiPopover-paper,
+    .MuiSnackbar-root .MuiPaper-root,
+    .MuiAccordion-root,
+    .MuiDrawer-paper,
+    .MuiTabs-root .MuiTab-root,
+    .MuiAvatar-root,
+    .MuiTooltip-tooltip,
+    .MuiLinearProgress-root,
+    .MuiSkeleton-root {
+      border-radius: var(--freeki-border-radius) !important;
+    }
+
+    /* Special cases for smaller border radius on small elements */
+    .MuiSlider-thumb,
+    .MuiCheckbox-root,
+    .MuiRadio-root,
+    .MuiSwitch-thumb {
+      border-radius: calc(var(--freeki-border-radius) * 0.7) !important;
+    }
+
+    /* Switch track uses larger border radius for pill shape */
+    .MuiSwitch-track {
+      border-radius: calc(var(--freeki-border-radius) * 3) !important;
+    }
+
+    /* Apply to custom elements with freeki classes */
+    .freeki-rounded,
+    .freeki-card,
+    .freeki-input,
+    .freeki-button {
+      border-radius: var(--freeki-border-radius);
+    }
+
+    /* Consistent shadow for elevated elements using theme variable */
+    /* Only apply shadows to elevation1+ Papers that don't have the flat class */
+    .MuiPaper-elevation1:not(.freeki-flat),
+    .MuiPopover-paper,
+    .MuiMenu-paper {
+      box-shadow: 0 2px 8px var(--freeki-shadow-color) !important;
+    }
+
+    .MuiPaper-elevation2:not(.freeki-flat) {
+      box-shadow: 0 4px 12px var(--freeki-shadow-color) !important;
+    }
+
+    .MuiPaper-elevation3:not(.freeki-flat) {
+      box-shadow: 0 6px 16px var(--freeki-shadow-color) !important;
+    }
+
+    /* Enhanced shadows for dialogs and large popups */
+    .MuiDialog-paper {
+      box-shadow: 0 8px 32px var(--freeki-shadow-color) !important;
+    }
+
+    /* Flat papers with no shadow or border */
+    .freeki-flat {
+      box-shadow: none !important;
+      border: none !important;
+    }
+  `
+  document.head.appendChild(style)
+}
+
 // Function to apply theme colors to the entire application
 export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme }, currentTheme: 'light' | 'dark' | 'auto') {
   const colorScheme = currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
@@ -7,6 +90,12 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
     : colorSchemes.light;
 
   const root = document.documentElement;
+
+  // Set consistent border radius for the entire application
+  root.style.setProperty('--freeki-border-radius', '6px');
+
+  // Inject global styles for consistent theming
+  injectGlobalStyles()
 
   // Use direct color values, fallback to hardcoded if missing
   root.style.setProperty('--freeki-app-bar-background', colorScheme.appBarBackground || '#1976d2');
@@ -69,18 +158,36 @@ export function getCurrentThemeColors(): Record<string, string> {
 }
 
 // Generate sx styles for MUI components using CSS variables
+// USAGE EXAMPLES:
+// 
+// 1. Use predefined styles:
+//    <TextField sx={themeStyles.textField} />
+//    <Button sx={themeStyles.button} />
+//    <Paper sx={themeStyles.paper} />
+//
+// 2. Use CSS variables directly:
+//    <Box sx={{ borderRadius: 'var(--freeki-border-radius)' }} />
+//    <Card sx={{ borderRadius: 'var(--freeki-border-radius)', boxShadow: '0 2px 8px var(--freeki-shadow-color)' }} />
+//
+// 3. Apply freeki classes in HTML:
+//    <div className="freeki-rounded freeki-card">Content</div>
+//
+// All MUI components will automatically inherit the border radius via global CSS injection
 export const themeStyles = {
   appBar: {
     backgroundColor: 'var(--freeki-app-bar-background)',
-    color: 'var(--freeki-app-bar-text-color)'
+    color: 'var(--freeki-app-bar-text-color)',
+    borderRadius: 'var(--freeki-border-radius)'
   },
   sidebar: {
 	  backgroundColor: 'var(--freeki-folders-background)',
     borderColor: 'var(--freeki-border-color)',
-    color: 'var(--freeki-folders-font-color)'
+    color: 'var(--freeki-folders-font-color)',
+    borderRadius: 'var(--freeki-border-radius)'
   },
   sidebarItem: {
     color: 'var(--freeki-folders-font-color)',
+    borderRadius: 'var(--freeki-border-radius)',
     '&:hover': {
       filter: 'brightness(95%)'
     },
@@ -90,20 +197,54 @@ export const themeStyles = {
   },
   viewMode: {
     backgroundColor: 'var(--freeki-view-background)',
-    color: 'var(--freeki-p-font-color)'
+    color: 'var(--freeki-p-font-color)',
+    borderRadius: 'var(--freeki-border-radius)'
   },
   editMode: {
     backgroundColor: 'var(--freeki-edit-background)',
-    color: 'var(--freeki-p-font-color)'
+    color: 'var(--freeki-p-font-color)',
+    borderRadius: 'var(--freeki-border-radius)'
   },
   pageDetails: {
     backgroundColor: 'var(--freeki-page-details-background)',
     borderColor: 'var(--freeki-border-color)',
-    color: 'var(--freeki-page-details-font-color)'
+    color: 'var(--freeki-page-details-font-color)',
+    borderRadius: 'var(--freeki-border-radius)'
   },
   footer: {
     backgroundColor: 'var(--freeki-footer-background)',
     borderColor: 'var(--freeki-border-color)',
-    color: 'var(--freeki-footer-text-color)'
+    color: 'var(--freeki-footer-text-color)',
+    borderRadius: 'var(--freeki-border-radius)'
+  },
+  // Common component styles that can be reused throughout the app
+  textField: {
+    borderRadius: 'var(--freeki-border-radius)',
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 'var(--freeki-border-radius)',
+      borderColor: 'var(--freeki-border-color)'
+    }
+  },
+  button: {
+    borderRadius: 'var(--freeki-border-radius)'
+  },
+  paper: {
+    borderRadius: 'var(--freeki-border-radius)',
+    boxShadow: '0 2px 8px var(--freeki-shadow-color)'
+  },
+  card: {
+    borderRadius: 'var(--freeki-border-radius)',
+    borderColor: 'var(--freeki-border-color)',
+    boxShadow: '0 2px 8px var(--freeki-shadow-color)'
+  },
+  dialog: {
+    borderRadius: 'var(--freeki-border-radius)',
+    boxShadow: '0 8px 32px var(--freeki-shadow-color)'
+  },
+  // Flat section for areas that should not have shadows or borders (like General Settings)
+  flatSection: {
+    borderRadius: 'var(--freeki-border-radius)',
+    boxShadow: 'none',
+    border: 'none'
   }
 }
