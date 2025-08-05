@@ -43,6 +43,7 @@
 
 ## The following relate to CSS:
 
+* Never use rgba() it is confusing.
 * Use modern layout systems: **Flexbox** and **Grid**
 * Use **CSS custom properties** for theme/variables
 * Use CSS transitions/animations where helpful

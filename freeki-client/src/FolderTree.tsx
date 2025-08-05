@@ -46,7 +46,8 @@ function TreeNode({
   const hasChildren = page.children && page.children.length > 0
 
   // Calculate background opacity based on depth - deeper items get slightly darker
-  const backgroundOpacity = Math.min(0.05 + (level * 0.02), 0.15)
+  // Clamp opacity between 0.05 and 0.15, but never 0 or <0.05
+  const backgroundOpacity = Math.max(0.05, Math.min(0.15, 0.05 + (level * 0.02)))
   const levelBackgroundColor = `rgba(0, 0, 0, ${backgroundOpacity})`
 
   const handleClick = () => {
@@ -69,9 +70,9 @@ function TreeNode({
       <ListItem
         onClick={handleClick}
         sx={{
-          pl: 1 + level * 1.5, // Reduced indentation for tighter tree
+          pl: 1 + level * 1.5,
           pr: 1,
-          py: 0.25, // Tighter vertical spacing like file explorer
+          py: 0.25,
           backgroundColor: isSelected 
             ? 'var(--freeki-sidebar-selected-background)' 
             : levelBackgroundColor,
@@ -80,13 +81,14 @@ function TreeNode({
               ? 'var(--freeki-sidebar-selected-background)'
               : 'var(--freeki-sidebar-hover-background)'
           },
-          borderRadius: 0, // Remove border radius for cleaner explorer look
+          borderRadius: 0,
           mx: 0,
           mb: 0,
           cursor: 'pointer',
           color: 'var(--freeki-text-primary)',
-          minHeight: 32, // Consistent height like file explorer
-          alignItems: 'center'
+          minHeight: 32,
+          alignItems: 'center',
+          // Fix: never use rgba with normalized RGB values
         }}
       >
         {/* Expand/collapse button or spacer */}
@@ -225,8 +227,7 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
       height: '100%', 
       overflow: 'auto', 
       color: 'var(--freeki-text-primary)',
-      backgroundColor: 'var(--freeki-sidebar-background)',
-      // Add subtle scrollbar styling for better integration
+		  backgroundColor: 'var(--freeki-folders-background)',
       '&::-webkit-scrollbar': {
         width: '8px',
       },

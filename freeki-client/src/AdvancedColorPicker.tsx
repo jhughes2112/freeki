@@ -12,6 +12,14 @@ import {
 } from '@mui/material'
 import { ContentCopy, SwapHoriz } from '@mui/icons-material'
 
+// Admin panel color constants
+const ADMIN_BG_COLOR      = '#222c36';
+const ADMIN_BORDER_COLOR  = '#3a4654';
+const ADMIN_TEXT_PRIMARY  = '#f5f7fa';
+const ADMIN_TEXT_SECONDARY= '#b0b8c1';
+const ADMIN_SHADOW_COLOR  = '#00000033';
+const ADMIN_SIDEBAR_HOVER = '#2a3442';
+
 interface AdvancedColorPickerProps {
   value: string
   onChange: (color: string) => void
@@ -21,10 +29,21 @@ interface AdvancedColorPickerProps {
 
 // Color conversion utilities
 const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+  if (typeof hex !== 'string' || !hex.startsWith('#') || (hex.length !== 7 && hex.length !== 4)) {
+    // Default to black if invalid
+    return { r: 0, g: 0, b: 0 }
+  }
   const cleanHex = hex.replace('#', '')
-  const r = parseInt(cleanHex.substr(0, 2), 16)
-  const g = parseInt(cleanHex.substr(2, 2), 16)
-  const b = parseInt(cleanHex.substr(4, 2), 16)
+  let r: number, g: number, b: number
+  if (cleanHex.length === 3) {
+    r = parseInt(cleanHex[0] + cleanHex[0], 16)
+    g = parseInt(cleanHex[1] + cleanHex[1], 16)
+    b = parseInt(cleanHex[2] + cleanHex[2], 16)
+  } else {
+    r = parseInt(cleanHex.substr(0, 2), 16)
+    g = parseInt(cleanHex.substr(2, 2), 16)
+    b = parseInt(cleanHex.substr(4, 2), 16)
+  }
   return { r, g, b }
 }
 
@@ -255,31 +274,31 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
       <Box sx={{ 
         display: 'flex', 
         alignItems: 'center', 
-        gap: 0.5,
-        position: 'relative'
+        gap: 0.5, 
+        position: 'relative' 
       }}>
         {/* Color preview button - clean color box without hex text */}
         <Box
           onClick={handleClick}
           sx={{
-            width: 32,
-            height: 32,
+            width: 22,
+            height: 22,
             backgroundColor: value,
-            border: '1px solid var(--freeki-border-color)',
+            border: `1px solid ${ADMIN_BORDER_COLOR}`,
             borderRadius: 0.5,
             cursor: disabled ? 'default' : 'pointer',
             position: 'relative',
             '&:hover': {
               opacity: disabled ? 1 : 0.8,
-              boxShadow: '0 0 0 2px rgba(0,0,0,0.1)'
+              boxShadow: `0 0 0 2px ${ADMIN_BORDER_COLOR}`
             }
           }}
-          title={`${label ? label + ': ' : ''}${value.toUpperCase()}`}
-          aria-label={`${label ? label + ': ' : ''}Edit color ${value.toUpperCase()}`}
+          title={`${label ? label + ': ' : ''}${typeof value === 'string' ? value.toUpperCase() : ''}`}
+          aria-label={`${label ? label + ': ' : ''}Edit color ${typeof value === 'string' ? value.toUpperCase() : ''}`}
         />
         
         {label && (
-          <Typography variant="body2" sx={{ color: 'var(--freeki-text-primary)', fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: ADMIN_TEXT_PRIMARY, fontSize: '0.875rem' }}>
             {label}
           </Typography>
         )}
@@ -300,18 +319,18 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
         }}
         PaperProps={{
           sx: {
-            backgroundColor: 'var(--freeki-view-mode-background)',
-            border: '1px solid var(--freeki-border-color)',
+            backgroundColor: ADMIN_BG_COLOR,
+            border: `1px solid ${ADMIN_BORDER_COLOR}`,
             borderRadius: 1,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.32)'
+            boxShadow: `0 8px 32px ${ADMIN_SHADOW_COLOR}`
           }
         }}
       >
         <Paper sx={{ 
           p: 1.5, 
           width: 280,
-          backgroundColor: 'var(--freeki-view-mode-background)',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.32)'
+          backgroundColor: ADMIN_BG_COLOR,
+          boxShadow: `0 8px 32px ${ADMIN_SHADOW_COLOR}`
         }}>
           {/* Hex input with flip button */}
           <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
@@ -335,13 +354,13 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  backgroundColor: 'var(--freeki-view-mode-background)',
-                  color: 'var(--freeki-text-primary)',
+                  backgroundColor: ADMIN_BG_COLOR,
+                  color: ADMIN_TEXT_PRIMARY,
                   '& fieldset': {
-                    borderColor: 'var(--freeki-border-color)',
+                    borderColor: ADMIN_BORDER_COLOR,
                   },
                   '&:hover fieldset': {
-                    borderColor: 'var(--freeki-text-primary)',
+                    borderColor: ADMIN_TEXT_PRIMARY,
                   }
                 }
               }}
@@ -355,14 +374,14 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               title="Flip to complementary color"
               aria-label="Flip to complementary color"
               sx={{
-                color: 'var(--freeki-text-primary)',
-                border: '1px solid var(--freeki-border-color)',
+                color: ADMIN_TEXT_PRIMARY,
+                border: `1px solid ${ADMIN_BORDER_COLOR}`,
                 borderRadius: 1,
                 width: 32,
                 height: 32,
                 '&:hover': {
-                  backgroundColor: 'var(--freeki-sidebar-hover-background)',
-                  borderColor: 'var(--freeki-text-primary)'
+                  backgroundColor: ADMIN_SIDEBAR_HOVER,
+                  borderColor: ADMIN_TEXT_PRIMARY
                 }
               }}
             >
@@ -384,11 +403,11 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 backgroundColor: value,
                 color: currentHsv.v > 50 ? '#000' : '#fff',
                 borderColor: currentHsv.v > 50 ? '#000' : '#fff',
-                boxShadow: '0 0 0 1px rgba(255,255,255,0.6)',
+                boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
                 '&:hover': {
                   backgroundColor: value,
                   opacity: 0.8,
-                  boxShadow: '0 0 0 1px rgba(255,255,255,1)',
+                  boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
                 }
               }}
             >
@@ -414,11 +433,11 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                   const compHsv = rgbToHsv(compRgb.r, compRgb.g, compRgb.b)
                   return compHsv.v > 50 ? '#000' : '#fff'
                 })(),
-                boxShadow: '0 0 0 1px rgba(255,255,255,0.6)',
+                boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
                 '&:hover': {
                   backgroundColor: complementaryColor,
                   opacity: 0.8,
-                  boxShadow: '0 0 0 1px rgba(255,255,255,1)',
+                  boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
                 }
               }}
             >
@@ -431,7 +450,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             {/* Hue slider with inline label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography variant="caption" sx={{ 
-                color: 'var(--freeki-text-secondary)',
+                color: ADMIN_TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '28px',
                 textAlign: 'right'
@@ -464,7 +483,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 />
               </Box>
               <Typography variant="caption" sx={{ 
-                color: 'var(--freeki-text-secondary)',
+                color: ADMIN_TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '30px',
                 textAlign: 'left'
@@ -476,7 +495,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             {/* Saturation slider with inline label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography variant="caption" sx={{ 
-                color: 'var(--freeki-text-secondary)',
+                color: ADMIN_TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '28px',
                 textAlign: 'right'
@@ -508,7 +527,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 />
               </Box>
               <Typography variant="caption" sx={{ 
-                color: 'var(--freeki-text-secondary)',
+                color: ADMIN_TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '30px',
                 textAlign: 'left'
@@ -520,7 +539,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             {/* Value slider with inline label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" sx={{ 
-                color: 'var(--freeki-text-secondary)',
+                color: ADMIN_TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '28px',
                 textAlign: 'right'
@@ -552,7 +571,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 />
               </Box>
               <Typography variant="caption" sx={{ 
-                color: 'var(--freeki-text-secondary)',
+                color: ADMIN_TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '30px',
                 textAlign: 'left'
@@ -573,9 +592,9 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         sx={{
           '& .MuiSnackbarContent-root': {
-            backgroundColor: 'var(--freeki-view-mode-background)',
-            color: 'var(--freeki-text-primary)',
-            border: '1px solid var(--freeki-border-color)'
+            backgroundColor: ADMIN_BG_COLOR,
+            color: ADMIN_TEXT_PRIMARY,
+            border: `1px solid ${ADMIN_BORDER_COLOR}`
           }
         }}
       />

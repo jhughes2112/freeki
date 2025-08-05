@@ -20,7 +20,6 @@ import {
   Save,
   Cancel,
   Add,
-  History,
   Delete,
   Settings,
   AccountCircle,
@@ -56,10 +55,10 @@ export interface WikiPage {
   path: string
   children?: WikiPage[]
   isFolder: boolean
-  createdAt?: string
   updatedAt?: string
   author?: string
   version?: number
+  tags?: string[]
 }
 
 // Example content structure
@@ -70,10 +69,10 @@ const samplePages: WikiPage[] = [
     content: '<h1>Welcome to FreeKi Wiki</h1><p>This is the home page of your personal wiki.</p>',
     path: '/home',
     isFolder: false,
-    createdAt: '2024-01-01T10:00:00Z',
     updatedAt: '2024-01-15T14:30:00Z',
     author: 'John Doe',
-    version: 3
+    version: 3,
+    tags: ['wiki', 'home', 'intro']
   },
   {
     id: 'projects',
@@ -81,10 +80,10 @@ const samplePages: WikiPage[] = [
     content: '<h1>Projects</h1><p>This folder contains all your project documentation.</p>',
     path: '/projects',
     isFolder: true,
-    createdAt: '2024-01-01T10:00:00Z',
     updatedAt: '2024-01-10T09:15:00Z',
     author: 'Jane Smith',
     version: 1,
+    tags: ['projects', 'folder'],
     children: [
       {
         id: 'project-a',
@@ -92,10 +91,10 @@ const samplePages: WikiPage[] = [
         content: '<h1>Project Alpha</h1><p>Revolutionary new approach to solving problems.</p>',
         path: '/projects/project-a',
         isFolder: false,
-        createdAt: '2024-01-05T11:20:00Z',
         updatedAt: '2024-01-12T16:45:00Z',
         author: 'Bob Wilson',
-        version: 2
+        version: 2,
+        tags: ['alpha', 'project']
       }
     ]
   }
@@ -116,6 +115,17 @@ export default function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
   const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false)
   const [hasInitialized, setHasInitialized] = useState(false)
+
+  // Add handleTagClick for tag search
+  const handleTagClick = (tag: string) => {
+    setSearchQuery(tag);
+    // Focus the search input for better UX
+    const input = document.querySelector('input[aria-label="Search pages"]') as HTMLInputElement | null;
+    if (input) {
+      input.focus();
+      input.setSelectionRange(tag.length, tag.length);
+    }
+  }
 
   // Set up the error handler for the API client
   useEffect(() => {
@@ -337,10 +347,6 @@ export default function App() {
     }
   }
 
-  const handleHistory = () => {
-    console.log('History')
-  }
-
   const handleDelete = async () => {
     // const response = await apiClient.delete(`/api/pages/${selectedPage.id}`)
     // if (response.success) {
@@ -494,17 +500,17 @@ const handleMetadataToggle = () => {
                 '& .MuiOutlinedInput-root': {
                   color: 'var(--freeki-app-bar-text-color)',
                   '& fieldset': {
-                    borderColor: 'rgba(255,255,255,0.3)',
+                    borderColor: 'var(--freeki-app-bar-text-color)',
                   },
                   '&:hover fieldset': {
-                    borderColor: 'rgba(255,255,255,0.5)',
+                    borderColor: 'var(--freeki-app-bar-text-color)',
                   },
                   '&.Mui-focused fieldset': {
                     borderColor: 'var(--freeki-app-bar-text-color)',
                   },
                 },
                 '& .MuiInputBase-input::placeholder': {
-                  color: 'rgba(255,255,255,0.7)',
+                  color: 'var(--freeki-app-bar-text-color)',
                 },
               }}
               aria-label="Search pages"
@@ -535,7 +541,7 @@ const handleMetadataToggle = () => {
                         color: 'var(--freeki-app-bar-text-color)', 
                         borderColor: 'var(--freeki-app-bar-text-color)',
                         '&:hover': {
-                          backgroundColor: 'rgba(255,255,255,0.1)',
+                          backgroundColor: 'var(--freeki-app-bar-hover-background)',
                           borderColor: 'var(--freeki-app-bar-text-color)'
                         }
                       }}
@@ -554,7 +560,7 @@ const handleMetadataToggle = () => {
                       borderColor: 'var(--freeki-app-bar-text-color)',
                       backgroundColor: 'transparent',
                       '&:hover': {
-                        backgroundColor: 'rgba(255,255,255,0.1)',
+                        backgroundColor: 'var(--freeki-app-bar-hover-background)',
                         borderColor: 'var(--freeki-app-bar-text-color)'
                       }
                     }}
@@ -575,15 +581,6 @@ const handleMetadataToggle = () => {
               <Add />
             </IconButton>
 
-            <IconButton 
-              sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-              onClick={handleHistory} 
-              title="History" 
-              aria-label="View page history"
-            >
-              <History />
-            </IconButton>
-
             {!selectedPage.isFolder && (
               <IconButton 
                 sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
@@ -595,7 +592,7 @@ const handleMetadataToggle = () => {
               </IconButton>
             )}
 
-            <Divider orientation="vertical" flexItem sx={{ backgroundColor: 'rgba(255,255,255,0.3)', mx: 1 }} />
+            <Divider orientation="vertical" flexItem sx={{ backgroundColor: 'var(--freeki-app-bar-divider)', mx: 1 }} />
 
             {/* Only show admin settings gear if user is admin */}
             {userInfo?.isAdmin && (
@@ -622,7 +619,7 @@ const handleMetadataToggle = () => {
                   sx={{
                     width: 32,
                     height: 32,
-                    border: '2px solid rgba(255,255,255,0.3)'
+                    border: '2px solid var(--freeki-app-bar-divider)'
                   }}
                   aria-label={userInfo.fullName}
                 >
@@ -655,7 +652,7 @@ const handleMetadataToggle = () => {
         >
           {/* Narrow screen chevron button - attached to sidebar panel and slides with it */}
           <button
-            className={`chevron-button chevron-narrow-screen chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            className={`chevron-button chevron-narrow-screen sidebar-chevron chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
             onClick={handleSidebarToggle}
             aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
             title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
@@ -756,7 +753,7 @@ const handleMetadataToggle = () => {
           >
             {/* Narrow screen chevron button - attached to metadata panel and slides with it */}
             <button
-              className={`chevron-button chevron-narrow-screen chevron-metadata-theme metadata-chevron ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+              className={`chevron-button chevron-narrow-screen metadata-chevron chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
               onClick={handleMetadataToggle}
               aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
               title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
@@ -765,7 +762,10 @@ const handleMetadataToggle = () => {
             </button>
 
             <FadePanelContent visible={!isMetadataCollapsed}>
-              <PageMetadata page={selectedPage} />
+              <PageMetadata
+                page={selectedPage}
+                onTagClick={handleTagClick}
+              />
             </FadePanelContent>
             
             {/* Add metadata splitter */}
