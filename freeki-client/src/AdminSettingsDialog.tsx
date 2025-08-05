@@ -22,6 +22,7 @@ import {
 } from '@mui/icons-material'
 import type { AdminSettings, ColorScheme } from './adminSettings'
 import { DEFAULT_ADMIN_SETTINGS, fetchAdminSettings, saveAdminSettings } from './adminSettings'
+import AdvancedColorPicker from './AdvancedColorPicker'
 
 interface AdminSettingsDialogProps {
   open: boolean
@@ -43,36 +44,42 @@ function ColorRow({ label, lightValue, darkValue, onLightChange, onDarkChange }:
     <Box sx={{ 
       display: 'flex', 
       alignItems: 'center', 
-      py: 1, 
-      px: 2,
+      py: 0.75, 
+      px: 1.5,
       '&:nth-of-type(even)': {
-        backgroundColor: 'rgba(0, 0, 0, 0.02)'
-      }
+        backgroundColor: 'rgba(0, 0, 0, 0.03)'
+      },
+      color: 'var(--freeki-text-primary)',
+      gap: 1
     }}>
       <Typography sx={{ 
         flex: 1, 
-        fontSize: '0.9rem',
-        minWidth: 200
+        fontSize: '0.85rem',
+        minWidth: 160,
+        color: 'var(--freeki-text-primary)',
+        fontWeight: 500
       }}>
         {label}
       </Typography>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <input
-          type="color"
-          value={lightValue.startsWith('#') ? lightValue : '#000000'}
-          onChange={(e) => onLightChange(e.target.value)}
-          style={{ width: 32, height: 32, border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
-          title="Light mode color"
-          aria-label={`Light mode color for ${label}`}
-        />
-        <input
-          type="color"
-          value={darkValue.startsWith('#') ? darkValue : '#000000'}
-          onChange={(e) => onDarkChange(e.target.value)}
-          style={{ width: 32, height: 32, border: '1px solid #ccc', borderRadius: 4, cursor: 'pointer' }}
-          title="Dark mode color"
-          aria-label={`Dark mode color for ${label}`}
-        />
+      
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 240 }}>
+        {/* Light mode color picker */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 110 }}>
+          <AdvancedColorPicker
+            value={lightValue.startsWith('#') ? lightValue : '#000000'}
+            onChange={onLightChange}
+            label=""
+          />
+        </Box>
+        
+        {/* Dark mode color picker */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 110 }}>
+          <AdvancedColorPicker
+            value={darkValue.startsWith('#') ? darkValue : '#000000'}
+            onChange={onDarkChange}
+            label=""
+          />
+        </Box>
       </Box>
     </Box>
   )
@@ -200,33 +207,53 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: 
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="sm"
+      maxWidth="md"
       aria-labelledby="admin-settings-title"
       aria-modal="true"
       role="dialog"
       PaperProps={{
         sx: { 
-          height: { xs: '95vh', sm: '80vh', md: '75vh' },
-          width: { xs: '95vw', sm: '85vw', md: '70vw' },
-          maxWidth: { xs: '100%', sm: '600px' }
+          height: { xs: '95vh', sm: '85vh', md: '80vh' },
+          width: { xs: '95vw', sm: '90vw', md: '85vw' },
+          maxWidth: { xs: '100%', sm: '800px', md: '900px' },
+          backgroundColor: 'var(--freeki-view-mode-background)',
+          color: 'var(--freeki-text-primary)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.32)'
         }
       }}
       BackdropProps={{
         sx: {
-          backgroundColor: 'rgba(0, 0, 0, 0.2)'
+          backgroundColor: 'transparent'
         }
       }}
     >
-      <DialogTitle id="admin-settings-title">
+      <DialogTitle 
+        id="admin-settings-title"
+        sx={{ 
+          backgroundColor: 'var(--freeki-view-mode-background)',
+          color: 'var(--freeki-text-primary)',
+          borderBottom: '1px solid var(--freeki-border-color)'
+        }}
+      >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Administration Settings</Typography>
-          <IconButton onClick={handleClose} aria-label="Close settings dialog">
+          <Typography variant="h6" sx={{ color: 'var(--freeki-text-primary)' }}>
+            Administration Settings
+          </Typography>
+          <IconButton 
+            onClick={handleClose} 
+            aria-label="Close settings dialog"
+            sx={{ color: 'var(--freeki-text-primary)' }}
+          >
             <Close />
           </IconButton>
         </Box>
       </DialogTitle>
 
-      <DialogContent sx={{ overflow: 'auto' }}>
+      <DialogContent sx={{ 
+        overflow: 'auto',
+        backgroundColor: 'var(--freeki-view-mode-background)',
+        color: 'var(--freeki-text-primary)'
+      }}>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} role="alert">
             {error}
@@ -239,13 +266,22 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: 
         )}
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <Typography>Loading settings...</Typography>
+            <Typography sx={{ color: 'var(--freeki-text-primary)' }}>
+              Loading settings...
+            </Typography>
           </Box>
         ) : (
-          <Stack spacing={3}>
+          <Stack spacing={2}>
             {/* General Settings */}
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>General Settings</Typography>
+            <Paper sx={{ 
+              p: 2,
+              backgroundColor: 'var(--freeki-view-mode-background)',
+              border: '1px solid var(--freeki-border-color)',
+              boxShadow: 'none'
+            }}>
+              <Typography variant="h6" sx={{ mb: 2, color: 'var(--freeki-text-primary)' }}>
+                General Settings
+              </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
                   <TextField
@@ -258,6 +294,21 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: 
                     fullWidth
                     size="small"
                     aria-label="Company Name"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'var(--freeki-view-mode-background)',
+                        color: 'var(--freeki-text-primary)',
+                        '& fieldset': {
+                          borderColor: 'var(--freeki-border-color)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: 'var(--freeki-text-primary)',
+                        }
+                      },
+                      '& .MuiInputLabel-root': {
+                        color: 'var(--freeki-text-secondary)',
+                      }
+                    }}
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -271,6 +322,21 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: 
                     fullWidth
                     size="small"
                     aria-label="Wiki Title"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        backgroundColor: 'var(--freeki-view-mode-background)',
+                        color: 'var(--freeki-text-primary)',
+                        '& fieldset': {
+                          borderColor: 'var(--freeki-border-color)',
+                        },
+                        '&:hover fieldset': {
+                          borderColor: 'var(--freeki-text-primary)',
+                        }
+                      },
+                      '& .MuiInputLabel-root': {
+                        color: 'var(--freeki-text-secondary)',
+                      }
+                    }}
                   />
                 </Grid>
                 <Grid item xs={12}>
@@ -285,44 +351,112 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: 
                       fullWidth
                       size="small"
                       aria-label="Company Logo Path"
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          backgroundColor: 'var(--freeki-view-mode-background)',
+                          color: 'var(--freeki-text-primary)',
+                          '& fieldset': {
+                            borderColor: 'var(--freeki-border-color)',
+                          },
+                          '&:hover fieldset': {
+                            borderColor: 'var(--freeki-text-primary)',
+                          }
+                        },
+                        '& .MuiInputLabel-root': {
+                          color: 'var(--freeki-text-secondary)',
+                        }
+                      }}
                     />
-                    <Button aria-label="Browse media" variant="outlined" sx={{ minWidth: 120 }}>
+                    <Button 
+                      aria-label="Browse media" 
+                      variant="outlined" 
+                      sx={{ 
+                        minWidth: 120,
+                        color: 'var(--freeki-text-primary)',
+                        borderColor: 'var(--freeki-border-color)',
+                        '&:hover': {
+                          borderColor: 'var(--freeki-text-primary)',
+                          backgroundColor: 'var(--freeki-sidebar-hover-background)'
+                        }
+                      }}
+                    >
                       Browse Media
                     </Button>
                   </Box>
                 </Grid>
               </Grid>
             </Paper>
+            
             <Divider sx={{ mb: { xs: 2, sm: 2.5, md: 3 }, borderColor: 'var(--freeki-border-color)' }} />
+            
             {/* Theme Colors */}
             <Paper sx={{ 
-              p: { xs: 1, sm: 2, md: 3 },
+              p: { xs: 2, sm: 3 },
               backgroundColor: 'var(--freeki-view-mode-background)',
               border: '1px solid var(--freeki-border-color)',
               boxShadow: 'none'
             }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
-                <Typography variant="h6">Theme Colors</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
-                  <Box sx={{ 
-                    width: 16, 
-                    height: 16, 
-                    backgroundColor: '#f5f5f5', 
-                    border: '1px solid #ccc',
-                    borderRadius: 1 
-                  }} />
-                  <Typography variant="caption">Light</Typography>
-                  <Box sx={{ 
-                    width: 16, 
-                    height: 16, 
-                    backgroundColor: '#333', 
-                    border: '1px solid #ccc',
-                    borderRadius: 1 
-                  }} />
-                  <Typography variant="caption">Dark</Typography>
-                </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 1 }}>
+                <Typography variant="h6" sx={{ color: 'var(--freeki-text-primary)' }}>
+                  Theme Colors
+                </Typography>
               </Box>
-              <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 1 }}>
+              
+              <Box sx={{ 
+                border: '1px solid var(--freeki-border-color)', 
+                borderRadius: 1,
+                backgroundColor: 'var(--freeki-view-mode-background)',
+                overflow: 'hidden'
+              }}>
+                {/* Header row */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  py: 1, 
+                  px: 1.5,
+                  backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                  borderBottom: '1px solid var(--freeki-border-color)',
+                  color: 'var(--freeki-text-primary)',
+                  gap: 1
+                }}>
+                  <Typography sx={{ 
+                    flex: 1, 
+                    fontSize: '0.8rem',
+                    minWidth: 160,
+                    color: 'var(--freeki-text-secondary)',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px'
+                  }}>
+                    Location
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 240 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 110 }}>
+                      <Typography sx={{ 
+                        fontSize: '0.8rem',
+                        color: 'var(--freeki-text-secondary)',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        Light
+                      </Typography>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 110 }}>
+                      <Typography sx={{ 
+                        fontSize: '0.8rem',
+                        color: 'var(--freeki-text-secondary)',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        Dark
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Box>
+
                 <ColorRow
                   label="Header Background"
                   lightValue={settings.colorSchemes.light.appBarBackground}
@@ -419,14 +553,45 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings }: 
           </Stack>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button aria-label="Reset to defaults" onClick={handleReset} startIcon={<Refresh />} disabled={loading || saving}>
+      <DialogActions sx={{ 
+        backgroundColor: 'var(--freeki-view-mode-background)',
+        borderTop: '1px solid var(--freeki-border-color)',
+        color: 'var(--freeki-text-primary)'
+      }}>
+        <Button 
+          aria-label="Reset to defaults" 
+          onClick={handleReset} 
+          startIcon={<Refresh />} 
+          disabled={loading || saving}
+          sx={{ 
+            color: 'var(--freeki-text-primary)',
+            '&:hover': {
+              backgroundColor: 'var(--freeki-sidebar-hover-background)'
+            }
+          }}
+        >
           Reset to Defaults
         </Button>
-        <Button aria-label="Cancel" onClick={handleClose} disabled={saving}>
+        <Button 
+          aria-label="Cancel" 
+          onClick={handleClose} 
+          disabled={saving}
+          sx={{ 
+            color: 'var(--freeki-text-primary)',
+            '&:hover': {
+              backgroundColor: 'var(--freeki-sidebar-hover-background)'
+            }
+          }}
+        >
           Cancel
         </Button>
-        <Button aria-label="Save settings" onClick={handleSave} variant="contained" disabled={loading || saving} startIcon={<Save />}>
+        <Button 
+          aria-label="Save settings" 
+          onClick={handleSave} 
+          variant="contained" 
+          disabled={loading || saving} 
+          startIcon={<Save />}
+        >
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
       </DialogActions>

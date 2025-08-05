@@ -466,7 +466,7 @@ const handleMetadataToggle = () => {
             >
               {settings.companyName.charAt(0)}
             </Avatar>
-            <Typography variant="h6" sx={{ mr: 4 }} variantMapping={{ h6: 'div' }}>
+            <Typography variant="h6" sx={{ mr: 4, color: 'var(--freeki-app-bar-text-color)' }} variantMapping={{ h6: 'div' }}>
               {settings.wikiTitle}
             </Typography>
           </Box>
@@ -482,14 +482,17 @@ const handleMetadataToggle = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <Search />
+                    <Search sx={{ color: 'var(--freeki-app-bar-text-color)' }} />
                   </InputAdornment>
                 ),
-                sx: { backgroundColor: 'rgba(255,255,255,0.15)', color: 'white' }
+                sx: { 
+                  backgroundColor: 'rgba(255,255,255,0.15)', 
+                  color: 'var(--freeki-app-bar-text-color)' 
+                }
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  color: 'white',
+                  color: 'var(--freeki-app-bar-text-color)',
                   '& fieldset': {
                     borderColor: 'rgba(255,255,255,0.3)',
                   },
@@ -497,7 +500,7 @@ const handleMetadataToggle = () => {
                     borderColor: 'rgba(255,255,255,0.5)',
                   },
                   '&.Mui-focused fieldset': {
-                    borderColor: 'white',
+                    borderColor: 'var(--freeki-app-bar-text-color)',
                   },
                 },
                 '& .MuiInputBase-input::placeholder': {
@@ -517,7 +520,7 @@ const handleMetadataToggle = () => {
                     <Button
                       variant="contained"
                       color="success"
-                      startIcon={<Save />}
+                      startIcon={<Save sx={{ color: 'white' }} />}
                       onClick={() => handleSave(selectedPage.content)}
                       sx={{ color: 'white' }}
                       aria-label="Save changes"
@@ -526,9 +529,16 @@ const handleMetadataToggle = () => {
                     </Button>
                     <Button
                       variant="outlined"
-                      startIcon={<Cancel />}
+                      startIcon={<Cancel sx={{ color: 'var(--freeki-app-bar-text-color)' }} />}
                       onClick={handleCancel}
-                      sx={{ color: 'white', borderColor: 'white' }}
+                      sx={{ 
+                        color: 'var(--freeki-app-bar-text-color)', 
+                        borderColor: 'var(--freeki-app-bar-text-color)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255,255,255,0.1)',
+                          borderColor: 'var(--freeki-app-bar-text-color)'
+                        }
+                      }}
                       aria-label="Cancel editing"
                     >
                       Cancel
@@ -536,10 +546,18 @@ const handleMetadataToggle = () => {
                   </>
                 ) : (
                   <Button
-                    variant="contained"
-                    color="secondary"
-                    startIcon={<Edit />}
+                    variant="outlined"
+                    startIcon={<Edit sx={{ color: 'var(--freeki-app-bar-text-color)' }} />}
                     onClick={handleEdit}
+                    sx={{ 
+                      color: 'var(--freeki-app-bar-text-color)', 
+                      borderColor: 'var(--freeki-app-bar-text-color)',
+                      backgroundColor: 'transparent',
+                      '&:hover': {
+                        backgroundColor: 'rgba(255,255,255,0.1)',
+                        borderColor: 'var(--freeki-app-bar-text-color)'
+                      }
+                    }}
                     aria-label="Edit page"
                   >
                     Edit
@@ -548,16 +566,31 @@ const handleMetadataToggle = () => {
               </>
             )}
 
-            <IconButton color="inherit" onClick={handleNewPage} title="New Page" aria-label="Create new page">
+            <IconButton 
+              sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+              onClick={handleNewPage} 
+              title="New Page" 
+              aria-label="Create new page"
+            >
               <Add />
             </IconButton>
 
-            <IconButton color="inherit" onClick={handleHistory} title="History" aria-label="View page history">
+            <IconButton 
+              sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+              onClick={handleHistory} 
+              title="History" 
+              aria-label="View page history"
+            >
               <History />
             </IconButton>
 
             {!selectedPage.isFolder && (
-              <IconButton color="inherit" onClick={handleDelete} title="Delete" aria-label="Delete page">
+              <IconButton 
+                sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+                onClick={handleDelete} 
+                title="Delete" 
+                aria-label="Delete page"
+              >
                 <Delete />
               </IconButton>
             )}
@@ -566,16 +599,20 @@ const handleMetadataToggle = () => {
 
             {/* Only show admin settings gear if user is admin */}
             {userInfo?.isAdmin && (
-              <IconButton color="inherit" onClick={handleSettingsClick} title="Administration" aria-label="Open administration settings">
+              <IconButton 
+                sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+                onClick={handleSettingsClick} 
+                title="Administration" 
+                aria-label="Open administration settings"
+              >
                 <Settings />
               </IconButton>
             )}
 
             <IconButton
-              color="inherit"
+              sx={{ color: 'var(--freeki-app-bar-text-color)', p: 0.5 }}
               onClick={handleAccount}
               title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Account"}
-              sx={{ p: 0.5 }}
               aria-label="Account"
             >
               {userInfo?.gravatarUrl ? (
@@ -598,7 +635,7 @@ const handleMetadataToggle = () => {
 
             {/* Theme Toggle Button */}
             <IconButton
-              color="inherit"
+              sx={{ color: 'var(--freeki-app-bar-text-color)' }}
               onClick={handleThemeToggle}
               title={getThemeTooltip()}
               aria-label={getThemeTooltip()}
@@ -618,7 +655,7 @@ const handleMetadataToggle = () => {
         >
           {/* Narrow screen chevron button - attached to sidebar panel and slides with it */}
           <button
-            className={`chevron-button chevron-narrow-screen chevron-sidebar-theme sidebar-chevron ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            className={`chevron-button chevron-narrow-screen chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
             onClick={handleSidebarToggle}
             aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
             title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
