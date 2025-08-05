@@ -12,19 +12,30 @@ import {
 } from '@mui/material'
 import { ContentCopy, SwapHoriz } from '@mui/icons-material'
 
-// Admin panel color constants
-const ADMIN_BG_COLOR      = '#222c36';
-const ADMIN_BORDER_COLOR  = '#3a4654';
-const ADMIN_TEXT_PRIMARY  = '#f5f7fa';
-const ADMIN_TEXT_SECONDARY= '#b0b8c1';
-const ADMIN_SHADOW_COLOR  = '#00000033';
-const ADMIN_SIDEBAR_HOVER = '#2a3442';
+// Admin panel color constants for light and dark
+const ADMIN_LIGHT_STYLE = {
+  BG_COLOR: '#f7fafd',
+  BORDER_COLOR: '#b0c4de',
+  TEXT_PRIMARY: '#222c36',
+  TEXT_SECONDARY: '#7da4c7',
+  SHADOW_COLOR: '#b0c4de55',
+  SIDEBAR_HOVER: '#eaf3fb'
+}
+const ADMIN_DARK_STYLE = {
+  BG_COLOR: '#23272b',
+  BORDER_COLOR: '#444444',
+  TEXT_PRIMARY: '#e0e0e0',
+  TEXT_SECONDARY: '#888888',
+  SHADOW_COLOR: '#00000033',
+  SIDEBAR_HOVER: '#262b31'
+}
 
 interface AdvancedColorPickerProps {
   value: string
   onChange: (color: string) => void
   label?: string
   disabled?: boolean
+  themeMode?: 'light' | 'dark'
 }
 
 // Color conversion utilities
@@ -160,7 +171,10 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 }
 
-export default function AdvancedColorPicker({ value, onChange, label, disabled = false }: AdvancedColorPickerProps) {
+export default function AdvancedColorPicker({ value, onChange, label, disabled = false, themeMode = 'light' }: AdvancedColorPickerProps) {
+  // Select style based on themeMode
+  const style = themeMode === 'dark' ? ADMIN_DARK_STYLE : ADMIN_LIGHT_STYLE;
+
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [snackbarOpen, setSnackbarOpen] = useState(false)
   const [snackbarMessage, setSnackbarMessage] = useState('')
@@ -175,7 +189,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
   useEffect(() => {
     const newHsv = rgbToHsv(currentRgb.r, currentRgb.g, currentRgb.b)
     setHsvState(newHsv)
-  }, [value])
+  }, [value, currentRgb.r, currentRgb.g, currentRgb.b])
 
   const complementaryColor = getComplementaryColor(value)
 
@@ -284,13 +298,13 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             width: 22,
             height: 22,
             backgroundColor: value,
-            border: `1px solid ${ADMIN_BORDER_COLOR}`,
+            border: `1px solid ${style.BORDER_COLOR}`,
             borderRadius: 0.5,
             cursor: disabled ? 'default' : 'pointer',
             position: 'relative',
             '&:hover': {
               opacity: disabled ? 1 : 0.8,
-              boxShadow: `0 0 0 2px ${ADMIN_BORDER_COLOR}`
+              boxShadow: `0 0 0 2px ${style.BORDER_COLOR}`
             }
           }}
           title={`${label ? label + ': ' : ''}${typeof value === 'string' ? value.toUpperCase() : ''}`}
@@ -298,7 +312,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
         />
         
         {label && (
-          <Typography variant="body2" sx={{ color: ADMIN_TEXT_PRIMARY, fontSize: '0.875rem' }}>
+          <Typography variant="body2" sx={{ color: style.TEXT_PRIMARY, fontSize: '0.875rem' }}>
             {label}
           </Typography>
         )}
@@ -319,18 +333,18 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
         }}
         PaperProps={{
           sx: {
-            backgroundColor: ADMIN_BG_COLOR,
-            border: `1px solid ${ADMIN_BORDER_COLOR}`,
+            backgroundColor: style.BG_COLOR,
+            border: `1px solid ${style.BORDER_COLOR}`,
             borderRadius: 1,
-            boxShadow: `0 8px 32px ${ADMIN_SHADOW_COLOR}`
+            boxShadow: `0 8px 32px ${style.SHADOW_COLOR}`
           }
         }}
       >
         <Paper sx={{ 
           p: 1.5, 
           width: 280,
-          backgroundColor: ADMIN_BG_COLOR,
-          boxShadow: `0 8px 32px ${ADMIN_SHADOW_COLOR}`
+          backgroundColor: style.BG_COLOR,
+          boxShadow: `0 8px 32px ${style.SHADOW_COLOR}`
         }}>
           {/* Hex input with flip button */}
           <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
@@ -354,13 +368,13 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  backgroundColor: ADMIN_BG_COLOR,
-                  color: ADMIN_TEXT_PRIMARY,
+                  backgroundColor: style.BG_COLOR,
+                  color: style.TEXT_PRIMARY,
                   '& fieldset': {
-                    borderColor: ADMIN_BORDER_COLOR,
+                    borderColor: style.BORDER_COLOR,
                   },
                   '&:hover fieldset': {
-                    borderColor: ADMIN_TEXT_PRIMARY,
+                    borderColor: style.TEXT_PRIMARY,
                   }
                 }
               }}
@@ -374,14 +388,14 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               title="Flip to complementary color"
               aria-label="Flip to complementary color"
               sx={{
-                color: ADMIN_TEXT_PRIMARY,
-                border: `1px solid ${ADMIN_BORDER_COLOR}`,
+                color: style.TEXT_PRIMARY,
+                border: `1px solid ${style.BORDER_COLOR}`,
                 borderRadius: 1,
                 width: 32,
                 height: 32,
                 '&:hover': {
-                  backgroundColor: ADMIN_SIDEBAR_HOVER,
-                  borderColor: ADMIN_TEXT_PRIMARY
+                  backgroundColor: style.SIDEBAR_HOVER,
+                  borderColor: style.TEXT_PRIMARY
                 }
               }}
             >
@@ -403,11 +417,11 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 backgroundColor: value,
                 color: currentHsv.v > 50 ? '#000' : '#fff',
                 borderColor: currentHsv.v > 50 ? '#000' : '#fff',
-                boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
+                boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
                 '&:hover': {
                   backgroundColor: value,
                   opacity: 0.8,
-                  boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
+                  boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
                 }
               }}
             >
@@ -433,11 +447,11 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                   const compHsv = rgbToHsv(compRgb.r, compRgb.g, compRgb.b)
                   return compHsv.v > 50 ? '#000' : '#fff'
                 })(),
-                boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
+                boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
                 '&:hover': {
                   backgroundColor: complementaryColor,
                   opacity: 0.8,
-                  boxShadow: `0 0 0 1px ${ADMIN_BORDER_COLOR}`,
+                  boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
                 }
               }}
             >
@@ -450,7 +464,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             {/* Hue slider with inline label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography variant="caption" sx={{ 
-                color: ADMIN_TEXT_SECONDARY,
+                color: style.TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '28px',
                 textAlign: 'right'
@@ -475,7 +489,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: 'var(--freeki-text-primary)',
+                      backgroundColor: style.TEXT_PRIMARY,
                       width: 16,
                       height: 16
                     }
@@ -483,7 +497,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 />
               </Box>
               <Typography variant="caption" sx={{ 
-                color: ADMIN_TEXT_SECONDARY,
+                color: style.TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '30px',
                 textAlign: 'left'
@@ -495,7 +509,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             {/* Saturation slider with inline label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography variant="caption" sx={{ 
-                color: ADMIN_TEXT_SECONDARY,
+                color: style.TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '28px',
                 textAlign: 'right'
@@ -519,7 +533,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: 'var(--freeki-text-primary)',
+                      backgroundColor: style.TEXT_PRIMARY,
                       width: 16,
                       height: 16
                     }
@@ -527,7 +541,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 />
               </Box>
               <Typography variant="caption" sx={{ 
-                color: ADMIN_TEXT_SECONDARY,
+                color: style.TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '30px',
                 textAlign: 'left'
@@ -539,7 +553,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             {/* Value slider with inline label */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" sx={{ 
-                color: ADMIN_TEXT_SECONDARY,
+                color: style.TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '28px',
                 textAlign: 'right'
@@ -555,7 +569,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                   size="small"
                   sx={{
                     '& .MuiSlider-track': {
-                      backgroundColor: 'var(--freeki-text-primary)',
+                      backgroundColor: style.TEXT_PRIMARY,
                       height: 6
                     },
                     '& .MuiSlider-rail': {
@@ -563,7 +577,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: 'var(--freeki-text-primary)',
+                      backgroundColor: style.TEXT_PRIMARY,
                       width: 16,
                       height: 16
                     }
@@ -571,7 +585,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 />
               </Box>
               <Typography variant="caption" sx={{ 
-                color: ADMIN_TEXT_SECONDARY,
+                color: style.TEXT_SECONDARY,
                 fontSize: '0.7rem',
                 minWidth: '30px',
                 textAlign: 'left'
@@ -592,9 +606,9 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         sx={{
           '& .MuiSnackbarContent-root': {
-            backgroundColor: ADMIN_BG_COLOR,
-            color: ADMIN_TEXT_PRIMARY,
-            border: `1px solid ${ADMIN_BORDER_COLOR}`
+            backgroundColor: style.BG_COLOR,
+            color: style.TEXT_PRIMARY,
+            border: `1px solid ${style.BORDER_COLOR}`
           }
         }}
       />

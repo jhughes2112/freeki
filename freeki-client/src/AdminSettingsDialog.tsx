@@ -115,8 +115,9 @@ function SettingRow({
     { value: 24 },
     { value: 32 }
   ],
-  style
-}: SettingRowProps & { style: typeof ADMIN_DIALOG_LIGHT_STYLE | typeof ADMIN_DIALOG_DARK_STYLE }) {
+  style,
+  mode
+}: SettingRowProps & { style: typeof ADMIN_DIALOG_LIGHT_STYLE | typeof ADMIN_DIALOG_DARK_STYLE, mode: 'light' | 'dark' }) {
   const safeLightValue = typeof lightValue === 'string' ? lightValue : '';
   const safeDarkValue = typeof darkValue === 'string' ? darkValue : '';
   return (
@@ -154,12 +155,14 @@ function SettingRow({
         <AdvancedColorPicker
           value={safeLightValue.startsWith('#') ? safeLightValue : '#000000'}
           onChange={onLightChange}
+          themeMode={mode}
         />
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0, mx: 'auto', height: '100%' }}>
         <AdvancedColorPicker
           value={safeDarkValue.startsWith('#') ? safeDarkValue : '#000000'}
           onChange={onDarkChange}
+          themeMode={mode}
         />
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0, mx: 'auto', width: '100%', height: '100%' }}>
@@ -603,16 +606,16 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Dark</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Size</Typography>
                   </Box>
-                  <SettingRow label="Header BG" lightValue={settings.colorSchemes.light.appBarBackground} darkValue={settings.colorSchemes.dark.appBarBackground} onLightChange={value => updateLightColor('appBarBackground', value)} onDarkChange={value => updateDarkColor('appBarBackground', value)} style={style} />
-                  <SettingRow label="Header Font" lightValue={settings.colorSchemes.light.appBarTextColor} darkValue={settings.colorSchemes.dark.appBarTextColor} onLightChange={value => updateLightColor('appBarTextColor', value)} onDarkChange={value => updateDarkColor('appBarTextColor', value)} style={style} />
-                  <SettingRow label="Footer BG" lightValue={settings.colorSchemes.light.footerBackground} darkValue={settings.colorSchemes.dark.footerBackground} onLightChange={value => updateLightColor('footerBackground', value)} onDarkChange={value => updateDarkColor('footerBackground', value)} style={style} />
-                  <SettingRow label="Footer Font" lightValue={settings.colorSchemes.light.footerTextColor} darkValue={settings.colorSchemes.dark.footerTextColor} onLightChange={value => updateLightColor('footerTextColor', value)} onDarkChange={value => updateDarkColor('footerTextColor', value)} style={style} />
-                  <SettingRow label="H1 Font" lightValue={settings.colorSchemes.light.h1FontColor} darkValue={settings.colorSchemes.dark.h1FontColor} onLightChange={value => updateLightColor('h1FontColor', value)} onDarkChange={value => updateDarkColor('h1FontColor', value)} fontSize={settings.colorSchemes.light.h1FontSize} onFontSizeChange={value => updateLightColor('h1FontSize', value)} style={style} />
-                  <SettingRow label="H2 Font" lightValue={settings.colorSchemes.light.h2FontColor} darkValue={settings.colorSchemes.dark.h2FontColor} onLightChange={value => updateLightColor('h2FontColor', value)} onDarkChange={value => updateDarkColor('h2FontColor', value)} fontSize={settings.colorSchemes.light.h2FontSize} onFontSizeChange={value => updateLightColor('h2FontSize', value)} style={style} />
-                  <SettingRow label="H3 Font" lightValue={settings.colorSchemes.light.h3FontColor} darkValue={settings.colorSchemes.dark.h3FontColor} onLightChange={value => updateLightColor('h3FontColor', value)} onDarkChange={value => updateDarkColor('h3FontColor', value)} fontSize={settings.colorSchemes.light.h3FontSize} onFontSizeChange={value => updateLightColor('h3FontSize', value)} style={style} />
-                  <SettingRow label="Text Font" lightValue={settings.colorSchemes.light.pFontColor} darkValue={settings.colorSchemes.dark.pFontColor} onLightChange={value => updateLightColor('pFontColor', value)} onDarkChange={value => updateDarkColor('pFontColor', value)} fontSize={settings.colorSchemes.light.pFontSize} onFontSizeChange={value => updateLightColor('pFontSize', value)} style={style} />
-				  <SettingRow label="Page View BG" lightValue={settings.colorSchemes.light.viewBackground} darkValue={settings.colorSchemes.dark.viewBackground} onLightChange={value => updateLightColor('viewBackground', value)} onDarkChange={value => updateDarkColor('viewBackground', value)} style={style} />
-				  <SettingRow label="Page Edit BG" lightValue={settings.colorSchemes.light.editBackground} darkValue={settings.colorSchemes.dark.editBackground} onLightChange={value => updateLightColor('editBackground', value)} onDarkChange={value => updateDarkColor('editBackground', value)} style={style} />
+                  <SettingRow label="Header BG" lightValue={settings.colorSchemes.light.appBarBackground} darkValue={settings.colorSchemes.dark.appBarBackground} onLightChange={value => updateLightColor('appBarBackground', value)} onDarkChange={value => updateDarkColor('appBarBackground', value)} style={style} mode={mode} />
+                  <SettingRow label="Header Font" lightValue={settings.colorSchemes.light.appBarTextColor} darkValue={settings.colorSchemes.dark.appBarTextColor} onLightChange={value => updateLightColor('appBarTextColor', value)} onDarkChange={value => updateDarkColor('appBarTextColor', value)} style={style} mode={mode} />
+                  <SettingRow label="Footer BG" lightValue={settings.colorSchemes.light.footerBackground} darkValue={settings.colorSchemes.dark.footerBackground} onLightChange={value => updateLightColor('footerBackground', value)} onDarkChange={value => updateDarkColor('footerBackground', value)} style={style} mode={mode} />
+                  <SettingRow label="Footer Font" lightValue={settings.colorSchemes.light.footerTextColor} darkValue={settings.colorSchemes.dark.footerTextColor} onLightChange={value => updateLightColor('footerTextColor', value)} onDarkChange={value => updateDarkColor('footerTextColor', value)} style={style} mode={mode} />
+                  <SettingRow label="H1 Font" lightValue={settings.colorSchemes.light.h1FontColor} darkValue={settings.colorSchemes.dark.h1FontColor} onLightChange={value => updateLightColor('h1FontColor', value)} onDarkChange={value => updateDarkColor('h1FontColor', value)} fontSize={settings.colorSchemes.light.h1FontSize} onFontSizeChange={value => updateLightColor('h1FontSize', value)} style={style} mode={mode} />
+                  <SettingRow label="H2 Font" lightValue={settings.colorSchemes.light.h2FontColor} darkValue={settings.colorSchemes.dark.h2FontColor} onLightChange={value => updateLightColor('h2FontColor', value)} onDarkChange={value => updateDarkColor('h2FontColor', value)} fontSize={settings.colorSchemes.light.h2FontSize} onFontSizeChange={value => updateLightColor('h2FontSize', value)} style={style} mode={mode} />
+                  <SettingRow label="H3 Font" lightValue={settings.colorSchemes.light.h3FontColor} darkValue={settings.colorSchemes.dark.h3FontColor} onLightChange={value => updateLightColor('h3FontColor', value)} onDarkChange={value => updateDarkColor('h3FontColor', value)} fontSize={settings.colorSchemes.light.h3FontSize} onFontSizeChange={value => updateLightColor('h3FontSize', value)} style={style} mode={mode} />
+                  <SettingRow label="Text Font" lightValue={settings.colorSchemes.light.pFontColor} darkValue={settings.colorSchemes.dark.pFontColor} onLightChange={value => updateLightColor('pFontColor', value)} onDarkChange={value => updateDarkColor('pFontColor', value)} fontSize={settings.colorSchemes.light.pFontSize} onFontSizeChange={value => updateLightColor('pFontSize', value)} style={style} mode={mode} />
+				  <SettingRow label="Page View BG" lightValue={settings.colorSchemes.light.viewBackground} darkValue={settings.colorSchemes.dark.viewBackground} onLightChange={value => updateLightColor('viewBackground', value)} onDarkChange={value => updateDarkColor('viewBackground', value)} style={style} mode={mode} />
+				  <SettingRow label="Page Edit BG" lightValue={settings.colorSchemes.light.editBackground} darkValue={settings.colorSchemes.dark.editBackground} onLightChange={value => updateLightColor('editBackground', value)} onDarkChange={value => updateDarkColor('editBackground', value)} style={style} mode={mode} />
                 </Box>
                 {/* Right column */}
                 <Box sx={{
@@ -634,13 +637,13 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Dark</Typography>
                     <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Size</Typography>
                   </Box>
-                  <SettingRow label="Folders BG" lightValue={settings.colorSchemes.light.foldersBackground} darkValue={settings.colorSchemes.dark.foldersBackground} onLightChange={value => updateLightColor('foldersBackground', value)} onDarkChange={value => updateDarkColor('foldersBackground', value)} style={style} />
-                  <SettingRow label="Folders Selected BG" lightValue={settings.colorSchemes.light.foldersSelectedBackground} darkValue={settings.colorSchemes.dark.foldersSelectedBackground} onLightChange={value => updateLightColor('foldersSelectedBackground', value)} onDarkChange={value => updateDarkColor('foldersSelectedBackground', value)} style={style} />
-                  <SettingRow label="Folders Font" lightValue={settings.colorSchemes.light.foldersFontColor} darkValue={settings.colorSchemes.dark.foldersFontColor} onLightChange={value => updateLightColor('foldersFontColor', value)} onDarkChange={value => updateDarkColor('foldersFontColor', value)} fontSize={settings.colorSchemes.light.foldersFontSize} onFontSizeChange={value => updateLightColor('foldersFontSize', value)} style={style} />
-                  <SettingRow label="Page Details BG" lightValue={settings.colorSchemes.light.pageDetailsBackground} darkValue={settings.colorSchemes.dark.pageDetailsBackground} onLightChange={value => updateLightColor('pageDetailsBackground', value)} onDarkChange={value => updateDarkColor('pageDetailsBackground', value)} style={style} />
-				  <SettingRow label="Page Details Font" lightValue={settings.colorSchemes.light.pageDetailsFontColor} darkValue={settings.colorSchemes.dark.pageDetailsFontColor} onLightChange={value => updateLightColor('pageDetailsFontColor', value)} onDarkChange={value => updateDarkColor('pageDetailsFontColor', value)} fontSize={settings.colorSchemes.light.pageDetailsFontSize} onFontSizeChange={value => updateLightColor('pageDetailsFontSize', value)} style={style} />
-				  <SettingRow label="Border Color" lightValue={settings.colorSchemes.light.borderColor} darkValue={settings.colorSchemes.dark.borderColor} onLightChange={value => updateLightColor('borderColor', value)} onDarkChange={value => updateDarkColor('borderColor', value)} style={style} />
-                  <SettingRow label="Shadow Color" lightValue={settings.colorSchemes.light.shadowColor} darkValue={settings.colorSchemes.dark.shadowColor} onLightChange={value => updateLightColor('shadowColor', value)} onDarkChange={value => updateDarkColor('shadowColor', value)} style={style} />
+                  <SettingRow label="Folders BG" lightValue={settings.colorSchemes.light.foldersBackground} darkValue={settings.colorSchemes.dark.foldersBackground} onLightChange={value => updateLightColor('foldersBackground', value)} onDarkChange={value => updateDarkColor('foldersBackground', value)} style={style} mode={mode} />
+                  <SettingRow label="Folders Selected BG" lightValue={settings.colorSchemes.light.foldersSelectedBackground} darkValue={settings.colorSchemes.dark.foldersSelectedBackground} onLightChange={value => updateLightColor('foldersSelectedBackground', value)} onDarkChange={value => updateDarkColor('foldersSelectedBackground', value)} style={style} mode={mode} />
+                  <SettingRow label="Folders Font" lightValue={settings.colorSchemes.light.foldersFontColor} darkValue={settings.colorSchemes.dark.foldersFontColor} onLightChange={value => updateLightColor('foldersFontColor', value)} onDarkChange={value => updateDarkColor('foldersFontColor', value)} fontSize={settings.colorSchemes.light.foldersFontSize} onFontSizeChange={value => updateLightColor('foldersFontSize', value)} style={style} mode={mode} />
+                  <SettingRow label="Page Details BG" lightValue={settings.colorSchemes.light.pageDetailsBackground} darkValue={settings.colorSchemes.dark.pageDetailsBackground} onLightChange={value => updateLightColor('pageDetailsBackground', value)} onDarkChange={value => updateDarkColor('pageDetailsBackground', value)} style={style} mode={mode} />
+				  <SettingRow label="Page Details Font" lightValue={settings.colorSchemes.light.pageDetailsFontColor} darkValue={settings.colorSchemes.dark.pageDetailsFontColor} onLightChange={value => updateLightColor('pageDetailsFontColor', value)} onDarkChange={value => updateDarkColor('pageDetailsFontColor', value)} fontSize={settings.colorSchemes.light.pageDetailsFontSize} onFontSizeChange={value => updateLightColor('pageDetailsFontSize', value)} style={style} mode={mode} />
+				  <SettingRow label="Border Color" lightValue={settings.colorSchemes.light.borderColor} darkValue={settings.colorSchemes.dark.borderColor} onLightChange={value => updateLightColor('borderColor', value)} onDarkChange={value => updateDarkColor('borderColor', value)} style={style} mode={mode} />
+                  <SettingRow label="Shadow Color" lightValue={settings.colorSchemes.light.shadowColor} darkValue={settings.colorSchemes.dark.shadowColor} onLightChange={value => updateLightColor('shadowColor', value)} onDarkChange={value => updateDarkColor('shadowColor', value)} style={style} mode={mode} />
                 </Box>
               </Box>
             </Paper>
