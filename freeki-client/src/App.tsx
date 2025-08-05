@@ -817,6 +817,7 @@ const handleMetadataToggle = () => {
         onClose={() => setShowAdminSettings(false)}
         onThemeChange={handleThemeChange}
         initialSettings={adminColorSchemes}
+        themeMode={settings.theme} // <-- Pass current theme mode
       />
     </Box>
   )

@@ -48,6 +48,15 @@ export interface ColorScheme {
   borderColor: string;
   // Shadow
   shadowColor: string;
+  // Style row font color
+  styleRowFontColor: string;
+  // New: slider mark and thumb outline colors
+  sliderMarkColor: string;
+  sliderThumbOutline: string;
+  styleBoxBg: string;
+  inputBorder: string;
+  rowEvenBg: string;
+  rowOddBg: string;
 }
 
 const DEFAULT_LIGHT_SCHEME: ColorScheme = {
@@ -74,7 +83,14 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   footerBackground: '#fafafa',
   footerTextColor: '#666666',
   borderColor: '#e0e0e0',
-  shadowColor: '#22222233' // solid shadow with alpha for light mode
+  shadowColor: '#22222233', // solid shadow with alpha for light mode
+  styleRowFontColor: '#222c36', // new: font color for style rows (light)
+  sliderMarkColor: '#7da4c7', // new: notch color for light
+  sliderThumbOutline: '#b0c4de', // new: thumb outline for light
+  styleBoxBg: '#eaf3fb', // new
+  inputBorder: '#b0c4de', // new
+  rowEvenBg: '#f7fafd', // new
+  rowOddBg: '#eaf3fb' // new
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
@@ -101,7 +117,14 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   footerBackground: '#2b2b2b',
   footerTextColor: '#b3b3b3',
   borderColor: '#222222',
-  shadowColor: '#00000099' // solid shadow with alpha for dark mode
+  shadowColor: '#00000099', // solid shadow with alpha for dark mode
+  styleRowFontColor: '#e0e0e0', // new: font color for style rows (dark)
+  sliderMarkColor: '#888', // new: notch color for dark
+  sliderThumbOutline: '#888', // new: thumb outline for dark
+  styleBoxBg: '#262b31', // new
+  inputBorder: '#444444', // new
+  rowEvenBg: '#23272b', // new
+  rowOddBg: '#202225' // new
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
