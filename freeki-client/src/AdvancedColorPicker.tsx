@@ -11,22 +11,24 @@ import {
 } from '@mui/material'
 import { ContentCopy } from '@mui/icons-material'
 
-// Admin panel color constants for light and dark
+// Admin panel color constants for light and dark - updated to match AdminSettingsDialog
 const ADMIN_LIGHT_STYLE = {
   BG_COLOR: '#f7fafd',
   BORDER_COLOR: '#b0c4de',
   TEXT_PRIMARY: '#222c36',
   TEXT_SECONDARY: '#7da4c7',
   SHADOW_COLOR: '#00000055',
-  SIDEBAR_HOVER: '#eaf3fb'
+  SIDEBAR_HOVER: '#eaf3fb',
+  STYLE_BOX_BG: '#eaf3fb'
 }
 const ADMIN_DARK_STYLE = {
-  BG_COLOR: '#23272b',
-  BORDER_COLOR: '#444444',
-  TEXT_PRIMARY: '#e0e0e0',
-  TEXT_SECONDARY: '#888888',
+  BG_COLOR: '#1a1d21',          // Match updated admin dark background
+  BORDER_COLOR: '#4a5057',      // Match updated admin dark border (brighter)
+  TEXT_PRIMARY: '#d8d8d8',      // Match updated admin dark text (dimmer)
+  TEXT_SECONDARY: '#9aa1a9',    // Match updated admin dark secondary (brighter)
   SHADOW_COLOR: '#ffffff33',
-  SIDEBAR_HOVER: '#262b31'
+  SIDEBAR_HOVER: '#252a32',     // Match updated admin dark hover (brighter)
+  STYLE_BOX_BG: '#252a32'       // Match updated admin dark style box (brighter)
 }
 
 interface AdvancedColorPickerProps {
@@ -474,10 +476,14 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
     const canvasY = (y / rect.height) * colorCanvas.height
     
     const color = getColorFromCanvas(colorCanvas, canvasX, canvasY)
-    setWorkingValue(color)
+    
+    // Preserve alpha when picking from canvas
+    const rgb = hexToRgb(color)
+    const hex = rgbaToHex(rgb.r, rgb.g, rgb.b, hsvaState.a / 100)
+    setWorkingValue(hex)
+    onChange(hex) // Live update
     
     // Update HSV state when using canvas picker
-    const rgb = hexToRgb(color)
     const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
     setHsvaState({ ...hsv, a: hsvaState.a })
   }
@@ -503,13 +509,14 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
       }
       
       setWorkingValue(fullHex)
+      onChange(fullHex) // Live update
       
       // Update HSVA state when typing hex values
       const rgba = hexToRgba(fullHex)
       const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b)
       setHsvaState({ ...hsv, a: rgba.a * 100 })
     }
-  }, [])
+  }, [onChange])
   
   const handleHexFocus = () => {
     // Select all text when hex input is focused
@@ -534,7 +541,8 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
     const rgb = hsvToRgb(newHsva.h, newHsva.s, newHsva.v)
     const hex = rgbaToHex(rgb.r, rgb.g, rgb.b, newHsva.a / 100)
     setWorkingValue(hex)
-  }, [hsvaState])
+    onChange(hex) // Live update
+  }, [hsvaState, onChange])
   
   const handleCopyColor = async (colorToCopy: string, colorName: string) => {
     const success = await copyToClipboard(colorToCopy)
@@ -701,9 +709,12 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: style.TEXT_PRIMARY,
-                      width: 16,
-                      height: 16
+                      borderRadius: 1,
+                      width: 18,
+                      height: 18,
+                      backgroundColor: style.STYLE_BOX_BG,
+                      boxShadow: '0 2px 8px #00000033',
+                      border: `2px solid ${style.BORDER_COLOR}`
                     }
                   }}
                 />
@@ -745,9 +756,12 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: style.TEXT_PRIMARY,
-                      width: 16,
-                      height: 16
+                      borderRadius: 1,
+                      width: 18,
+                      height: 18,
+                      backgroundColor: style.STYLE_BOX_BG,
+                      boxShadow: '0 2px 8px #00000033',
+                      border: `2px solid ${style.BORDER_COLOR}`
                     }
                   }}
                 />

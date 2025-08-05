@@ -30,7 +30,7 @@ const ADMIN_DIALOG_LIGHT_STYLE = {
   backgroundColor: '#f7fafd', // very light blue-gray
   color: '#222c36',           // deep blue-gray for text
   border: '1px solid #dbe6ee',// soft blue border
-  boxShadow: '0 4px 24px #00000055', // Dark shadow for light mode
+  boxShadow: '0 4px 14px #00000055', // Dark shadow for light mode
   borderRadius: 'var(--border-radius)', // Use CSS variable
   headerBg: '#eaf3fb',        // pale blue for header
   headerText: '#222c36',      // deep blue-gray for header text
@@ -45,21 +45,21 @@ const ADMIN_DIALOG_LIGHT_STYLE = {
 };
 
 const ADMIN_DIALOG_DARK_STYLE = {
-  backgroundColor: '#23272b',
-  color: '#e0e0e0',
-  border: '1px solid #31343a',
-  boxShadow: '0 8px 32px #ffffff33', // Light shadow for dark mode
+  backgroundColor: '#1a1d21',   // Darker main background
+  color: '#d8d8d8',            // Slightly dimmer text (was #e8e8e8)
+  border: '1px solid #3a4047', // Brighter borders 
+  boxShadow: '0 4px 14px #ffffff33', // Light shadow for dark mode
   borderRadius: 'var(--border-radius)', // Use CSS variable
-  headerBg: '#222c36',
-  headerText: '#f5f7fa',
-  inputBg: '#23272b',
-  inputBorder: '#444444',
-  inputBorderHover: '#888888',
-  paperBg: '#23272b',
-  divider: '#31343a',
-  styleBoxBg: '#262b31',       // dark blue for style boxes
-  rowEvenBg: '#23272b',        // dark for even rows
-  rowOddBg: '#202225'          // slightly lighter for odd rows
+  headerBg: '#1f242a',         // Darker header
+  headerText: '#f0f2f4',       // Slightly dimmer header text (was #f8f9fa)
+  inputBg: '#1a1d21',          // Match main background
+  inputBorder: '#4a5057',      // Brighter input borders (was #3a4047)
+  inputBorderHover: '#9aa1a9', // Brighter hover state (was #8a9199)
+  paperBg: '#1a1d21',          // Match main background
+  divider: '#3a4047',          // Brighter divider (was #2a2f35)
+  styleBoxBg: '#252a32',       // Brighter style boxes (was #212730)
+  rowEvenBg: '#1a1d21',        // Match main background
+  rowOddBg: '#1f242a'          // Contrasting odd rows
 };
 
 interface AdminSettingsDialogProps {
@@ -543,20 +543,15 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                     />
                     <IconButton 
                       onClick={() => {/* TODO: Open media browser */}}
-                      size="small"
                       aria-label="Browse media files"
                       sx={{ 
-                        color: style.color,
-                        opacity: 0.7,
-                        borderRadius: 'var(--freeki-border-radius)',
+                        color: style.headerText,
                         '&:hover': {
-                          opacity: 1,
-                          color: style.inputBorderHover,
-                          backgroundColor: style.styleBoxBg
+                          backgroundColor: 'rgba(255, 255, 255, 0.08)'
                         }
                       }}
                     >
-                      <Photo fontSize="small" />
+                      <Photo />
                     </IconButton>
                   </Box>
                 </Grid>
