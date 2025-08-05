@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Box,
   TextField,
@@ -6,11 +6,10 @@ import {
   Typography,
   Paper,
   Popover,
-  IconButton,
   Button,
   Snackbar
 } from '@mui/material'
-import { ContentCopy, SwapHoriz } from '@mui/icons-material'
+import { ContentCopy } from '@mui/icons-material'
 
 // Admin panel color constants for light and dark
 const ADMIN_LIGHT_STYLE = {
@@ -18,7 +17,7 @@ const ADMIN_LIGHT_STYLE = {
   BORDER_COLOR: '#b0c4de',
   TEXT_PRIMARY: '#222c36',
   TEXT_SECONDARY: '#7da4c7',
-  SHADOW_COLOR: '#b0c4de55',
+  SHADOW_COLOR: '#00000055',
   SIDEBAR_HOVER: '#eaf3fb'
 }
 const ADMIN_DARK_STYLE = {
@@ -26,7 +25,7 @@ const ADMIN_DARK_STYLE = {
   BORDER_COLOR: '#444444',
   TEXT_PRIMARY: '#e0e0e0',
   TEXT_SECONDARY: '#888888',
-  SHADOW_COLOR: '#00000033',
+  SHADOW_COLOR: '#ffffff33',
   SIDEBAR_HOVER: '#262b31'
 }
 
@@ -115,28 +114,100 @@ const hsvToRgb = (h: number, s: number, v: number): { r: number; g: number; b: n
   }
 }
 
-// Calculate complementary color (opposite on color wheel)
-const getComplementaryColor = (hex: string): string => {
-  const rgb = hexToRgb(hex)
-  const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
-  
-  // Rotate hue by 180 degrees for true complementary color
-  const complementaryHue = (hsv.h + 180) % 360
-  const complementaryRgb = hsvToRgb(complementaryHue, hsv.s, hsv.v)
-  
-  return rgbToHex(complementaryRgb.r, complementaryRgb.g, complementaryRgb.b)
+// Helper functions for aesthetic font color
+function hexToRgb2(hex: string): { r: number, g: number, b: number } {
+  hex = hex.replace(/^#/, '')
+  const bigint = parseInt(hex, 16)
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255
+  }
 }
 
-// Enhanced copy text to clipboard with better error handling and browser compatibility
+function rgbToHex2(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('')
+}
+
+function rgbToHsv2(r: number, g: number, b: number): { h: number, s: number, v: number } {
+  r /= 255; g /= 255; b /= 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min
+  let h = 0
+  if (delta !== 0) {
+    if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0))
+    else if (max === g) h = ((b - r) / delta + 2)
+    else h = ((r - g) / delta + 4)
+    h *= 60
+  }
+  return { h, s: max === 0 ? 0 : delta / max, v: max }
+}
+
+function hsvToRgb2(h: number, s: number, v: number): { r: number, g: number, b: number } {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c
+  let r = 0, g = 0, b = 0
+  if (0 <= h && h < 60) [r, g, b] = [c, x, 0]
+  else if (60 <= h && h < 120) [r, g, b] = [x, c, 0]
+  else if (120 <= h && h < 180) [r, g, b] = [0, c, x]
+  else if (180 <= h && h < 240) [r, g, b] = [0, x, c]
+  else if (240 <= h && h < 300) [r, g, b] = [x, 0, c]
+  else if (300 <= h && h < 360) [r, g, b] = [c, 0, x]
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255)
+  }
+}
+
+function getLuminance(r: number, g: number, b: number): number {
+  const linear = (c: number) => {
+    c /= 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  }
+  const rLin = linear(r), gLin = linear(g), bLin = linear(b)
+  return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin
+}
+
+function contrastRatio(rgb1: { r: number, g: number, b: number }, rgb2: { r: number, g: number, b: number }): number {
+  const L1 = getLuminance(rgb1.r, rgb1.g, rgb1.b)
+  const L2 = getLuminance(rgb2.r, rgb2.g, rgb2.b)
+  return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
+}
+
+// Calculate best aesthetic font color
+const getBestFontColor = (bgHex: string): string => {
+  const bgRgb = hexToRgb2(bgHex)
+  const hsv = rgbToHsv2(bgRgb.r, bgRgb.g, bgRgb.b)
+
+  // Try aesthetic color: complementary
+  const newHue = (hsv.h + 180) % 360
+  const fontS = Math.min(1, hsv.s + 0.3)
+  const fontV = Math.max(0.4, Math.min(1, hsv.v - 0.2))
+  const fontRgb = hsvToRgb2(newHue, fontS, fontV)
+
+  // Contrast test
+  const contrast = contrastRatio(bgRgb, fontRgb)
+
+  if (contrast >= 4.5) {
+    return rgbToHex2(fontRgb.r, fontRgb.g, fontRgb.b)
+  }
+
+  // Fall back to black or white
+  const white = { r: 255, g: 255, b: 255 }
+  const black = { r: 0, g: 0, b: 0 }
+  const contrastWhite = contrastRatio(bgRgb, white)
+  const contrastBlack = contrastRatio(bgRgb, black)
+
+  return (contrastWhite > contrastBlack) ? '#FFFFFF' : '#000000'
+}
+
+// Copy to clipboard
 const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
-    // Modern Clipboard API approach
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(text)
       return true
     }
     
-    // Fallback approach for older browsers or non-secure contexts
     return new Promise((resolve) => {
       const textArea = document.createElement('textarea')
       textArea.value = text
@@ -150,10 +221,9 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
       
       document.body.appendChild(textArea)
       
-      // Focus and select
       textArea.focus()
       textArea.select()
-      textArea.setSelectionRange(0, 99999) // For mobile devices
+      textArea.setSelectionRange(0, 99999)
       
       try {
         const successful = document.execCommand('copy')
@@ -171,46 +241,177 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 }
 
+// Generate color picker canvas
+const generateColorPickerCanvas = (width: number, height: number): HTMLCanvasElement => {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  
+  if (!ctx) return canvas
+  
+  // Clear canvas first
+  ctx.clearRect(0, 0, width, height)
+  
+  // Try pixel-by-pixel method first
+  try {
+    const imageData = ctx.createImageData(width, height)
+    const data = imageData.data
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const h = (x / width) * 360
+        const s = ((height - y) / height) * 100
+        const v = 100
+        
+        const rgb = hsvToRgb(h, s, v)
+        const index = (y * width + x) * 4
+        
+        data[index] = rgb.r     // Red
+        data[index + 1] = rgb.g // Green
+        data[index + 2] = rgb.b // Blue
+        data[index + 3] = 255   // Alpha
+      }
+    }
+    
+    ctx.putImageData(imageData, 0, 0)
+    
+    // Test if the data was written correctly
+    const testPixel = ctx.getImageData(width - 1, 0, 1, 1).data
+    if (testPixel[0] > 200 && testPixel[1] < 50 && testPixel[2] < 50) {
+      // Pixel method worked - red pixel at top right
+      console.log('Canvas generated successfully using pixel method')
+      return canvas
+    }
+  } catch (error) {
+    console.warn('Pixel method failed:', error)
+  }
+  
+  // Fallback: Use gradient method
+  console.log('Using gradient fallback method')
+  
+  // Create horizontal hue gradient
+  const hueGradient = ctx.createLinearGradient(0, 0, width, 0)
+  hueGradient.addColorStop(0, '#ff0000')    // Red
+  hueGradient.addColorStop(0.16, '#ffff00') // Yellow  
+  hueGradient.addColorStop(0.33, '#00ff00') // Green
+  hueGradient.addColorStop(0.5, '#00ffff')  // Cyan
+  hueGradient.addColorStop(0.66, '#0000ff') // Blue
+  hueGradient.addColorStop(0.83, '#ff00ff') // Magenta
+  hueGradient.addColorStop(1, '#ff0000')    // Red
+  
+  ctx.fillStyle = hueGradient
+  ctx.fillRect(0, 0, width, height)
+  
+  // Create vertical saturation overlay (white to transparent)
+  const satGradient = ctx.createLinearGradient(0, 0, 0, height)
+  satGradient.addColorStop(0, 'rgba(255,255,255,0)')   // Transparent at top
+  satGradient.addColorStop(1, 'rgba(255,255,255,1)')   // White at bottom
+  
+  ctx.globalCompositeOperation = 'multiply'
+  ctx.fillStyle = satGradient
+  ctx.fillRect(0, 0, width, height)
+  
+  // Reset composite operation
+  ctx.globalCompositeOperation = 'source-over'
+  
+  return canvas
+}
+
+// Get color from canvas
+const getColorFromCanvas = (canvas: HTMLCanvasElement, x: number, y: number): string => {
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return '#000000'
+  
+  x = Math.max(0, Math.min(canvas.width - 1, Math.round(x)))
+  y = Math.max(0, Math.min(canvas.height - 1, Math.round(y)))
+  
+  const imageData = ctx.getImageData(x, y, 1, 1)
+  const [r, g, b] = imageData.data
+  
+  return rgbToHex(r, g, b)
+}
+
 export default function AdvancedColorPicker({ value, onChange, label, disabled = false, themeMode = 'light' }: AdvancedColorPickerProps) {
-  // Select style based on themeMode
-  const style = themeMode === 'dark' ? ADMIN_DARK_STYLE : ADMIN_LIGHT_STYLE;
+  const style = themeMode === 'dark' ? ADMIN_DARK_STYLE : ADMIN_LIGHT_STYLE
 
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   const [snackbarOpen, setSnackbarOpen] = useState(false)
   const [snackbarMessage, setSnackbarMessage] = useState('')
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [colorCanvas, setColorCanvas] = useState<HTMLCanvasElement | null>(null)
 
-  // Track HSV state independently - this is the authoritative state
-  const currentRgb = hexToRgb(value)
-  const currentHsv = rgbToHsv(currentRgb.r, currentRgb.g, currentRgb.b)
-  const [hsvState, setHsvState] = useState(currentHsv)
+  const [originalValue, setOriginalValue] = useState<string>(value)
+  const [workingValue, setWorkingValue] = useState<string>(value)
 
-  // Update HSV state when value prop changes (but not during slider interactions)
+  // Track HSV state independently - keep sliders where user puts them
+  const [hsvState, setHsvState] = useState(() => {
+    const rgb = hexToRgb(value)
+    return rgbToHsv(rgb.r, rgb.g, rgb.b)
+  })
+
+  // Generate color picker canvas when component mounts
   useEffect(() => {
-    const newHsv = rgbToHsv(currentRgb.r, currentRgb.g, currentRgb.b)
+    const canvas = generateColorPickerCanvas(200, 120)
+    setColorCanvas(canvas)
+  }, [])
+
+  // Update working value when value prop changes (from external source)
+  useEffect(() => {
+    setWorkingValue(value)
+    const rgb = hexToRgb(value)
+    const newHsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
     setHsvState(newHsv)
-  }, [value, currentRgb.r, currentRgb.g, currentRgb.b])
+  }, [value])
 
-  const complementaryColor = getComplementaryColor(value)
-
+  const contrastingColor = getBestFontColor(workingValue)
   const open = Boolean(anchorEl)
 
-  // Select hex string and focus when popover opens (guaranteed after render)
+  // Handle escape key to cancel changes
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && open) {
+        handleCancel()
+      }
+    }
+
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => {
+        document.removeEventListener('keydown', handleKeyDown)
+      }
+    }
+  }, [open])
+
+  // Select hex string and focus when popover opens
   useEffect(() => {
     if (open) {
-      // Use requestAnimationFrame to ensure input is rendered
+      setOriginalValue(value)
+      setWorkingValue(value)
+      
       const selectInput = () => {
         if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.select();
+          inputRef.current.focus()
+          inputRef.current.select()
         } else {
-          // Try again next frame if not available
-          requestAnimationFrame(selectInput);
+          requestAnimationFrame(selectInput)
         }
-      };
-      requestAnimationFrame(selectInput);
+      }
+      requestAnimationFrame(selectInput)
+
+      // Force canvas redraw after popover opens
+      setTimeout(() => {
+        if (canvasRef.current && colorCanvas) {
+          const ctx = canvasRef.current.getContext('2d')
+          if (ctx) {
+            ctx.clearRect(0, 0, 200, 120)
+            ctx.drawImage(colorCanvas, 0, 0, 200, 120)
+          }
+        }
+      }, 50) // Small delay to ensure DOM is ready
     }
-  }, [open]);
+  }, [open, value, colorCanvas])
 
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     if (!disabled) {
@@ -220,6 +421,41 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
   
   const handleClose = () => {
     setAnchorEl(null)
+  }
+
+  const handleCancel = () => {
+    setWorkingValue(originalValue)
+    setAnchorEl(null)
+  }
+
+  const handleOK = () => {
+    onChange(workingValue)
+    setAnchorEl(null)
+  }
+
+  const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!colorCanvas) return
+    
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = event.clientX - rect.left
+    const y = event.clientY - rect.top
+    
+    const canvasX = (x / rect.width) * colorCanvas.width
+    const canvasY = (y / rect.height) * colorCanvas.height
+    
+    const color = getColorFromCanvas(colorCanvas, canvasX, canvasY)
+    setWorkingValue(color)
+    
+    // Update HSV state when using canvas picker
+    const rgb = hexToRgb(color)
+    const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
+    setHsvState(hsv)
+  }
+
+  const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (event.buttons === 1) {
+      handleCanvasClick(event)
+    }
   }
   
   const handleHexChange = useCallback((newHex: string) => {
@@ -231,14 +467,14 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
         ? `#${newHex[1]}${newHex[1]}${newHex[2]}${newHex[2]}${newHex[3]}${newHex[3]}` 
         : newHex
       
-      onChange(fullHex)
+      setWorkingValue(fullHex)
       
-      // Update HSV state based on new hex
+      // Update HSV state when typing hex values
       const rgb = hexToRgb(fullHex)
       const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
       setHsvState(hsv)
     }
-  }, [onChange])
+  }, [])
   
   const handleHexFocus = () => {
     // Select all text when hex input is focused
@@ -253,24 +489,17 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
       inputRef.current.select()
     }
   }
-
-  const handleFlipColors = () => {
-    // Swap current color with complementary color
-    onChange(complementaryColor)
-    setSnackbarMessage(`Color flipped to complement: ${complementaryColor}`)
-    setSnackbarOpen(true)
-  }
   
   const handleSliderChange = useCallback((component: 'h' | 's' | 'v', newValue: number) => {
-    // Update HSV state - this is authoritative
+    // Update HSV state directly from slider - sliders are authoritative
     const newHsv = { ...hsvState, [component]: newValue }
     setHsvState(newHsv)
     
-    // Convert to RGB and hex, then notify parent
+    // Convert to RGB and hex, then update working value
     const rgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v)
     const hex = rgbToHex(rgb.r, rgb.g, rgb.b)
-    onChange(hex)
-  }, [hsvState, onChange])
+    setWorkingValue(hex)
+  }, [hsvState])
   
   const handleCopyColor = async (colorToCopy: string, colorName: string) => {
     const success = await copyToClipboard(colorToCopy)
@@ -346,122 +575,78 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
           backgroundColor: style.BG_COLOR,
           boxShadow: `0 8px 32px ${style.SHADOW_COLOR}`
         }}>
-          {/* Hex input with flip button */}
-          <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
-            <TextField
-              inputRef={el => { inputRef.current = el; }}
+          {/* Cancel and OK buttons - moved to top */}
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mb: 1.5 }}>
+            <Button
+              variant="text"
               size="small"
-              value={value}
-              onChange={(e) => handleHexChange(e.target.value)}
-              onFocus={handleHexFocus}
-              onClick={handleHexClick}
-              placeholder="#000000"
-              fullWidth
-              inputProps={{
-                style: { 
-                  fontFamily: 'monospace', 
-                  textTransform: 'uppercase',
-                  textAlign: 'center',
-                  fontSize: '0.9rem'
-                },
-                maxLength: 7
-              }}
+              onClick={handleCancel}
               sx={{
-                '& .MuiOutlinedInput-root': {
-                  backgroundColor: style.BG_COLOR,
-                  color: style.TEXT_PRIMARY,
-                  '& fieldset': {
-                    borderColor: style.BORDER_COLOR,
-                  },
-                  '&:hover fieldset': {
-                    borderColor: style.TEXT_PRIMARY,
-                  }
-                }
-              }}
-              disabled={disabled}
-              aria-label="Color hex value"
-            />
-            <IconButton
-              size="small"
-              onClick={handleFlipColors}
-              disabled={disabled}
-              title="Flip to complementary color"
-              aria-label="Flip to complementary color"
-              sx={{
-                color: style.TEXT_PRIMARY,
-                border: `1px solid ${style.BORDER_COLOR}`,
-                borderRadius: 1,
-                width: 32,
-                height: 32,
+                fontSize: '0.75rem',
+                px: 2,
+                py: 0.5,
+                color: style.TEXT_SECONDARY,
                 '&:hover': {
                   backgroundColor: style.SIDEBAR_HOVER,
-                  borderColor: style.TEXT_PRIMARY
+                  color: style.TEXT_PRIMARY
                 }
               }}
             >
-              <SwapHoriz fontSize="small" />
-            </IconButton>
-          </Box>
-          
-          {/* Copy buttons */}
-          <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ContentCopy sx={{ fontSize: '1rem' }} />}
-              onClick={() => handleCopyColor(value, 'Current Color')}
-              sx={{
-                flex: 1,
-                fontSize: '0.75rem',
-                py: 0.5,
-                backgroundColor: value,
-                color: currentHsv.v > 50 ? '#000' : '#fff',
-                borderColor: currentHsv.v > 50 ? '#000' : '#fff',
-                boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
-                '&:hover': {
-                  backgroundColor: value,
-                  opacity: 0.8,
-                  boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
-                }
-              }}
-            >
-              Copy
+              Cancel
             </Button>
             <Button
-              variant="outlined"
+              variant="contained"
               size="small"
-              startIcon={<ContentCopy sx={{ fontSize: '1rem' }} />}
-              onClick={() => handleCopyColor(complementaryColor, 'Complement')}
+              onClick={handleOK}
               sx={{
-                flex: 1,
                 fontSize: '0.75rem',
+                px: 2,
                 py: 0.5,
-                backgroundColor: complementaryColor,
-                color: (() => {
-                  const compRgb = hexToRgb(complementaryColor)
-                  const compHsv = rgbToHsv(compRgb.r, compRgb.g, compRgb.b)
-                  return compHsv.v > 50 ? '#000' : '#fff'
-                })(),
-                borderColor: (() => {
-                  const compRgb = hexToRgb(complementaryColor)
-                  const compHsv = rgbToHsv(compRgb.r, compRgb.g, compRgb.b)
-                  return compHsv.v > 50 ? '#000' : '#fff'
-                })(),
-                boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
+                backgroundColor: style.TEXT_SECONDARY,
+                color: style.BG_COLOR,
                 '&:hover': {
-                  backgroundColor: complementaryColor,
-                  opacity: 0.8,
-                  boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
+                  backgroundColor: style.TEXT_PRIMARY,
+                  color: style.BG_COLOR
                 }
               }}
             >
-              Complement
+              OK
             </Button>
           </Box>
-          
-          {/* Compact HSV Sliders with inline labels */}
-          <Box>
-            {/* Hue slider with inline label */}
+
+          {/* 2. Image-based color picker */}
+          {colorCanvas && (
+            <Box sx={{ mb: 1.5 }}>
+              <Typography variant="caption" sx={{ 
+                color: style.TEXT_SECONDARY,
+                fontSize: '0.75rem',
+                mb: 0.5,
+                display: 'block'
+              }}>
+                Click to pick a color:
+              </Typography>
+              <canvas
+                ref={canvasRef}
+                width={200}
+                height={120}
+                onClick={handleCanvasClick}
+                onMouseMove={handleCanvasMouseMove}
+                style={{
+                  width: '100%',
+                  height: '120px',
+                  border: `1px solid ${style.BORDER_COLOR}`,
+                  borderRadius: '4px',
+                  cursor: 'crosshair'
+                }}
+                title="Click to select a color"
+                aria-label="Color picker canvas - click to select a color"
+              />
+            </Box>
+          )}
+
+          {/* 3. HSV Sliders */}
+          <Box sx={{ mb: 1.5 }}>
+            {/* Hue slider */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography variant="caption" sx={{ 
                 color: style.TEXT_SECONDARY,
@@ -506,7 +691,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
             </Box>
             
-            {/* Saturation slider with inline label */}
+            {/* Saturation slider */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography variant="caption" sx={{ 
                 color: style.TEXT_SECONDARY,
@@ -550,7 +735,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
             </Box>
             
-            {/* Value slider with inline label */}
+            {/* Value slider */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="caption" sx={{ 
                 color: style.TEXT_SECONDARY,
@@ -594,10 +779,94 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
             </Box>
           </Box>
+          
+          {/* 4. Copy buttons */}
+          <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ContentCopy sx={{ fontSize: '1rem' }} />}
+              onClick={() => handleCopyColor(workingValue, 'Current Color')}
+              sx={{
+                flex: 1,
+                fontSize: '0.75rem',
+                py: 0.5,
+                backgroundColor: workingValue,
+                color: getBestFontColor(workingValue),
+                borderColor: getBestFontColor(workingValue),
+                boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
+                '&:hover': {
+                  backgroundColor: workingValue,
+                  opacity: 0.8,
+                  boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
+                }
+              }}
+            >
+              Copy
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ContentCopy sx={{ fontSize: '1rem' }} />}
+              onClick={() => handleCopyColor(contrastingColor, 'Contrasting')}
+              sx={{
+                flex: 1,
+                fontSize: '0.75rem',
+                py: 0.5,
+                backgroundColor: contrastingColor,
+                color: getBestFontColor(contrastingColor),
+                borderColor: getBestFontColor(contrastingColor),
+                boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
+                '&:hover': {
+                  backgroundColor: contrastingColor,
+                  opacity: 0.8,
+                  boxShadow: `0 0 0 1px ${style.BORDER_COLOR}`,
+                }
+              }}
+            >
+              Contrasting
+            </Button>
+          </Box>
+
+          {/* 5. Hex input - moved to bottom */}
+          <Box sx={{ mb: 0 }}>
+            <TextField
+              inputRef={el => { inputRef.current = el; }}
+              size="small"
+              value={workingValue}
+              onChange={(e) => handleHexChange(e.target.value)}
+              onFocus={handleHexFocus}
+              onClick={handleHexClick}
+              placeholder="#000000"
+              fullWidth
+              inputProps={{
+                style: { 
+                  fontFamily: 'monospace', 
+                  textTransform: 'uppercase',
+                  textAlign: 'center',
+                  fontSize: '0.9rem'
+                },
+                maxLength: 7
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: style.BG_COLOR,
+                  color: style.TEXT_PRIMARY,
+                  '& fieldset': {
+                    borderColor: style.BORDER_COLOR,
+                  },
+                  '&:hover fieldset': {
+                    borderColor: style.TEXT_PRIMARY,
+                  }
+                }
+              }}
+              disabled={disabled}
+              aria-label="Color hex value"
+            />
+          </Box>
         </Paper>
       </Popover>
       
-      {/* Copy confirmation snackbar */}
       <Snackbar
         open={snackbarOpen}
         autoHideDuration={2000}

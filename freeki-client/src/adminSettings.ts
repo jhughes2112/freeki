@@ -83,7 +83,7 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   footerBackground: '#fafafa',
   footerTextColor: '#666666',
   borderColor: '#e0e0e0',
-  shadowColor: '#22222233', // solid shadow with alpha for light mode
+  shadowColor: '#00000055', // Dark shadow for light mode
   styleRowFontColor: '#222c36', // new: font color for style rows (light)
   sliderMarkColor: '#7da4c7', // new: notch color for light
   sliderThumbOutline: '#b0c4de', // new: thumb outline for light
@@ -117,7 +117,7 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   footerBackground: '#2b2b2b',
   footerTextColor: '#b3b3b3',
   borderColor: '#222222',
-  shadowColor: '#00000099', // solid shadow with alpha for dark mode
+  shadowColor: '#ffffff33', // Light shadow for dark mode
   styleRowFontColor: '#e0e0e0', // new: font color for style rows (dark)
   sliderMarkColor: '#888', // new: notch color for dark
   sliderThumbOutline: '#888', // new: thumb outline for dark

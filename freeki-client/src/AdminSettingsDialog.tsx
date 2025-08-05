@@ -18,7 +18,8 @@ import {
 import {
   Close,
   Save,
-  Refresh
+  Refresh,
+  Photo
 } from '@mui/icons-material'
 import type { AdminSettings, ColorScheme } from './adminSettings'
 import { DEFAULT_ADMIN_SETTINGS, fetchAdminSettings, saveAdminSettings } from './adminSettings'
@@ -29,7 +30,7 @@ const ADMIN_DIALOG_LIGHT_STYLE = {
   backgroundColor: '#f7fafd', // very light blue-gray
   color: '#222c36',           // deep blue-gray for text
   border: '1px solid #dbe6ee',// soft blue border
-  boxShadow: '0 4px 24px #b0c4de55', // subtle blue shadow
+  boxShadow: '0 4px 24px #00000055', // Dark shadow for light mode
   borderRadius: 8,
   headerBg: '#eaf3fb',        // pale blue for header
   headerText: '#222c36',      // deep blue-gray for header text
@@ -47,7 +48,7 @@ const ADMIN_DIALOG_DARK_STYLE = {
   backgroundColor: '#23272b',
   color: '#e0e0e0',
   border: '1px solid #31343a',
-  boxShadow: '0 8px 32px #00000033',
+  boxShadow: '0 8px 32px #ffffff33', // Light shadow for dark mode
   borderRadius: 8,
   headerBg: '#222c36',
   headerText: '#f5f7fa',
@@ -449,7 +450,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
               borderRadius: 2,
               borderBottom: 'none'
             }}>
-              <Typography variant="h6" sx={{ mb: 2, color: style.color, fontWeight: 700, letterSpacing: '1px', textShadow: '0 1px 4px #000', fontSize: '1rem', py: 0 }}>
+              <Typography variant="h6" sx={{ mb: 2, color: style.color, fontWeight: 700, letterSpacing: '1px', fontSize: '1rem', py: 0 }}>
                 General Settings
               </Typography>
               <Grid container spacing={2}>
@@ -537,54 +538,40 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                           }
                         }}
                       />
-                      <Button 
-                        aria-label="Browse media" 
-                        variant="outlined" 
+                      <Photo 
                         sx={{ 
-                          minWidth: 100,
+                          fontSize: 20,
                           color: style.color,
-                          borderColor: style.inputBorder,
-                          backgroundColor: style.inputBg,
-                          fontWeight: 500,
-                          borderRadius: 1,
-                          boxShadow: 'none',
+                          cursor: 'pointer',
+                          opacity: 0.7,
                           '&:hover': {
-                            borderColor: style.inputBorderHover,
-                            backgroundColor: style.inputBg
+                            opacity: 1,
+                            color: style.inputBorderHover
                           }
                         }}
-                      >
-                        Browse Media
-                      </Button>
+                        aria-label="Browse media files"
+                      />
                     </Box>
                   </Box>
                 </Grid>
               </Grid>
             </Paper>
-            
-            {/* Unified style, font, and color settings block with two columns */}
-            <Paper sx={{
-              p: 1, // reduce padding
+            {/* Style & Font Settings - Remove border and fix alignment */}
+            <Box sx={{
+              p: 2,
               backgroundColor: style.paperBg,
-              border: 'none', // remove border
               boxShadow: 'none',
               color: style.color,
-              mt: 0,
-              borderRadius: 2
+              mb: 0
             }}>
-              <Typography variant="h6" sx={{ mb: 1, color: style.color, fontWeight: 700, letterSpacing: '1px', textShadow: '0 1px 4px #000', fontSize: '1rem', py: 0 }}>
+              <Typography variant="h6" sx={{ mb: 2, color: style.color, fontWeight: 700, letterSpacing: '1px', fontSize: '1rem', py: 0 }}>
                 Style & Font Settings
               </Typography>
               <Box sx={{
                 display: 'flex',
                 flexWrap: 'wrap',
-                gap: 1, // reduce gap
-                border: 'none', // remove border
-                borderRadius: 0,
-                backgroundColor: 'unset',
-                overflow: 'hidden',
-                p: 0,
-                justifyContent: 'center'
+                gap: 1,
+                justifyContent: 'space-between'
               }}>
                 {/* Left column */}
                 <Box sx={{
@@ -593,7 +580,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   maxWidth: 400,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.25, // reduce gap
+                  gap: 0.25,
                   backgroundColor: style.styleBoxBg,
                   border: `1px solid ${style.inputBorder}`,
                   borderRadius: 2,
@@ -624,7 +611,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   maxWidth: 400,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 0.25, // reduce gap
+                  gap: 0.25,
                   backgroundColor: style.styleBoxBg,
                   border: `1px solid ${style.inputBorder}`,
                   borderRadius: 2,
@@ -646,7 +633,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   <SettingRow label="Shadow Color" lightValue={settings.colorSchemes.light.shadowColor} darkValue={settings.colorSchemes.dark.shadowColor} onLightChange={value => updateLightColor('shadowColor', value)} onDarkChange={value => updateDarkColor('shadowColor', value)} style={style} mode={mode} />
                 </Box>
               </Box>
-            </Paper>
+            </Box>
           </Stack>
         )}
       </DialogContent>
