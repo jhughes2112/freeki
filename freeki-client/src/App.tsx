@@ -98,6 +98,7 @@ export default function App() {
   const isEditing = useGlobalState('isEditing')
   const searchQuery = useGlobalState('searchQuery')
   const pages = useGlobalState('pages')
+  const isLoadingPages = useGlobalState('isLoadingPages')
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [errorMessage, setErrorMessage] = React.useState<string>('')
@@ -108,14 +109,40 @@ export default function App() {
   const [isMetadataCollapsed, setIsMetadataCollapsed] = React.useState(false)
   const [hasInitialized, setHasInitialized] = React.useState(false)
 
-  // Load admin settings on startup
+  // Load admin settings and pages on startup
   useEffect(() => {
-    async function loadAdminSettings() {
+    async function loadInitialData() {
       try {
+        // Load admin settings
         globalState.set('isLoadingAdminSettings', true)
         const settings = await fetchAdminSettings()
         if (settings) {
           globalState.set('adminSettings', settings)
+        }
+        
+        // Load pages from API
+        globalState.set('isLoadingPages', true)
+        try {
+          const response = await apiClient.get<WikiPage[]>('/api/pages')
+          if (response.success && response.data && response.data.length > 0) {
+            globalState.set('pages', response.data)
+            // Set first non-folder page as current page if available
+            const firstPage = response.data.find(page => !page.isFolder) || response.data[0]
+            if (firstPage) {
+              globalState.set('currentPage', firstPage)
+            }
+          } else {
+            // Fallback to sample data if API returns empty or fails
+            globalState.set('pages', samplePages)
+            globalState.set('currentPage', samplePages[0])
+          }
+        } catch (error) {
+          console.warn('Failed to load pages from API, using sample data:', error)
+          // Fallback to sample data
+          globalState.set('pages', samplePages)
+          globalState.set('currentPage', samplePages[0])
+        } finally {
+          globalState.set('isLoadingPages', false)
         }
       } catch (error) {
         console.error('Failed to load admin settings:', error)
@@ -123,7 +150,8 @@ export default function App() {
         globalState.set('isLoadingAdminSettings', false)
       }
     }
-    loadAdminSettings()
+    
+    loadInitialData()
   }, [])
 
   // Initialize global state with sample data on first load
@@ -657,12 +685,39 @@ export default function App() {
           </button>
 
           <FadePanelContent visible={!isSidebarCollapsed}>
-            {currentPage && (
+            {isLoadingPages ? (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                height: 200,
+                color: 'var(--freeki-folders-font-color)'
+              }}>
+                <Typography>Loading pages...</Typography>
+              </Box>
+            ) : currentPage ? (
               <FolderTree
                 pages={pages}
                 selectedPage={currentPage}
                 onPageSelect={handlePageSelect}
               />
+            ) : (
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                height: 200,
+                color: 'var(--freeki-folders-font-color)',
+                p: 2
+              }}>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  No pages available
+                </Typography>
+                <Typography variant="caption">
+                  Create your first page to get started
+                </Typography>
+              </Box>
             )}
           </FadePanelContent>
 

@@ -17,6 +17,7 @@ import {
   Description
 } from '@mui/icons-material'
 import type { WikiPage } from './globalState'
+import { calculateHoverColor } from './colorUtils'
 
 interface FolderTreeProps {
   pages: WikiPage[]
@@ -45,11 +46,6 @@ function TreeNode({
   const isSelected = selectedPage.id === page.id
   const hasChildren = page.children && page.children.length > 0
 
-  // Calculate background opacity based on depth - deeper items get slightly darker
-  // Clamp opacity between 0.05 and 0.15, but never 0 or <0.05
-  const backgroundOpacity = Math.max(0.05, Math.min(0.15, 0.05 + (level * 0.02)))
-  const levelBackgroundColor = `rgba(0, 0, 0, ${backgroundOpacity})`
-
   const handleClick = () => {
     // Always select the page when clicked
     onPageSelect(page)
@@ -74,27 +70,29 @@ function TreeNode({
           pr: 1,
           py: 0.25,
           backgroundColor: isSelected 
-            ? 'var(--freeki-sidebar-selected-background)' 
-            : levelBackgroundColor,
+            ? 'var(--freeki-folders-selected-background)' 
+            : 'transparent',
           '&:hover': {
             backgroundColor: isSelected 
-              ? 'var(--freeki-sidebar-selected-background)'
-              : 'var(--freeki-sidebar-hover-background)'
+              ? 'var(--freeki-folders-selected-background)'
+              : 'var(--freeki-folders-selected-background)',
+            filter: isSelected ? 'none' : 'brightness(0.9) saturate(0.8)'
           },
-          borderRadius: 0,
-          mx: 0,
-          mb: 0,
+          borderRadius: 'var(--freeki-border-radius)',
+          mx: 0.5,
+          mb: 0.25,
           cursor: 'pointer',
-          color: 'var(--freeki-text-primary)',
+          color: 'var(--freeki-folders-font-color)',
+          fontSize: 'var(--freeki-folders-font-size)',
           minHeight: 32,
           alignItems: 'center',
-          // Fix: never use rgba with normalized RGB values
+          transition: 'all 0.2s ease-in-out'
         }}
       >
         {/* Expand/collapse button or spacer */}
         <ListItemIcon sx={{ 
           minWidth: 24, 
-          color: 'var(--freeki-text-primary)',
+          color: 'var(--freeki-folders-font-color)',
           mr: 0.5
         }}>
           {page.isFolder && hasChildren ? (
@@ -103,10 +101,11 @@ function TreeNode({
               onClick={handleExpandClick}
               sx={{ 
                 p: 0.25, 
-                color: 'var(--freeki-text-primary)',
+                color: 'var(--freeki-folders-font-color)',
                 width: 20,
                 height: 20
               }}
+              aria-label={isExpanded ? `Collapse ${page.title}` : `Expand ${page.title}`}
             >
               {isExpanded ? <ExpandMore fontSize="small" /> : <ChevronRight fontSize="small" />}
             </IconButton>
@@ -118,7 +117,7 @@ function TreeNode({
         {/* File/folder icon */}
         <ListItemIcon sx={{ 
           minWidth: 20, 
-          color: 'var(--freeki-text-primary)',
+          color: 'var(--freeki-folders-font-color)',
           mr: 0.75
         }}>
           {page.isFolder ? (
@@ -128,22 +127,22 @@ function TreeNode({
           )}
         </ListItemIcon>
         
-        {/* File/folder name - no word wrapping */}
+        {/* File/folder name */}
         <ListItemText
           primary={
             <Typography
               variant="body2"
               sx={{
                 fontWeight: isSelected ? 600 : 400,
-                color: isSelected ? 'primary.main' : 'var(--freeki-text-primary)',
-                fontSize: '0.875rem',
+                color: 'var(--freeki-folders-font-color)',
+                fontSize: 'var(--freeki-folders-font-size)',
                 lineHeight: 1.2,
-                whiteSpace: 'nowrap', // Prevent word wrapping
+                whiteSpace: 'nowrap',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis', // Show ... if text is too long
-                userSelect: 'none' // Prevent text selection like file explorer
+                textOverflow: 'ellipsis',
+                userSelect: 'none'
               }}
-              title={page.title} // Show full title on hover
+              title={page.title}
             >
               {page.title}
             </Typography>
@@ -155,7 +154,10 @@ function TreeNode({
       {/* Children - only show if folder is expanded */}
       {page.isFolder && hasChildren && (
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-          <List component="div" disablePadding sx={{ borderLeft: level > 0 ? `1px solid rgba(0,0,0,0.1)` : 'none', ml: level > 0 ? 1.5 : 0 }}>
+          <List component="div" disablePadding sx={{ 
+            borderLeft: level > 0 ? `1px solid var(--freeki-border-color)` : 'none', 
+            ml: level > 0 ? 1.5 : 0 
+          }}>
             {page.children?.map((child: WikiPage) => (
               <TreeNode
                 key={child.id}
@@ -226,8 +228,9 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
     <Box sx={{ 
       height: '100%', 
       overflow: 'auto', 
-      color: 'var(--freeki-text-primary)',
-		  backgroundColor: 'var(--freeki-folders-background)',
+      color: 'var(--freeki-folders-font-color)',
+      backgroundColor: 'var(--freeki-folders-background)',
+      borderRadius: 'var(--freeki-border-radius)',
       '&::-webkit-scrollbar': {
         width: '8px',
       },
@@ -235,10 +238,11 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
         backgroundColor: 'transparent',
       },
       '&::-webkit-scrollbar-thumb': {
-        backgroundColor: 'rgba(0,0,0,0.2)',
-        borderRadius: '4px',
+        backgroundColor: 'var(--freeki-border-color)',
+        borderRadius: 'var(--freeki-border-radius)',
         '&:hover': {
-          backgroundColor: 'rgba(0,0,0,0.3)',
+          backgroundColor: 'var(--freeki-folders-font-color)',
+          opacity: 0.3
         }
       }
     }}>
@@ -246,28 +250,47 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
         p: 2, 
         pb: 1,
         fontWeight: 600,
-        color: 'var(--freeki-text-primary)',
-        fontSize: '1rem',
-        borderBottom: '1px solid var(--freeki-border-color)',
+        color: 'var(--freeki-folders-font-color)',
+        fontSize: 'var(--freeki-folders-font-size)',
+        borderBottom: `1px solid var(--freeki-border-color)`,
         mb: 0,
         userSelect: 'none'
       }}>
         Pages
       </Typography>
       
-      <List component="nav" dense disablePadding sx={{ pt: 0.5 }}>
-        {pages.map((page) => (
-          <TreeNode
-            key={page.id}
-            page={page}
-            level={0}
-            selectedPage={selectedPage}
-            onPageSelect={onPageSelect}
-            expandedNodes={expandedNodes}
-            onToggleExpanded={handleToggleExpanded}
-          />
-        ))}
-      </List>
+      {pages.length === 0 ? (
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          p: 3,
+          color: 'var(--freeki-folders-font-color)',
+          opacity: 0.6
+        }}>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            No pages available
+          </Typography>
+          <Typography variant="caption">
+            Create your first page to get started
+          </Typography>
+        </Box>
+      ) : (
+        <List component="nav" dense disablePadding sx={{ pt: 0.5 }}>
+          {pages.map((page) => (
+            <TreeNode
+              key={page.id}
+              page={page}
+              level={0}
+              selectedPage={selectedPage}
+              onPageSelect={onPageSelect}
+              expandedNodes={expandedNodes}
+              onToggleExpanded={handleToggleExpanded}
+            />
+          ))}
+        </List>
+      )}
     </Box>
   )
 }
