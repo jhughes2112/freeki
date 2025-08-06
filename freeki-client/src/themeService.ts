@@ -38,7 +38,8 @@ class ThemeService {
     // Listen specifically for color scheme changes (deeply nested)
     globalState.subscribe('adminSettings.colorSchemes', (path, newValue, oldValue) => {
       const state = globalState.getState()
-      debouncedApplyTheme(newValue as { light: ColorScheme; dark: ColorScheme }, state.theme)
+      // Use the full colorSchemes from state, not the newValue which might be a partial update
+      debouncedApplyTheme(state.adminSettings.colorSchemes, state.theme)
     })
 
     // Listen for theme mode changes

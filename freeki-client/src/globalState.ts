@@ -59,92 +59,7 @@ export type PropertyChangeListener = (
   modifiedState: AppState
 ) => void
 
-// Surgical clone that only clones changed portions - MAXIMUM PERFORMANCE IMPROVEMENT
-function surgicalClone(current: AppState, modified: AppState, changedPaths: Set<PropertyPath>): AppState {
-  // Start with the current state as base
-  let result = current
-  
-  // Only clone if there are actual changes
-  if (changedPaths.size === 0) {
-    return current
-  }
-  
-  // Track what needs to be cloned
-  let needsAdminSettingsClone = false
-  let needsColorSchemesClone = false
-  let needsLightSchemeClone = false
-  let needsDarkSchemeClone = false
-  let needsTopLevelClone = false
-  
-  // Analyze changed paths to determine minimal cloning needed
-  for (const path of changedPaths) {
-    if (path.startsWith('adminSettings.colorSchemes.light.')) {
-      needsLightSchemeClone = true
-      needsColorSchemesClone = true
-      needsAdminSettingsClone = true
-      needsTopLevelClone = true
-    } else if (path.startsWith('adminSettings.colorSchemes.dark.')) {
-      needsDarkSchemeClone = true
-      needsColorSchemesClone = true
-      needsAdminSettingsClone = true
-      needsTopLevelClone = true
-    } else if (path.startsWith('adminSettings.colorSchemes')) {
-      needsColorSchemesClone = true
-      needsAdminSettingsClone = true
-      needsTopLevelClone = true
-    } else if (path.startsWith('adminSettings.')) {
-      needsAdminSettingsClone = true
-      needsTopLevelClone = true
-    } else if (path !== '') { // Any other top-level property
-      needsTopLevelClone = true
-    }
-  }
-  
-  // Perform minimal cloning based on what actually changed
-  if (needsTopLevelClone) {
-    result = { ...current }
-    
-    if (needsAdminSettingsClone) {
-      result.adminSettings = { ...modified.adminSettings }
-      
-      if (needsColorSchemesClone) {
-        result.adminSettings.colorSchemes = { ...modified.adminSettings.colorSchemes }
-        
-        if (needsLightSchemeClone) {
-          result.adminSettings.colorSchemes.light = { ...modified.adminSettings.colorSchemes.light }
-        } else {
-          // Keep reference to unchanged light scheme
-          result.adminSettings.colorSchemes.light = current.adminSettings.colorSchemes.light
-        }
-        
-        if (needsDarkSchemeClone) {
-          result.adminSettings.colorSchemes.dark = { ...modified.adminSettings.colorSchemes.dark }
-        } else {
-          // Keep reference to unchanged dark scheme
-          result.adminSettings.colorSchemes.dark = current.adminSettings.colorSchemes.dark
-        }
-      } else {
-        // Keep reference to unchanged color schemes
-        result.adminSettings.colorSchemes = current.adminSettings.colorSchemes
-      }
-    } else {
-      // Keep reference to unchanged admin settings
-      result.adminSettings = current.adminSettings
-    }
-    
-    // Copy over other changed top-level properties
-    for (const path of changedPaths) {
-      if (!path.includes('.') && path !== '') {
-        const key = path as keyof AppState
-        (result as any)[key] = (modified as any)[key]
-      }
-    }
-  }
-  
-  return result
-}
-
-// Deep clone utility for state objects (keeping original for compatibility)
+// Deep clone utility for state objects
 function deepClone<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') return obj
   if (obj instanceof Date) return new Date(obj.getTime()) as unknown as T
@@ -161,38 +76,13 @@ function deepClone<T>(obj: T): T {
   return obj
 }
 
-// Cached parent paths to avoid recalculation - PERFORMANCE IMPROVEMENT
-const parentPathCache = new Map<PropertyPath, PropertyPath[]>()
-
-function getParentPaths(path: PropertyPath): PropertyPath[] {
-  if (parentPathCache.has(path)) {
-    return parentPathCache.get(path)!
-  }
-  
-  const parts = path.split('.')
-  const parentPaths: PropertyPath[] = []
-  
-  for (let i = 1; i <= parts.length; i++) {
-    parentPaths.push(parts.slice(0, i).join('.'))
-  }
-  
-  parentPathCache.set(path, parentPaths)
-  return parentPaths
-}
-
-// Two-state global state manager with property-specific callbacks
+// Simple, clean global state manager - immediate updates, no throttling
 class GlobalStateManager {
-  private currentState: AppState
-  private modifiedState: AppState
+  private state: AppState
   private listeners: Map<PropertyPath, Set<PropertyChangeListener>> = new Map()
-  private pendingCommit = false
-  private rafId: number | null = null
-  private lastCommitTime = 0
-  private readonly minCommitInterval = 50 // 20fps max update rate - PERFORMANCE THROTTLING
-  private pendingChanges = new Set<PropertyPath>() // TRACK CHANGES AS THEY HAPPEN - MAJOR PERFORMANCE IMPROVEMENT
 
   constructor() {
-    // Initialize both states with defaults
+    // Initialize with defaults
     const initialState: AppState = {
       adminSettings: DEFAULT_ADMIN_SETTINGS,
       currentUser: null,
@@ -209,61 +99,63 @@ class GlobalStateManager {
       isLoadingUser: false
     }
     
-    this.currentState = deepClone(initialState)
-    this.modifiedState = deepClone(initialState)
+    this.state = deepClone(initialState)
   }
 
-  // Get current committed state (read-only)
+  // Get current state (read-only)
   getState(): Readonly<AppState> {
-    return this.currentState
+    return this.state
   }
 
-  // Get modified working state (read-only)
-  getModifiedState(): Readonly<AppState> {
-    return this.modifiedState
-  }
-
-  // Get a specific value from current state
+  // Get a specific value from state
   get<K extends keyof AppState>(key: K): AppState[K] {
-    return this.currentState[key]
+    return this.state[key]
   }
 
-  // Get a specific value from modified state
-  getModified<K extends keyof AppState>(key: K): AppState[K] {
-    return this.modifiedState[key]
-  }
-
-  // Set value in modified state (doesn't trigger callbacks until commit)
+  // Set value with immediate updates
   set<K extends keyof AppState>(key: K, value: AppState[K]): void {
-    (this.modifiedState as any)[key] = value
-    this.pendingChanges.add(key) // TRACK THE CHANGE - O(1)
-    this.scheduleCommit()
+    const oldValue = this.state[key]
+    if (oldValue === value) return // Skip if no change
+    
+    // Simple shallow clone
+    this.state = { ...this.state, [key]: value }
+    
+    // Trigger listeners immediately
+    this.notifyListeners(key, value, oldValue)
   }
 
   // Set nested property using dot notation
   setProperty(path: PropertyPath, value: any): void {
     const parts = path.split('.')
-    let target = this.modifiedState as any
+    const oldValue = this.getProperty(path)
+    if (oldValue === value) return // Skip if no change
     
-    // Navigate to parent object
-    for (let i = 0; i < parts.length - 1; i++) {
-      const part = parts[i]
-      if (!target[part] || typeof target[part] !== 'object') {
-        target[part] = {}
-      }
-      target = target[part]
+    // Create new state with updated property
+    this.state = this.updateNestedProperty(this.state, parts, value)
+    
+    // Trigger listeners immediately
+    this.notifyListeners(path, value, oldValue)
+  }
+
+  // Helper to update nested property immutably
+  private updateNestedProperty(obj: any, parts: string[], value: any): any {
+    if (parts.length === 1) {
+      return { ...obj, [parts[0]]: value }
     }
     
-    // Set the final property
-    target[parts[parts.length - 1]] = value
-    this.pendingChanges.add(path) // TRACK THE EXACT CHANGE - O(1)
-    this.scheduleCommit()
+    const [firstPart, ...restParts] = parts
+    const currentValue = obj[firstPart] || {}
+    
+    return {
+      ...obj,
+      [firstPart]: this.updateNestedProperty(currentValue, restParts, value)
+    }
   }
 
   // Get nested property using dot notation
   getProperty(path: PropertyPath): any {
     const parts = path.split('.')
-    let target = this.currentState as any
+    let target = this.state as any
     
     for (const part of parts) {
       if (target === null || target === undefined || typeof target !== 'object') {
@@ -277,120 +169,45 @@ class GlobalStateManager {
 
   // Batch update multiple values
   update(updates: Partial<AppState>): void {
+    // Simple batch update with single clone
+    this.state = { ...this.state, ...updates }
+    
+    // Notify all changed properties
     Object.entries(updates).forEach(([key, value]) => {
-      (this.modifiedState as any)[key] = value
-      this.pendingChanges.add(key) // TRACK EACH CHANGE - O(k) where k is update count
+      this.notifyListeners(key, value, (this.state as any)[key])
     })
-    this.scheduleCommit()
   }
 
-  // Schedule a commit with throttling for smooth performance - MAJOR PERFORMANCE IMPROVEMENT
-  private scheduleCommit(): void {
-    if (this.pendingCommit) return
+  // Immediate listener notification
+  private notifyListeners(path: PropertyPath, newValue: any, oldValue: any): void {
+    // Get parent paths for nested property notifications
+    const parentPaths = this.getParentPaths(path)
     
-    this.pendingCommit = true
-    
-    // Cancel any pending RAF
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId)
-    }
-    
-    const now = performance.now()
-    const timeSinceLastCommit = now - this.lastCommitTime
-    
-    if (timeSinceLastCommit >= this.minCommitInterval) {
-      // Enough time has passed, commit immediately
-      this.rafId = requestAnimationFrame(() => {
-        this.executeCommit()
-      })
-    } else {
-      // Too soon, schedule for later to maintain frame rate
-      const remainingTime = this.minCommitInterval - timeSinceLastCommit
-      this.rafId = requestAnimationFrame(() => {
-        setTimeout(() => {
-          this.executeCommit()
-        }, remainingTime)
-      })
-    }
-  }
-
-  // Execute the actual commit
-  private executeCommit(): void {
-    this.commitChanges()
-    this.pendingCommit = false
-    this.rafId = null
-    this.lastCommitTime = performance.now()
-  }
-
-  // Optimized commit changes using tracked changes - MASSIVE PERFORMANCE IMPROVEMENT
-  commitChanges(): void {
-    // Use tracked changes instead of expensive diff - O(1) vs O(n)
-    const changedPaths = this.pendingChanges
-    
-    if (changedPaths.size === 0) {
-      return // No changes to commit
-    }
-
-    // Batch listener calls to avoid duplicates - PERFORMANCE IMPROVEMENT
-    const listenerCalls = new Map<PropertyChangeListener, {
-      path: PropertyPath,
-      newValue: any,
-      oldValue: any
-    }>()
-
-    for (const changedPath of changedPaths) {
-      const parentPaths = getParentPaths(changedPath)
-      
-      // Add listeners for this path and all its parents
-      for (const path of parentPaths) {
-        const pathListeners = this.listeners.get(path)
-        if (pathListeners) {
-          for (const listener of pathListeners) {
-            if (!listenerCalls.has(listener)) {
-              // Get values for the specific path the listener is registered for
-              const newValue = this.getValueAtPath(this.modifiedState, path)
-              const oldValue = this.getValueAtPath(this.currentState, path)
-              
-              listenerCalls.set(listener, {
-                path,
-                newValue,
-                oldValue
-              })
-            }
+    // Notify all relevant listeners immediately
+    for (const listenerPath of parentPaths) {
+      const pathListeners = this.listeners.get(listenerPath)
+      if (pathListeners) {
+        for (const listener of pathListeners) {
+          try {
+            listener(listenerPath, newValue, oldValue, this.state, this.state)
+          } catch (error) {
+            console.error(`Error in property listener for ${listenerPath}:`, error)
           }
         }
       }
     }
-
-    // Update current state using surgical clone - MAJOR PERFORMANCE IMPROVEMENT
-    this.currentState = surgicalClone(this.currentState, this.modifiedState, changedPaths)
-
-    // Clear tracked changes after commit - IMPORTANT!
-    this.pendingChanges.clear()
-
-    // Trigger all unique listeners
-    for (const [listener, { path, newValue, oldValue }] of listenerCalls) {
-      try {
-        listener(path, newValue, oldValue, this.currentState, this.modifiedState)
-      } catch (error) {
-        console.error(`Error in property listener for ${path}:`, error)
-      }
-    }
   }
 
-  // Helper to get value at a specific path
-  private getValueAtPath(obj: any, path: PropertyPath): any {
+  // Simple parent path calculation
+  private getParentPaths(path: PropertyPath): PropertyPath[] {
     const parts = path.split('.')
-    let target = obj
+    const parentPaths: PropertyPath[] = []
     
-    for (const part of parts) {
-      if (target === null || target === undefined || typeof target !== 'object') {
-        return undefined
-      }
-      target = target[part]
+    for (let i = 1; i <= parts.length; i++) {
+      parentPaths.push(parts.slice(0, i).join('.'))
     }
     
-    return target
+    return parentPaths
   }
 
   // Subscribe to changes for a specific property path
@@ -414,16 +231,6 @@ class GlobalStateManager {
   // Subscribe to all changes (root level)
   subscribeGlobal(listener: PropertyChangeListener): () => void {
     return this.subscribe('', listener)
-  }
-
-  // Force immediate commit for critical updates (bypasses throttling)
-  forceCommit(): void {
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId)
-      this.rafId = null
-    }
-    this.pendingCommit = false
-    this.executeCommit()
   }
 }
 

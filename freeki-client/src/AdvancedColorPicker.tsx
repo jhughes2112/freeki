@@ -473,7 +473,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
     const hex = rgbaToHex(rgb.r, rgb.g, rgb.b, newState.a / 100)
     
     setWorkingValue(hex)
-    onChange(hex) // Live preview
+    onChange(hex) // Live preview - this should update global state immediately
   }, [colorState, onChange])
 
   // CANVAS CLICK: Updates workingValue and colorState, calls onChange for live preview
@@ -496,7 +496,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
     
     setColorState(newState)
     setWorkingValue(hex)
-    onChange(hex) // Live preview
+    onChange(hex) // Live preview - this should update global state immediately
   }
 
   const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
