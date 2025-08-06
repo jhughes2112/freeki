@@ -22,13 +22,13 @@ const ADMIN_LIGHT_STYLE = {
   STYLE_BOX_BG: '#eaf3fb'
 }
 const ADMIN_DARK_STYLE = {
-  BG_COLOR: '#1a1d21',          // Match updated admin dark background
-  BORDER_COLOR: '#4a5057',      // Match updated admin dark border (brighter)
-  TEXT_PRIMARY: '#d8d8d8',      // Match updated admin dark text (dimmer)
-  TEXT_SECONDARY: '#9aa1a9',    // Match updated admin dark secondary (brighter)
+  BG_COLOR: '#1a1d21',
+  BORDER_COLOR: '#4a5057',
+  TEXT_PRIMARY: '#d8d8d8',
+  TEXT_SECONDARY: '#9aa1a9',
   SHADOW_COLOR: '#ffffff33',
-  SIDEBAR_HOVER: '#252a32',     // Match updated admin dark hover (brighter)
-  STYLE_BOX_BG: '#252a32'       // Match updated admin dark style box (brighter)
+  SIDEBAR_HOVER: '#252a32',
+  STYLE_BOX_BG: '#252a32'
 }
 
 interface AdvancedColorPickerProps {
@@ -39,7 +39,15 @@ interface AdvancedColorPickerProps {
   themeMode?: 'light' | 'dark'
 }
 
-// Color conversion utilities
+// Color state management - centralized and explicit
+interface ColorState {
+  h: number  // 0-360
+  s: number  // 0-100
+  v: number  // 0-100
+  a: number  // 0-100
+}
+
+// Consolidated color conversion utilities
 const hexToRgba = (hex: string): { r: number; g: number; b: number; a: number } => {
   if (typeof hex !== 'string' || !hex.startsWith('#')) {
     return { r: 0, g: 0, b: 0, a: 1 }
@@ -85,15 +93,6 @@ const rgbaToHex = (r: number, g: number, b: number, a: number = 1): string => {
   }
   
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-}
-
-const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
-  const rgba = hexToRgba(hex)
-  return { r: rgba.r, g: rgba.g, b: rgba.b }
-}
-
-const rgbToHex = (r: number, g: number, b: number): string => {
-  return rgbaToHex(r, g, b, 1)
 }
 
 const rgbToHsv = (r: number, g: number, b: number): { h: number; s: number; v: number } => {
@@ -145,51 +144,8 @@ const hsvToRgb = (h: number, s: number, v: number): { r: number; g: number; b: n
   }
 }
 
-// Helper functions for aesthetic font color
-function hexToRgb2(hex: string): { r: number, g: number, b: number } {
-  hex = hex.replace(/^#/, '')
-  const bigint = parseInt(hex, 16)
-  return {
-    r: (bigint >> 16) & 255,
-    g: (bigint >> 8) & 255,
-    b: bigint & 255
-  }
-}
-
-function rgbToHex2(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('')
-}
-
-function rgbToHsv2(r: number, g: number, b: number): { h: number, s: number, v: number } {
-  r /= 255; g /= 255; b /= 255
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min
-  let h = 0
-  if (delta !== 0) {
-    if (max === r) h = ((g - b) / delta + (g < b ? 6 : 0))
-    else if (max === g) h = ((b - r) / delta + 2)
-    else h = ((r - g) / delta + 4)
-    h *= 60
-  }
-  return { h, s: max === 0 ? 0 : delta / max, v: max }
-}
-
-function hsvToRgb2(h: number, s: number, v: number): { r: number, g: number, b: number } {
-  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c
-  let r = 0, g = 0, b = 0
-  if (0 <= h && h < 60) [r, g, b] = [c, x, 0]
-  else if (60 <= h && h < 120) [r, g, b] = [x, c, 0]
-  else if (120 <= h && h < 180) [r, g, b] = [0, c, x]
-  else if (180 <= h && h < 240) [r, g, b] = [0, x, c]
-  else if (240 <= h && h < 300) [r, g, b] = [x, 0, c]
-  else if (300 <= h && h < 360) [r, g, b] = [c, 0, x]
-  return {
-    r: Math.round((r + m) * 255),
-    g: Math.round((g + m) * 255),
-    b: Math.round((b + m) * 255)
-  }
-}
-
-function getLuminance(r: number, g: number, b: number): number {
+// Utility functions for aesthetic font color
+const getLuminance = (r: number, g: number, b: number): number => {
   const linear = (c: number) => {
     c /= 255
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
@@ -198,7 +154,7 @@ function getLuminance(r: number, g: number, b: number): number {
   return 0.2126 * rLin + 0.7152 * gLin + 0.0722 * bLin
 }
 
-function contrastRatio(rgb1: { r: number, g: number, b: number }, rgb2: { r: number, g: number, b: number }): number {
+const contrastRatio = (rgb1: { r: number, g: number, b: number }, rgb2: { r: number, g: number, b: number }): number => {
   const L1 = getLuminance(rgb1.r, rgb1.g, rgb1.b)
   const L2 = getLuminance(rgb2.r, rgb2.g, rgb2.b)
   return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05)
@@ -206,27 +162,27 @@ function contrastRatio(rgb1: { r: number, g: number, b: number }, rgb2: { r: num
 
 // Calculate best aesthetic font color
 const getBestFontColor = (bgHex: string): string => {
-  const bgRgb = hexToRgb2(bgHex)
-  const hsv = rgbToHsv2(bgRgb.r, bgRgb.g, bgRgb.b)
+  const bgRgba = hexToRgba(bgHex)
+  const hsv = rgbToHsv(bgRgba.r, bgRgba.g, bgRgba.b)
 
   // Try aesthetic color: complementary
   const newHue = (hsv.h + 180) % 360
-  const fontS = Math.min(1, hsv.s + 0.3)
-  const fontV = Math.max(0.4, Math.min(1, hsv.v - 0.2))
-  const fontRgb = hsvToRgb2(newHue, fontS, fontV)
+  const fontS = Math.min(100, hsv.s + 30)
+  const fontV = Math.max(40, Math.min(100, hsv.v - 20))
+  const fontRgb = hsvToRgb(newHue, fontS, fontV)
 
   // Contrast test
-  const contrast = contrastRatio(bgRgb, fontRgb)
+  const contrast = contrastRatio(bgRgba, fontRgb)
 
   if (contrast >= 4.5) {
-    return rgbToHex2(fontRgb.r, fontRgb.g, fontRgb.b)
+    return rgbaToHex(fontRgb.r, fontRgb.g, fontRgb.b)
   }
 
   // Fall back to black or white
   const white = { r: 255, g: 255, b: 255 }
   const black = { r: 0, g: 0, b: 0 }
-  const contrastWhite = contrastRatio(bgRgb, white)
-  const contrastBlack = contrastRatio(bgRgb, black)
+  const contrastWhite = contrastRatio(bgRgba, white)
+  const contrastBlack = contrastRatio(bgRgba, black)
 
   return (contrastWhite > contrastBlack) ? '#FFFFFF' : '#000000'
 }
@@ -260,14 +216,12 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
         const successful = document.execCommand('copy')
         document.body.removeChild(textArea)
         resolve(successful)
-      } catch (err) {
-        console.error('Fallback copy failed:', err)
+      } catch {
         document.body.removeChild(textArea)
         resolve(false)
       }
     })
-  } catch (err) {
-    console.error('Copy to clipboard failed:', err)
+  } catch {
     return false
   }
 }
@@ -311,17 +265,13 @@ const generateColorPickerCanvas = (width: number, height: number): HTMLCanvasEle
     const testPixel = ctx.getImageData(width - 1, 0, 1, 1).data
     if (testPixel[0] > 200 && testPixel[1] < 50 && testPixel[2] < 50) {
       // Pixel method worked - red pixel at top right
-      console.log('Canvas generated successfully using pixel method')
       return canvas
     }
-  } catch (error) {
-    console.warn('Pixel method failed:', error)
+  } catch {
+    // Silent fallback to gradient method
   }
   
   // Fallback: Use gradient method
-  console.log('Using gradient fallback method')
-  
-  // Create horizontal hue gradient
   const hueGradient = ctx.createLinearGradient(0, 0, width, 0)
   hueGradient.addColorStop(0, '#ff0000')    // Red
   hueGradient.addColorStop(0.16, '#ffff00') // Yellow  
@@ -360,7 +310,7 @@ const getColorFromCanvas = (canvas: HTMLCanvasElement, x: number, y: number): st
   const imageData = ctx.getImageData(x, y, 1, 1)
   const [r, g, b] = imageData.data
   
-  return rgbToHex(r, g, b)
+  return rgbaToHex(r, g, b)
 }
 
 export default function AdvancedColorPicker({ value, onChange, label, disabled = false, themeMode = 'light' }: AdvancedColorPickerProps) {
@@ -372,68 +322,77 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
   const inputRef = useRef<HTMLInputElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [colorCanvas, setColorCanvas] = useState<HTMLCanvasElement | null>(null)
+  
+  // Track input focus state to prevent interference while typing
+  const [isHexInputFocused, setIsHexInputFocused] = useState(false)
 
-  const [originalValue, setOriginalValue] = useState<string>(value)
+  // Capture original value when popup opens
+  const [originalValue, setOriginalValue] = useState<string>('')
   const [workingValue, setWorkingValue] = useState<string>(value)
-
-  // Track HSVA state independently - keep sliders where user puts them
-  const [hsvaState, setHsvaState] = useState(() => {
+  
+  // Centralized color state management
+  const [colorState, setColorState] = useState<ColorState>(() => {
     const rgba = hexToRgba(value)
     const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b)
-    return { ...hsv, a: rgba.a * 100 } // Convert alpha to 0-100 range
+    return { ...hsv, a: rgba.a * 100 }
   })
 
-  // Generate color picker canvas when component mounts
+  const updateStateFromHex = useCallback((hex: string): ColorState => {
+    const rgba = hexToRgba(hex)
+    const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b)
+    const newState = { ...hsv, a: rgba.a * 100 }
+    setColorState(newState)
+    return newState
+  }, [])
+
+  const open = Boolean(anchorEl)
+  const contrastingColor = getBestFontColor(workingValue)
+
+  // ESCAPE KEY: Handle escape to cancel
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && open) {
+        event.preventDefault()
+        event.stopPropagation()
+        handleCancel()
+      }
+    }
+    if (open) {
+      document.addEventListener('keydown', handleKeyDown, true)
+      return () => document.removeEventListener('keydown', handleKeyDown, true)
+    }
+  }, [open])
+
+  // CANVAS GENERATION: On mount only
   useEffect(() => {
     const canvas = generateColorPickerCanvas(200, 120)
     setColorCanvas(canvas)
   }, [])
 
-  // Update working value when value prop changes (from external source)
+  // EXTERNAL VALUE CHANGES: Only when dialog is closed and not typing
   useEffect(() => {
-    setWorkingValue(value)
-    const rgba = hexToRgba(value)
-    const newHsv = rgbToHsv(rgba.r, rgba.g, rgba.b)
-    setHsvaState({ ...newHsv, a: rgba.a * 100 })
-  }, [value])
-
-  const contrastingColor = getBestFontColor(workingValue)
-  const open = Boolean(anchorEl)
-
-  // Handle escape key to cancel changes
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && open) {
-        handleCancel()
-      }
+    if (!open && !isHexInputFocused) {
+      setWorkingValue(value)
+      updateStateFromHex(value)
     }
+  }, [value, open, isHexInputFocused, updateStateFromHex])
 
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown)
-      }
-    }
-  }, [open])
-
-  // Select hex string and focus when popover opens
-  useEffect(() => {
-    if (open) {
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    if (!disabled) {
+      // Capture original value when opening
       setOriginalValue(value)
       setWorkingValue(value)
+      updateStateFromHex(value)
+      setAnchorEl(event.currentTarget)
       
-      const selectInput = () => {
+      // Focus and select input after popover opens
+      setTimeout(() => {
         if (inputRef.current) {
           inputRef.current.focus()
           inputRef.current.select()
-        } else {
-          requestAnimationFrame(selectInput)
         }
-      }
-      requestAnimationFrame(selectInput)
-
-      // Force canvas redraw after popover opens
-      setTimeout(() => {
+        
+        // Redraw canvas
         if (canvasRef.current && colorCanvas) {
           const ctx = canvasRef.current.getContext('2d')
           if (ctx) {
@@ -441,13 +400,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             ctx.drawImage(colorCanvas, 0, 0, 200, 120)
           }
         }
-      }, 50) // Small delay to ensure DOM is ready
-    }
-  }, [open, value, colorCanvas])
-
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (!disabled) {
-      setAnchorEl(event.currentTarget)
+      }, 50)
     }
   }
   
@@ -456,15 +409,37 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
   }
 
   const handleCancel = () => {
+    // Cancel: revert to original value
     setWorkingValue(originalValue)
+    updateStateFromHex(originalValue)
+    onChange(originalValue)
     setAnchorEl(null)
   }
 
   const handleOK = () => {
+    // OK: accept the working value
     onChange(workingValue)
     setAnchorEl(null)
   }
 
+  // HEX INPUT: Only updates display value while typing - NO slider updates
+  const handleHexChange = useCallback((newHex: string) => {
+    setWorkingValue(newHex) // Just update display - no slider interference while typing
+  }, [])
+
+  // SLIDER CHANGE: Updates workingValue and colorState, calls onChange for live preview
+  const handleSliderChange = useCallback((component: 'h' | 's' | 'v' | 'a', newValue: number) => {
+    const newState = { ...colorState, [component]: newValue }
+    setColorState(newState)
+    
+    const rgb = hsvToRgb(newState.h, newState.s, newState.v)
+    const hex = rgbaToHex(rgb.r, rgb.g, rgb.b, newState.a / 100)
+    
+    setWorkingValue(hex)
+    onChange(hex) // Live preview
+  }, [colorState, onChange])
+
+  // CANVAS CLICK: Updates workingValue and colorState, calls onChange for live preview
   const handleCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
     if (!colorCanvas) return
     
@@ -476,16 +451,15 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
     const canvasY = (y / rect.height) * colorCanvas.height
     
     const color = getColorFromCanvas(colorCanvas, canvasX, canvasY)
+    const rgba = hexToRgba(color)
+    const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b)
+    const newState = { ...hsv, a: colorState.a }
     
-    // Preserve alpha when picking from canvas
-    const rgb = hexToRgb(color)
-    const hex = rgbaToHex(rgb.r, rgb.g, rgb.b, hsvaState.a / 100)
+    const hex = rgbaToHex(rgba.r, rgba.g, rgba.b, newState.a / 100)
+    
+    setColorState(newState)
     setWorkingValue(hex)
-    onChange(hex) // Live update
-    
-    // Update HSV state when using canvas picker
-    const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b)
-    setHsvaState({ ...hsv, a: hsvaState.a })
+    onChange(hex) // Live preview
   }
 
   const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
@@ -493,57 +467,49 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
       handleCanvasClick(event)
     }
   }
-  
-  const handleHexChange = useCallback((newHex: string) => {
-    // Validate hex format (now supports 8-character hex for RGBA)
-    const hexRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8}|[A-Fa-f0-9]{4})$/
-    if (hexRegex.test(newHex)) {
-      // Normalize short hex formats
-      let fullHex = newHex
-      if (newHex.length === 4) {
-        // #RGB -> #RRGGBB
-        fullHex = `#${newHex[1]}${newHex[1]}${newHex[2]}${newHex[2]}${newHex[3]}${newHex[3]}`
-      } else if (newHex.length === 5) {
-        // #RGBA -> #RRGGBBAA
-        fullHex = `#${newHex[1]}${newHex[1]}${newHex[2]}${newHex[2]}${newHex[3]}${newHex[3]}${newHex[4]}${newHex[4]}`
+
+  // HEX INPUT SUPPORT: Just handle focus state, no onChange calls
+  const handleHexKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Enter') {
+      if (inputRef.current) {
+        inputRef.current.blur()
+      }
+    }
+  }
+
+  const handleHexBlur = () => {
+    setIsHexInputFocused(false)
+    
+    // Update sliders and call onChange ONLY after losing focus
+    const hexRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3}|[A-Fa-f0-9]{8}|[A-Fa-f0-9]{4})$/;
+    if (hexRegex.test(workingValue)) {
+      // Normalize hex if needed
+      let fullHex = workingValue
+      if (workingValue.length === 4) {
+        fullHex = `#${workingValue[1]}${workingValue[1]}${workingValue[2]}${workingValue[2]}${workingValue[3]}${workingValue[3]}`
+      } else if (workingValue.length === 5) {
+        fullHex = `#${workingValue[1]}${workingValue[1]}${workingValue[2]}${workingValue[2]}${workingValue[3]}${workingValue[3]}${workingValue[4]}${workingValue[4]}`
       }
       
       setWorkingValue(fullHex)
-      onChange(fullHex) // Live update
-      
-      // Update HSVA state when typing hex values
-      const rgba = hexToRgba(fullHex)
-      const hsv = rgbToHsv(rgba.r, rgba.g, rgba.b)
-      setHsvaState({ ...hsv, a: rgba.a * 100 })
+      updateStateFromHex(fullHex) // Update sliders only after losing focus
+      onChange(fullHex) // Call onChange only after losing focus
     }
-  }, [onChange])
-  
+  }
+
   const handleHexFocus = () => {
-    // Select all text when hex input is focused
+    if (inputRef.current) {
+      inputRef.current.select()
+    }
+    setIsHexInputFocused(true)
+  }
+
+  const handleHexClick = () => {
     if (inputRef.current) {
       inputRef.current.select()
     }
   }
 
-  const handleHexClick = () => {
-    // Also select all text when hex input is clicked
-    if (inputRef.current) {
-      inputRef.current.select()
-    }
-  }
-  
-  const handleSliderChange = useCallback((component: 'h' | 's' | 'v' | 'a', newValue: number) => {
-    // Update HSVA state directly from slider - sliders are authoritative
-    const newHsva = { ...hsvaState, [component]: newValue }
-    setHsvaState(newHsva)
-    
-    // Convert to RGB and hex, then update working value
-    const rgb = hsvToRgb(newHsva.h, newHsva.s, newHsva.v)
-    const hex = rgbaToHex(rgb.r, rgb.g, rgb.b, newHsva.a / 100)
-    setWorkingValue(hex)
-    onChange(hex) // Live update
-  }, [hsvaState, onChange])
-  
   const handleCopyColor = async (colorToCopy: string, colorName: string) => {
     const success = await copyToClipboard(colorToCopy)
     if (success) {
@@ -657,7 +623,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             </Button>
           </Box>
 
-          {/* 2. Image-based color picker */}
+          {/* Image-based color picker */}
           {colorCanvas && (
             <Box sx={{ mb: 1.5 }}>
               <canvas
@@ -679,7 +645,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             </Box>
           )}
 
-          {/* 3. HSV Sliders */}
+          {/* HSV Sliders */}
           <Box sx={{ mb: 1.5 }}>
             {/* Hue slider */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
@@ -693,20 +659,21 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
               <Box sx={{ flex: 1 }}>
                 <Slider
-                  value={hsvaState.h}
+                  value={colorState.h}
                   onChange={(_, value) => handleSliderChange('h', value as number)}
                   min={0}
                   max={360}
                   size="small"
                   sx={{
                     '& .MuiSlider-track': {
-                      background: 'linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)',
+                      backgroundColor: 'transparent',
                       border: 'none',
                       height: 6
                     },
                     '& .MuiSlider-rail': {
                       background: 'linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)',
-                      height: 6
+                      height: 6,
+                      opacity: 1
                     },
                     '& .MuiSlider-thumb': {
                       borderRadius: 1,
@@ -725,7 +692,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 minWidth: '30px',
                 textAlign: 'left'
               }}>
-                {Math.round(hsvaState.h)}°
+                {Math.round(colorState.h)}°
               </Typography>
             </Box>
             
@@ -741,18 +708,19 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
               <Box sx={{ flex: 1 }}>
                 <Slider
-                  value={hsvaState.s}
+                  value={colorState.s}
                   onChange={(_, value) => handleSliderChange('s', value as number)}
                   min={0}
                   max={100}
                   size="small"
                   sx={{
                     '& .MuiSlider-track': {
-                      backgroundColor: `hsl(${hsvaState.h}, 100%, 50%)`,
+                      backgroundColor: `hsl(${colorState.h}, 100%, 50%)`,
                       height: 6
                     },
                     '& .MuiSlider-rail': {
-                      backgroundColor: '#ccc',
+                      backgroundColor: style.STYLE_BOX_BG,
+                      opacity: 1,
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
@@ -772,7 +740,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 minWidth: '30px',
                 textAlign: 'left'
               }}>
-                {Math.round(hsvaState.s)}%
+                {Math.round(colorState.s)}%
               </Typography>
             </Box>
             
@@ -788,7 +756,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
               <Box sx={{ flex: 1 }}>
                 <Slider
-                  value={hsvaState.v}
+                  value={colorState.v}
                   onChange={(_, value) => handleSliderChange('v', value as number)}
                   min={0}
                   max={100}
@@ -799,13 +767,17 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-rail': {
-                      backgroundColor: '#333',
+                      backgroundColor: style.STYLE_BOX_BG,
+                      opacity: 1,
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: style.TEXT_PRIMARY,
-                      width: 16,
-                      height: 16
+                      borderRadius: 1,
+                      width: 18,
+                      height: 18,
+                      backgroundColor: style.STYLE_BOX_BG,
+                      boxShadow: '0 2px 8px #00000033',
+                      border: `2px solid ${style.BORDER_COLOR}`
                     }
                   }}
                 />
@@ -816,7 +788,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 minWidth: '30px',
                 textAlign: 'left'
               }}>
-                {Math.round(hsvaState.v)}%
+                {Math.round(colorState.v)}%
               </Typography>
             </Box>
 
@@ -832,7 +804,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               </Typography>
               <Box sx={{ flex: 1 }}>
                 <Slider
-                  value={hsvaState.a}
+                  value={colorState.a}
                   onChange={(_, value) => handleSliderChange('a', value as number)}
                   min={0}
                   max={100}
@@ -843,13 +815,17 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                       height: 6
                     },
                     '& .MuiSlider-rail': {
-                      backgroundColor: '#333',
+                      backgroundColor: style.STYLE_BOX_BG,
+                      opacity: 1,
                       height: 6
                     },
                     '& .MuiSlider-thumb': {
-                      backgroundColor: style.TEXT_PRIMARY,
-                      width: 16,
-                      height: 16
+                      borderRadius: 1,
+                      width: 18,
+                      height: 18,
+                      backgroundColor: style.STYLE_BOX_BG,
+                      boxShadow: '0 2px 8px #00000033',
+                      border: `2px solid ${style.BORDER_COLOR}`
                     }
                   }}
                 />
@@ -860,12 +836,12 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                 minWidth: '30px',
                 textAlign: 'left'
               }}>
-                {Math.round(hsvaState.a)}%
+                {Math.round(colorState.a)}%
               </Typography>
             </Box>
           </Box>
           
-          {/* 4. Copy buttons */}
+          {/* Copy buttons */}
           <Box sx={{ display: 'flex', gap: 0.5, mb: 1.5 }}>
             <Button
               variant="outlined"
@@ -913,7 +889,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
             </Button>
           </Box>
 
-          {/* 5. Hex input - moved to bottom */}
+          {/* Hex input - moved to bottom */}
           <Box sx={{ mb: 0 }}>
             <TextField
               inputRef={el => { inputRef.current = el; }}
@@ -921,6 +897,8 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               value={workingValue}
               onChange={(e) => handleHexChange(e.target.value)}
               onFocus={handleHexFocus}
+              onBlur={handleHexBlur}
+              onKeyDown={handleHexKeyDown}
               onClick={handleHexClick}
               placeholder="#000000"
               fullWidth
@@ -945,7 +923,7 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
                   }
                 }
               }}
-              disabled={disabled}
+              disabled={false}
               aria-label="Color hex value"
             />
           </Box>

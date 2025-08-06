@@ -30,7 +30,7 @@ const ADMIN_DIALOG_LIGHT_STYLE = {
   backgroundColor: '#f7fafd', // very light blue-gray
   color: '#222c36',           // deep blue-gray for text
   border: '1px solid #dbe6ee',// soft blue border
-  boxShadow: '0 4px 14px #00000055', // Dark shadow for light mode
+  boxShadow: '0 8px 32px #00000055', // Revert to preferred shadow pattern
   borderRadius: 'var(--border-radius)', // Use CSS variable
   headerBg: '#eaf3fb',        // pale blue for header
   headerText: '#222c36',      // deep blue-gray for header text
@@ -48,7 +48,7 @@ const ADMIN_DIALOG_DARK_STYLE = {
   backgroundColor: '#1a1d21',   // Darker main background
   color: '#d8d8d8',            // Slightly dimmer text (was #e8e8e8)
   border: '1px solid #3a4047', // Brighter borders 
-  boxShadow: '0 4px 14px #ffffff33', // Light shadow for dark mode
+  boxShadow: '0 8px 32px #ffffff33', // Revert to preferred shadow pattern
   borderRadius: 'var(--border-radius)', // Use CSS variable
   headerBg: '#1f242a',         // Darker header
   headerText: '#f0f2f4',       // Slightly dimmer header text (was #f8f9fa)
@@ -81,8 +81,6 @@ interface SettingRowProps {
   onFontSizeChange?: (value: number) => void
   min?: number
   max?: number
-  step?: number
-  marks?: { value: number; label?: string }[]
 }
 
 function resolveMode(themeMode?: 'light' | 'dark' | 'auto'): 'light' | 'dark' {
@@ -106,16 +104,6 @@ function SettingRow({
   onFontSizeChange,
   min = 12,
   max = 32,
-  step = 1,
-  marks = [
-    { value: 12 },
-    { value: 14 },
-    { value: 16 },
-    { value: 18 },
-    { value: 20 },
-    { value: 24 },
-    { value: 32 }
-  ],
   style,
   mode
 }: SettingRowProps & { style: typeof ADMIN_DIALOG_LIGHT_STYLE | typeof ADMIN_DIALOG_DARK_STYLE, mode: 'light' | 'dark' }) {
@@ -172,8 +160,9 @@ function SettingRow({
             value={fontSize}
             min={min}
             max={max}
-            step={step}
-            marks={marks}
+            step={2}
+            marks={[]}
+            valueLabelDisplay="auto"
             onChange={(_, value) => onFontSizeChange(value as number)}
             sx={{
               width: '80px',
@@ -585,7 +574,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   backgroundColor: style.styleBoxBg,
                   border: `1px solid ${style.inputBorder}`,
                   borderRadius: 2,
-                  boxShadow: '0 2px 8px #00000022',
+                  boxShadow: '0 8px 32px #00000022',
                   p: 1
                 }}>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 1fr', alignItems: 'center', py: 0.5, px: 1, backgroundColor: style.paperBg, borderBottom: `1px solid ${style.inputBorder}`, color: style.color, gap: 1 }}>
@@ -616,7 +605,7 @@ function AdminSettingsDialog({ open, onClose, onThemeChange, initialSettings, th
                   backgroundColor: style.styleBoxBg,
                   border: `1px solid ${style.inputBorder}`,
                   borderRadius: 2,
-                  boxShadow: '0 2px 8px #00000022',
+                  boxShadow: '0 8px 32px #00000022',
                   p: 1
                 }}>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 1fr', alignItems: 'center', py: 0.5, px: 1, backgroundColor: style.paperBg, borderBottom: `1px solid ${style.inputBorder}`, color: style.color, gap: 1 }}>
