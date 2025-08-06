@@ -226,6 +226,42 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 }
 
+// PERFORMANCE FIX: Singleton canvas cache to prevent recreation per instance
+let globalColorCanvas: HTMLCanvasElement | null = null
+let canvasGenerationPromise: Promise<HTMLCanvasElement> | null = null
+
+// Generate color picker canvas - cached globally for all instances
+const getColorPickerCanvas = (): Promise<HTMLCanvasElement> => {
+  // Return existing canvas if available
+  if (globalColorCanvas) {
+    return Promise.resolve(globalColorCanvas)
+  }
+  
+  // Return existing promise if generation is in progress
+  if (canvasGenerationPromise) {
+    return canvasGenerationPromise
+  }
+  
+  // Create new canvas generation promise
+  canvasGenerationPromise = new Promise((resolve) => {
+    // Use requestIdleCallback for better performance if available
+    const generateCanvas = () => {
+      const canvas = generateColorPickerCanvas(200, 120)
+      globalColorCanvas = canvas
+      canvasGenerationPromise = null
+      resolve(canvas)
+    }
+    
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(generateCanvas, { timeout: 100 })
+    } else {
+      setTimeout(generateCanvas, 0)
+    }
+  })
+  
+  return canvasGenerationPromise
+}
+
 // Generate color picker canvas
 const generateColorPickerCanvas = (width: number, height: number): HTMLCanvasElement => {
   const canvas = document.createElement('canvas')
@@ -363,10 +399,11 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
     }
   }, [open])
 
-  // CANVAS GENERATION: On mount only
+  // CANVAS GENERATION: On mount only - use singleton cache
   useEffect(() => {
-    const canvas = generateColorPickerCanvas(200, 120)
-    setColorCanvas(canvas)
+    getColorPickerCanvas().then(canvas => {
+      setColorCanvas(canvas)
+    })
   }, [])
 
   // EXTERNAL VALUE CHANGES: Only when dialog is closed and not typing
