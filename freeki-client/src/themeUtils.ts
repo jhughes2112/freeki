@@ -71,7 +71,7 @@ export function injectGlobalStyles() {
 
     /* Enhanced shadows for dialogs and large popups */
     .MuiDialog-paper {
-      box-shadow: 0 4px 14px var(--freeki-shadow-color) !important;
+      box-shadow: 0 8px 32px var(--freeki-shadow-color) !important;
     }
 
     /* Flat papers with no shadow or border */

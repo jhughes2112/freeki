@@ -16,7 +16,7 @@ import {
   FolderOpen,
   Description
 } from '@mui/icons-material'
-import type { WikiPage } from './App'
+import type { WikiPage } from './globalState'
 
 interface FolderTreeProps {
   pages: WikiPage[]
@@ -156,7 +156,7 @@ function TreeNode({
       {page.isFolder && hasChildren && (
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <List component="div" disablePadding sx={{ borderLeft: level > 0 ? `1px solid rgba(0,0,0,0.1)` : 'none', ml: level > 0 ? 1.5 : 0 }}>
-            {page.children?.map((child) => (
+            {page.children?.map((child: WikiPage) => (
               <TreeNode
                 key={child.id}
                 page={child}

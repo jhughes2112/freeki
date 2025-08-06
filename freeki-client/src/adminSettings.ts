@@ -158,7 +158,7 @@ function deepMergeDefaults<T>(defaults: T, source: Partial<T>, path: string = ''
   return result;
 }
 
-async function fetchAdminSettings(): Promise<AdminSettings | null> {
+export async function fetchAdminSettings(): Promise<AdminSettings | null> {
   const response = await apiClient.get<AdminSettings>('/api/admin/settings')
   
   if (response.success && response.data) {
@@ -183,7 +183,7 @@ async function fetchAdminSettings(): Promise<AdminSettings | null> {
   return DEFAULT_ADMIN_SETTINGS
 }
 
-async function saveAdminSettings(settings: AdminSettings): Promise<boolean> {
+export async function saveAdminSettings(settings: AdminSettings): Promise<boolean> {
   const response = await apiClient.post<{ success: boolean }>('/api/admin/settings', settings)
   
   if (response.success) {
@@ -199,5 +199,3 @@ async function saveAdminSettings(settings: AdminSettings): Promise<boolean> {
   // Other errors are already handled by apiClient error handler
   return false
 }
-
-export { fetchAdminSettings, saveAdminSettings }

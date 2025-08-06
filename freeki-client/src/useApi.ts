@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import apiService from './apiService'
-import type { WikiPage } from './App'
+import type { WikiPage } from './globalState'
 import type { PageCreateRequest, PageUpdateRequest, MediaFile, SearchResult } from './apiService'
 
 // Custom hook for managing pages data

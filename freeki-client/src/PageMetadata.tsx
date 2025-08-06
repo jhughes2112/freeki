@@ -1,5 +1,5 @@
 import { Box, Typography, Paper, Chip, Stack } from '@mui/material'
-import type { WikiPage } from './App'
+import type { WikiPage } from './globalState'
 
 interface PageMetadataProps {
   page: WikiPage

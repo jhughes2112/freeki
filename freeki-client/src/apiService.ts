@@ -1,5 +1,5 @@
 import apiClient from './apiClient'
-import type { WikiPage } from './App'
+import type { WikiPage } from './globalState'
 import type { UserInfo } from './useUserSettings'
 import type { AdminSettings } from './adminSettings'
 

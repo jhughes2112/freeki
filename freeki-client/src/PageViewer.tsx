@@ -1,5 +1,5 @@
 import { Box, Typography, Paper, Divider } from '@mui/material'
-import type { WikiPage } from './App'
+import type { WikiPage } from './globalState'
 
 interface PageViewerProps {
   page: WikiPage

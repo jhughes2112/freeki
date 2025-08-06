@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import {
   Box,
   AppBar,
@@ -35,10 +35,12 @@ import PageEditor from './PageEditor'
 import PageMetadata from './PageMetadata'
 import AdminSettingsDialog from './AdminSettingsDialog'
 import { useUserSettings } from './useUserSettings'
-import type { ColorScheme } from './adminSettings'
-import { DEFAULT_ADMIN_SETTINGS, fetchAdminSettings } from './adminSettings'
-import { applyTheme } from './themeUtils'
+import { useGlobalState, globalState } from './globalState'
+import type { WikiPage } from './globalState'
+import { fetchAdminSettings } from './adminSettings'
 import apiClient from './apiClient'
+// Import theme service to ensure it's initialized
+import './themeService'
 import './App.css'
 
 // FadePanelContent: fade in/out children based on visible prop
@@ -47,19 +49,6 @@ const FadePanelContent = ({ visible, children }: { visible: boolean; children: R
     {children}
   </div>
 )
-
-export interface WikiPage {
-  id: string
-  title: string
-  content: string
-  path: string
-  children?: WikiPage[]
-  isFolder: boolean
-  updatedAt?: string
-  author?: string
-  version?: number
-  tags?: string[]
-}
 
 // Example content structure
 const samplePages: WikiPage[] = [
@@ -102,23 +91,94 @@ const samplePages: WikiPage[] = [
 
 export default function App() {
   const { settings, userInfo, isLoaded, updateSetting } = useUserSettings()
-  const [selectedPage, setSelectedPage] = useState<WikiPage>(samplePages[0])
-  const [isEditing, setIsEditing] = useState<boolean>(false)
-  const [pages, setPages] = useState<WikiPage[]>(samplePages)
-  const [searchQuery, setSearchQuery] = useState<string>('') // Search query state
-  const [showAdminSettings, setShowAdminSettings] = useState<boolean>(false)
-  const [errorMessage, setErrorMessage] = useState<string>('')
-  const [showError, setShowError] = useState<boolean>(false)
-  const [adminColorSchemes, setAdminColorSchemes] = useState<{ light: ColorScheme; dark: ColorScheme }>(DEFAULT_ADMIN_SETTINGS.colorSchemes)
-  const isNarrowScreen = useMediaQuery('(max-width: 900px)') // Single breakpoint for overlay behavior
   
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
-  const [isMetadataCollapsed, setIsMetadataCollapsed] = useState(false)
-  const [hasInitialized, setHasInitialized] = useState(false)
+  // Use global state for reactive updates
+  const adminSettings = useGlobalState('adminSettings')
+  const currentPage = useGlobalState('currentPage')
+  const isEditing = useGlobalState('isEditing')
+  const searchQuery = useGlobalState('searchQuery')
+  const pages = useGlobalState('pages')
+  
+  const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
+  const [errorMessage, setErrorMessage] = React.useState<string>('')
+  const [showError, setShowError] = React.useState<boolean>(false)
+  const isNarrowScreen = useMediaQuery('(max-width: 900px)')
+  
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
+  const [isMetadataCollapsed, setIsMetadataCollapsed] = React.useState(false)
+  const [hasInitialized, setHasInitialized] = React.useState(false)
 
-  // Add handleTagClick for tag search
+  // Load admin settings on startup
+  useEffect(() => {
+    async function loadAdminSettings() {
+      try {
+        globalState.set('isLoadingAdminSettings', true)
+        const settings = await fetchAdminSettings()
+        if (settings) {
+          globalState.set('adminSettings', settings)
+        }
+      } catch (error) {
+        console.error('Failed to load admin settings:', error)
+      } finally {
+        globalState.set('isLoadingAdminSettings', false)
+      }
+    }
+    loadAdminSettings()
+  }, [])
+
+  // Initialize global state with sample data on first load
+  useEffect(() => {
+    if (pages.length === 0) {
+      globalState.set('pages', samplePages)
+      globalState.set('currentPage', samplePages[0])
+    }
+  }, [pages.length])
+
+  // Sync theme changes between user settings and global state
+  useEffect(() => {
+    if (isLoaded) {
+      globalState.set('theme', settings.theme)
+    }
+  }, [settings.theme, isLoaded])
+
+  // Simple search function
+  const performSearch = (query: string) => {
+    globalState.set('searchQuery', query)
+    
+    if (!query.trim()) {
+      globalState.set('searchResults', [])
+      return
+    }
+    
+    // Simple search implementation
+    const searchInPages = (pagesList: WikiPage[], searchQuery: string): WikiPage[] => {
+      const results: WikiPage[] = []
+      const searchRecursive = (pages: WikiPage[]) => {
+        for (const page of pages) {
+          if (!page.isFolder) {
+            if (
+              page.title.toLowerCase().includes(searchQuery) ||
+              page.content.toLowerCase().includes(searchQuery) ||
+              page.tags?.some(tag => tag.toLowerCase().includes(searchQuery))
+            ) {
+              results.push(page)
+            }
+          }
+          if (page.children) {
+            searchRecursive(page.children)
+          }
+        }
+      }
+      searchRecursive(pagesList)
+      return results
+    }
+    
+    const results = searchInPages(pages, query.toLowerCase())
+    globalState.set('searchResults', results)
+  }
+
   const handleTagClick = (tag: string) => {
-    setSearchQuery(tag);
+    performSearch(tag)
     // Focus the search input for better UX
     const input = document.querySelector('input[aria-label="Search pages"]') as HTMLInputElement | null;
     if (input) {
@@ -135,52 +195,13 @@ export default function App() {
     })
   }, [])
 
-  // Load admin color schemes ONLY on app start (once)
-  useEffect(() => {
-    async function loadColorSchemes() {
-      try {
-        const adminSettings = await fetchAdminSettings()
-        if (adminSettings) {
-          setAdminColorSchemes(adminSettings.colorSchemes)
-        }
-      } catch (error) {
-        console.warn('Failed to load admin color schemes:', error)
-      }
-    }
-    loadColorSchemes()
-  }, []) // Empty dependency array - only run once on mount
-
-  // Apply theme whenever settings or admin color schemes change
-  useEffect(() => {
-    if (isLoaded) {
-      applyTheme(adminColorSchemes, settings.theme)
-    }
-  }, [adminColorSchemes, settings.theme, isLoaded])
-
-  // Listen for OS theme changes when in auto mode
-  useEffect(() => {
-    if (settings.theme === 'auto') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const handleChange = () => {
-        if (isLoaded) {
-          applyTheme(adminColorSchemes, settings.theme)
-        }
-      }
-      
-      mediaQuery.addEventListener('change', handleChange)
-      return () => mediaQuery.removeEventListener('change', handleChange)
-    }
-  }, [settings.theme, isLoaded, adminColorSchemes])
-
   // Initialize collapsed state based on screen size - only run once on mount
   useEffect(() => {
     if (!hasInitialized) {
       if (isNarrowScreen) {
-        // On narrow screens (including mobile), use narrow screen layout settings
         setIsSidebarCollapsed(settings.narrowScreenLayout.sidebarCollapsed)
         setIsMetadataCollapsed(settings.narrowScreenLayout.metadataCollapsed)
       } else {
-        // On wide screens, use wide screen layout settings  
         setIsSidebarCollapsed(settings.wideScreenLayout.sidebarCollapsed)
         setIsMetadataCollapsed(settings.wideScreenLayout.metadataCollapsed)
       }
@@ -192,7 +213,6 @@ export default function App() {
   useEffect(() => {
     if (hasInitialized) {
       if (isNarrowScreen) {
-        // Switching to narrow screen - save current wide screen state and load narrow state
         updateSetting('wideScreenLayout', {
           ...settings.wideScreenLayout,
           sidebarCollapsed: isSidebarCollapsed,
@@ -201,7 +221,6 @@ export default function App() {
         setIsSidebarCollapsed(settings.narrowScreenLayout.sidebarCollapsed)
         setIsMetadataCollapsed(settings.narrowScreenLayout.metadataCollapsed)
       } else {
-        // Switching to wide screen - save current narrow state and load wide state
         updateSetting('narrowScreenLayout', {
           ...settings.narrowScreenLayout,
           sidebarCollapsed: isSidebarCollapsed,
@@ -209,7 +228,6 @@ export default function App() {
         })
         setIsSidebarCollapsed(settings.wideScreenLayout.sidebarCollapsed)
         setIsMetadataCollapsed(settings.wideScreenLayout.metadataCollapsed)
-        // Panel widths are already in the layout object
       }
     }
   }, [isNarrowScreen, hasInitialized])
@@ -228,16 +246,10 @@ export default function App() {
           ...settings.wideScreenLayout,
           sidebarCollapsed: isSidebarCollapsed,
           metadataCollapsed: isMetadataCollapsed
-          // sidebarWidth and metadataWidth are already in the layout object
         })
       }
     }
   }, [isSidebarCollapsed, isMetadataCollapsed, hasInitialized, isNarrowScreen])
-
-  // Handle theme changes from admin dialog
-  const handleThemeChange = (colorSchemes: { light: ColorScheme; dark: ColorScheme }) => {
-    setAdminColorSchemes(colorSchemes)
-  }
 
   // Handle theme toggle button click
   const handleThemeToggle = () => {
@@ -276,40 +288,43 @@ export default function App() {
     )
   }
   
-    const handleCloseError = () => {
-      setShowError(false)
-    }
+  const handleCloseError = () => {
+    setShowError(false)
+  }
   
-    const handlePageSelect = (page: WikiPage) => {
-      if (!page.isFolder) {
-        setSelectedPage(page)
-        setIsEditing(false)
-      }
+  const handlePageSelect = (page: WikiPage) => {
+    if (!page.isFolder) {
+      globalState.update({
+        currentPage: page,
+        isEditing: false // Auto-exit edit mode when changing pages
+      })
     }
+  }
 
   const handleEdit = () => {
-    setIsEditing(true)
+    globalState.set('isEditing', true)
   }
 
   const handleSave = async (content: string) => {
+    if (!currentPage) return
+    
     // Use the centralized API client for real save operations
-    const response = await apiClient.put(`/api/pages/${selectedPage.id}`, { 
+    const response = await apiClient.put(`/api/pages/${currentPage.id}`, { 
       content,
-      title: selectedPage.title,
-      path: selectedPage.path
+      title: currentPage.title,
+      path: currentPage.path
     })
     
     if (response.success) {
-      // Update local state with server response
+      // Update the page in global state
       const updatedPage = { 
-        ...selectedPage, 
+        ...currentPage, 
         content,
         updatedAt: new Date().toISOString(),
-        version: (selectedPage.version || 1) + 1
+        version: (currentPage.version || 1) + 1
       }
-      setSelectedPage(updatedPage)
       
-      // Update the page in the pages array
+      // Update pages array in global state
       const updatePagesRecursively = (pagesList: WikiPage[]): WikiPage[] => {
         return pagesList.map(page => {
           if (page.id === updatedPage.id) {
@@ -322,36 +337,31 @@ export default function App() {
         })
       }
       
-      setPages(updatePagesRecursively(pages))
-      setIsEditing(false)
+      globalState.update({
+        pages: updatePagesRecursively(pages),
+        currentPage: updatedPage,
+        isEditing: false
+      })
     } else {
-      // Error handling is done by the apiClient
       console.warn('Failed to save page:', response.error?.message)
     }
   }
 
   const handleCancel = () => {
-    setIsEditing(false)
+    globalState.set('isEditing', false)
   }
 
   const handleNewPage = async () => {
-    // Use centralized API client to create new page
     const response = await apiClient.post('/api/pages?title=New%20Page&filepath=new-page.md', 
       '# New Page\n\nStart writing your content here...'
     )
     
     if (response.success) {
-      // Refresh pages list or add the new page to local state
       console.log('Page created successfully:', response.data)
-      // You would typically refresh the pages list here or add to local state
     }
   }
 
   const handleDelete = async () => {
-    // const response = await apiClient.delete(`/api/pages/${selectedPage.id}`)
-    // if (response.success) {
-    //   // Handle successful deletion
-    // }
     console.log('Delete page')
   }
 
@@ -359,35 +369,23 @@ export default function App() {
     setShowAdminSettings(true)
   }
 
-  const handleAccount = () => {
-    console.log('Account')
+  const handleSidebarToggle = () => {
+    if (isNarrowScreen && !isSidebarCollapsed) {
+      setIsMetadataCollapsed(true)
+    }
+    setIsSidebarCollapsed(!isSidebarCollapsed)
   }
 
-  // Ensure only one panel can be open at a time on narrow screens
-const handleSidebarToggle = () => {
-  if (isNarrowScreen && !isSidebarCollapsed) {
-    // Opening sidebar on narrow screen - close metadata panel
-    setIsMetadataCollapsed(true)
+  const handleMetadataToggle = () => {
+    if (isNarrowScreen && !isMetadataCollapsed) {
+      setIsSidebarCollapsed(true)
+    }
+    setIsMetadataCollapsed(!isMetadataCollapsed)
   }
-  
-  const newSidebarState = !isSidebarCollapsed
-  setIsSidebarCollapsed(newSidebarState)
-}
 
-const handleMetadataToggle = () => {
-  if (isNarrowScreen && !isMetadataCollapsed) {
-    // Opening metadata panel on narrow screen - close sidebar  
-    setIsSidebarCollapsed(true)
-  }
-  
-  const newMetadataState = !isMetadataCollapsed
-  setIsMetadataCollapsed(newMetadataState)
-}
-
-  // Replace the resize handlers to use layout settings
   const handleSidebarResize = (e: React.MouseEvent) => {
     const startX = e.clientX
-    const startWidth = settings.wideScreenLayout.sidebarWidth // Use layout setting
+    const startWidth = settings.wideScreenLayout.sidebarWidth
 
     const handleMouseMove = (e: MouseEvent) => {
       const newWidth = startWidth + (e.clientX - startX)
@@ -396,7 +394,7 @@ const handleMetadataToggle = () => {
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
       updateSetting('wideScreenLayout', {
         ...settings.wideScreenLayout,
-        sidebarWidth: clampedWidth // Update layout setting
+        sidebarWidth: clampedWidth
       })
     }
 
@@ -413,13 +411,12 @@ const handleMetadataToggle = () => {
     document.body.style.userSelect = 'none'
   }
 
-    const handleMetadataResize = (e: React.MouseEvent) => {
+  const handleMetadataResize = (e: React.MouseEvent) => {
     const startX = e.clientX
     const startWidth = settings.wideScreenLayout.metadataWidth
 
     const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = startWidth - (e.clientX - startX) // Subtract because we're resizing from the left edge
-      // Only enforce reasonable minimum (100px) and maximum (80% of viewport width)
+      const newWidth = startWidth - (e.clientX - startX)
       const minWidth = 100
       const maxWidth = window.innerWidth * 0.8
       const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth))
@@ -442,6 +439,7 @@ const handleMetadataToggle = () => {
     document.body.style.userSelect = 'none'
   }
 
+  // Get current year for footer copyright
   const currentYear = new Date().getFullYear()
 
   return (
@@ -465,15 +463,15 @@ const handleMetadataToggle = () => {
           {/* Left side - Logo and Title */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Avatar
-              src="/logo.png"
-              alt={`${settings.companyName} logo`}
+              src={adminSettings.companyLogoPath}
+              alt={`${adminSettings.companyName} logo`}
               sx={{ mr: 2, width: 32, height: 32, backgroundColor: 'white' }}
-              aria-label={settings.companyName}
+              aria-label={adminSettings.companyName}
             >
-              {settings.companyName.charAt(0)}
+              {adminSettings.companyName.charAt(0)}
             </Avatar>
             <Typography variant="h6" sx={{ mr: 4, color: 'var(--freeki-app-bar-text-color)' }} variantMapping={{ h6: 'div' }}>
-              {settings.wikiTitle}
+              {adminSettings.wikiTitle}
             </Typography>
           </Box>
 
@@ -484,7 +482,7 @@ const handleMetadataToggle = () => {
               size="small"
               placeholder="Search pages..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => performSearch(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -519,7 +517,7 @@ const handleMetadataToggle = () => {
 
           {/* Right side - Action buttons */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {!selectedPage.isFolder && (
+            {currentPage && !currentPage.isFolder && (
               <>
                 {isEditing ? (
                   <>
@@ -527,7 +525,7 @@ const handleMetadataToggle = () => {
                       variant="contained"
                       color="success"
                       startIcon={<Save sx={{ color: 'white' }} />}
-                      onClick={() => handleSave(selectedPage.content)}
+                      onClick={() => handleSave(currentPage.content)}
                       sx={{ color: 'white' }}
                       aria-label="Save changes"
                     >
@@ -581,7 +579,7 @@ const handleMetadataToggle = () => {
               <Add />
             </IconButton>
 
-            {!selectedPage.isFolder && (
+            {currentPage && !currentPage.isFolder && (
               <IconButton 
                 sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
                 onClick={handleDelete} 
@@ -606,11 +604,10 @@ const handleMetadataToggle = () => {
               </IconButton>
             )}
 
-            <IconButton
+            <Box
               sx={{ color: 'var(--freeki-app-bar-text-color)', p: 0.5 }}
-              onClick={handleAccount}
-              title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Account"}
-              aria-label="Account"
+              title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Not signed in"}
+              aria-label={userInfo ? `User: ${userInfo.fullName}` : "Not signed in"}
             >
               {userInfo?.gravatarUrl ? (
                 <Avatar
@@ -628,7 +625,7 @@ const handleMetadataToggle = () => {
               ) : (
                 <AccountCircle />
               )}
-            </IconButton>
+            </Box>
 
             {/* Theme Toggle Button */}
             <IconButton
@@ -643,14 +640,13 @@ const handleMetadataToggle = () => {
         </Toolbar>
       </AppBar>
 
-      {/* Main Content Area with z-index layered approach */}
+      {/* Main Content Area */}
       <div className={`main-layout${isNarrowScreen && (!isSidebarCollapsed || !isMetadataCollapsed) ? ' panel-open' : ''}`} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* Left Sidebar - always use panel, never drawer */}
+        {/* Left Sidebar */}
         <div 
           className={`sidebar-panel${isSidebarCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isSidebarCollapsed ? ' narrow-opened' : ''}`}
           style={{ '--sidebar-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.sidebarWidth + 'px'}` } as React.CSSProperties}
         >
-          {/* Narrow screen chevron button - attached to sidebar panel and slides with it */}
           <button
             className={`chevron-button chevron-narrow-screen sidebar-chevron chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
             onClick={handleSidebarToggle}
@@ -661,14 +657,15 @@ const handleMetadataToggle = () => {
           </button>
 
           <FadePanelContent visible={!isSidebarCollapsed}>
-            <FolderTree
-              pages={pages}
-              selectedPage={selectedPage}
-              onPageSelect={handlePageSelect}
-            />
+            {currentPage && (
+              <FolderTree
+                pages={pages}
+                selectedPage={currentPage}
+                onPageSelect={handlePageSelect}
+              />
+            )}
           </FadePanelContent>
 
-          {/* Add sidebar splitter */}
           {!isSidebarCollapsed && !isNarrowScreen && (
             <Box
               onMouseDown={handleSidebarResize}
@@ -691,7 +688,7 @@ const handleMetadataToggle = () => {
           )}
         </div>
 
-        {/* Center Content Area - expands when panels are collapsed */}
+        {/* Center Content Area */}
         <div 
           className="center-content"
           style={{ 
@@ -700,13 +697,11 @@ const handleMetadataToggle = () => {
             flexDirection: 'column', 
             overflow: 'hidden', 
             position: 'relative',
-            // Only apply negative margins on desktop screens, not mobile or narrow screens
             marginLeft: (!isNarrowScreen && isSidebarCollapsed) ? `-${settings.wideScreenLayout.sidebarWidth}px` : '0',
             marginRight: (!isNarrowScreen && isMetadataCollapsed) ? `-${settings.wideScreenLayout.metadataWidth}px` : '0',
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          {/* Wide screen chevron buttons - attached to center content */}
           <button
             className={`chevron-button chevron-wide-screen chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
             onClick={handleSidebarToggle}
@@ -716,7 +711,7 @@ const handleMetadataToggle = () => {
             {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
           </button>
           
-          {!selectedPage.isFolder && settings.showMetadataPanel && (
+          {currentPage && !currentPage.isFolder && settings.showMetadataPanel && (
             <button
               className={`chevron-button chevron-wide-screen chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
               onClick={handleMetadataToggle}
@@ -728,30 +723,30 @@ const handleMetadataToggle = () => {
           )}
 
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }} role="main">
-            {/* Main Content */}
             <Box sx={{ flex: 1, overflow: 'auto' }} role="main">
-              {isEditing ? (
-                <PageEditor
-                  page={selectedPage}
-                  onSave={handleSave}
-                  onCancel={handleCancel}
-                />
-              ) : (
-                <PageViewer
-                  page={selectedPage}
-                  onEdit={handleEdit}
-                />
+              {currentPage && (
+                isEditing ? (
+                  <PageEditor
+                    page={currentPage}
+                    onSave={handleSave}
+                    onCancel={handleCancel}
+                  />
+                ) : (
+                  <PageViewer
+                    page={currentPage}
+                    onEdit={handleEdit}
+                  />
+                )
               )}
             </Box>
           </Box>
         </div>
 
-        {/* Right Metadata Panel - always use panel, never drawer */}  
-        {!selectedPage.isFolder && settings.showMetadataPanel && (
+        {/* Right Metadata Panel */}  
+        {currentPage && !currentPage.isFolder && settings.showMetadataPanel && (
           <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isMetadataCollapsed ? ' narrow-opened' : ''}`} 
             style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
           >
-            {/* Narrow screen chevron button - attached to metadata panel and slides with it */}
             <button
               className={`chevron-button chevron-narrow-screen metadata-chevron chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
               onClick={handleMetadataToggle}
@@ -763,12 +758,11 @@ const handleMetadataToggle = () => {
 
             <FadePanelContent visible={!isMetadataCollapsed}>
               <PageMetadata
-                page={selectedPage}
+                page={currentPage}
                 onTagClick={handleTagClick}
               />
             </FadePanelContent>
             
-            {/* Add metadata splitter */}
             {!isMetadataCollapsed && !isNarrowScreen && (
               <Box
                 onMouseDown={handleMetadataResize}
@@ -791,7 +785,6 @@ const handleMetadataToggle = () => {
             )}
           </div>
         )}
-
       </div>
 
       {/* Footer */}
@@ -807,7 +800,7 @@ const handleMetadataToggle = () => {
         role="contentinfo"
       >
         <Typography variant="caption" sx={{ color: 'var(--freeki-footer-text-color)' }}>
-          Copyright (c) {currentYear} {settings.companyName} powered by FreeKi
+          Copyright (c) {currentYear} {adminSettings.companyName} powered by FreeKi
         </Typography>
       </Box>
 
@@ -815,13 +808,10 @@ const handleMetadataToggle = () => {
       <AdminSettingsDialog
         open={showAdminSettings}
         onClose={() => setShowAdminSettings(false)}
-        onThemeChange={handleThemeChange}
-        initialSettings={adminColorSchemes}
-        themeMode={settings.theme} // <-- Pass current theme mode
+        themeMode={settings.theme}
       />
     </Box>
   )
 }
 
-// Export the API client for use in other components
 export { apiClient }
