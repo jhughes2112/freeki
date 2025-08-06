@@ -7,6 +7,7 @@ using System.IO;
 using Authentication;
 using Logging;
 using Storage;
+using FreeKi;
 
 namespace Admin
 {
@@ -47,7 +48,7 @@ namespace Admin
 
 			// Prepare git author information with fallbacks
 			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId;
-			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : "System@Freeki";
+			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : FreeKiServer.kSystemUserEmail;
 
             return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail, roles).ConfigureAwait(false);
         }

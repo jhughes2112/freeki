@@ -52,7 +52,7 @@ namespace FreeKi
 
 			// Prepare git author information with fallbacks
 			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId;
-			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : "System@Freeki";
+			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : FreeKiServer.kSystemUserEmail;
 
 			return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 		}

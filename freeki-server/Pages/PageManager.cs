@@ -73,7 +73,7 @@ namespace Storage
 									if (fullPage != null)
 									{
 										// Create corrected metadata with the actual filename
-										PageMetadata correctedMetadata = new PageMetadata(metadata.PageId, metadata.Tags, metadata.Title, metadata.LastModified, metadata.Version, filename);
+										PageMetadata correctedMetadata = new PageMetadata(metadata.PageId, metadata.Tags, metadata.Title, metadata.LastModified, metadata.Version, filename, metadata.SortOrder);
 										Page correctedPage = new Page(correctedMetadata, fullPage.Content);
 										
 										// Write back the corrected page
