@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace Storage
 {
@@ -19,14 +20,48 @@ namespace Storage
 		private readonly string     _branch;
 		private Repository          _repository;
 
+		private static readonly Regex ScpUrl = new Regex(@"^[\w\-\.]+@[\w\-\.]+:.*$", RegexOptions.Compiled);  // Matches scp-style URLs: user@host:some/path.git
+
 		public GitManager(string repositoryPath, ILogging logger, string remoteUrl, string username, string password, string branch)
 		{
 			_repositoryPath = repositoryPath;
 			_logger         = logger;
-			_remoteUrl      = remoteUrl;
 			_username       = username;
 			_password       = password;
 			_branch         = branch;
+
+			// Normalize the remote repository URL, if it was provided.
+			if (string.IsNullOrWhiteSpace(remoteUrl)==false)
+			{
+				if (ScpUrl.IsMatch(remoteUrl))
+				{
+					_remoteUrl = remoteUrl;  // 1) Leave scp-style URLs untouched
+				}
+				else if (Uri.TryCreate(remoteUrl, UriKind.Absolute, out Uri? uri))
+				{
+					// 2) Try parsing as an absolute URI (http://, https://, ssh://, file://, etc.)
+					// libgit2sharp accepts file:// only if it’s absolute, so we're fine
+					_remoteUrl = uri.ToString();
+				}
+				else
+				{
+					// 3) Otherwise it's a local path, make it absolute, then turn it into a file URI
+					string filePath = Path.GetFullPath(remoteUrl);  // allow relative paths
+					if (Regex.IsMatch(filePath, @"^[A-Za-z]:\\"))  // check for leading drive letters, and convert to \\?\ syntax
+					{
+						_remoteUrl = @"\\?\" + filePath;
+					}
+					else
+					{
+						_remoteUrl = filePath;
+					}
+				}
+			}
+			else
+			{
+				_remoteUrl = string.Empty;
+			}
+
 			
 			// Try to clone remote first if we have a remote URL and no local repo exists
 			if (!string.IsNullOrEmpty(_remoteUrl) && !Repository.IsValid(_repositoryPath) && TryCloneFromRemote())
@@ -48,7 +83,7 @@ namespace Storage
 			_repository = new Repository(_repositoryPath);
 			
 			// Add or remote all remotes based on _remoteUrl
-			SetupRemote(_remoteUrl);
+			SetupRemote();
 			
 			// Ensure we have the desired branch with at least one commit
 			EnsureBranchExists();
@@ -78,6 +113,8 @@ namespace Storage
 		// Try to clone the remote repository
 		private bool TryCloneFromRemote()
 		{
+			bool result = false;
+			
 			try
 			{
 				CloneOptions cloneOptions = new CloneOptions(MakeFetchOptions());
@@ -87,13 +124,14 @@ namespace Storage
 				_logger.Log(EVerbosity.Info, $"GitManager: Attempting to clone from {_remoteUrl}");
 				Repository.Clone(_remoteUrl, _repositoryPath, cloneOptions);
 				_logger.Log(EVerbosity.Info, $"GitManager: Successfully cloned repository from {_remoteUrl}");
-				return true;
+				result = true;
 			}
 			catch (Exception ex)
 			{
 				_logger.Log(EVerbosity.Info, $"GitManager: Clone failed (expected for new/empty remotes): {ex.Message}");
-				return false;
 			}
+			
+			return result;
 		}
 
 		// Ensure the desired branch exists and has at least one commit
@@ -151,8 +189,9 @@ namespace Storage
 			}
 		}
 
-		// Set up remote repository configuration, whether adding, updating, or removing
-		private void SetupRemote(string remoteUrl)
+		// Set up remote repository configuration, whether adding, updating, or removing.  Note, the input may be an scp-style URL or http(s) or a relative ore absolute file path,
+		// hence the extra work to normalize it.
+		private void SetupRemote()
 		{
 			try
 			{
@@ -169,7 +208,7 @@ namespace Storage
 					}
 				}
 
-				if (string.IsNullOrEmpty(remoteUrl))
+				if (string.IsNullOrEmpty(_remoteUrl))
 				{
 					if (existingRemote!=null)
 					{
@@ -201,93 +240,208 @@ namespace Storage
 		// Pull latest changes from remote repository
 		public bool PullFromRemote()
 		{
-			if (string.IsNullOrEmpty(_remoteUrl))
+			bool result = false;
+			
+			if (!string.IsNullOrEmpty(_remoteUrl))
+			{
+				try
+				{
+					Signature signature = new Signature(FreeKiServer.kSystemUserName, FreeKiServer.kSystemUserEmail, DateTimeOffset.Now);
+					
+					PullOptions pullOptions = new PullOptions { FetchOptions = MakeFetchOptions() };
+					pullOptions.MergeOptions = new MergeOptions { FastForwardStrategy = FastForwardStrategy.FastForwardOnly };
+
+					MergeResult mergeResult = Commands.Pull(_repository, signature, pullOptions);
+					
+					_logger.Log(EVerbosity.Info, $"GitManager: Pull completed with status: {mergeResult.Status}");
+					result = mergeResult.Status == MergeStatus.UpToDate || mergeResult.Status == MergeStatus.FastForward || mergeResult.Status == MergeStatus.NonFastForward;
+				}
+				catch (Exception ex)
+				{
+					_logger.Log(EVerbosity.Error, $"GitManager: Pull failed: {ex.Message}");
+				}
+			}
+			else
 			{
 				_logger.Log(EVerbosity.Error, "GitManager: No remote URL configured for pull operation");
-				return false;
 			}
-
-			try
-			{
-				var signature = new Signature(FreeKiServer.kSystemUserName, FreeKiServer.kSystemUserEmail, DateTimeOffset.Now);
-				
-				var pullOptions = new PullOptions { FetchOptions = MakeFetchOptions() };
-				pullOptions.MergeOptions = new MergeOptions { FastForwardStrategy = FastForwardStrategy.FastForwardOnly };
-
-				MergeResult result = Commands.Pull(_repository, signature, pullOptions);
-				
-				_logger.Log(EVerbosity.Info, $"GitManager: Pull completed with status: {result.Status}");
-				return result.Status == MergeStatus.UpToDate || result.Status == MergeStatus.FastForward || result.Status == MergeStatus.NonFastForward;
-			}
-			catch (Exception ex)
-			{
-				_logger.Log(EVerbosity.Error, $"GitManager: Pull failed: {ex.Message}");
-				return false;
-			}
+			
+			return result;
 		}
 
 		// Push local changes to remote repository
 		public bool PushToRemote()
 		{
-			if (string.IsNullOrEmpty(_remoteUrl))
-			{
-				_logger.Log(EVerbosity.Warning, "GitManager: No remote URL configured for push operation");
-				return false;
-			}
-
-			try
+			bool result = false;
+			
+			if (!string.IsNullOrEmpty(_remoteUrl))
 			{
 				const string remoteName = "origin";
-				var remote = _repository.Network.Remotes[remoteName];
-				if (remote == null)
+				Remote? remote = _repository.Network.Remotes[remoteName];
+				
+				if (remote != null)
+				{
+					Branch? branch = _repository.Branches[_branch] ?? _repository.Head;
+					
+					if (branch != null)
+					{
+						PushOptions pushOptions = new PushOptions();
+						pushOptions.CredentialsProvider = MakeFetchOptions().CredentialsProvider;
+
+						// Check if branch has uncommitted changes or pending commits to push
+						bool hasChangesToPush = HasLocalCommitsAhead(branch);
+						
+						if (hasChangesToPush || !BranchHasUpstreamTracking(branch))
+						{
+							// Attempt to push the branch
+							if (TryPushBranch(branch, pushOptions))
+							{
+								_logger.Log(EVerbosity.Info, $"GitManager: Successfully pushed to remote '{remoteName}'");
+								result = true;
+							}
+							else
+							{
+								// If direct push failed, try setting up upstream tracking
+								if (TryPushWithUpstreamTracking(remote, branch, pushOptions))
+								{
+									_logger.Log(EVerbosity.Info, $"GitManager: Successfully pushed with upstream tracking to remote '{remoteName}'");
+									result = true;
+								}
+								else
+								{
+									_logger.Log(EVerbosity.Error, "GitManager: All push attempts failed");
+								}
+							}
+						}
+						else
+						{
+							_logger.Log(EVerbosity.Info, "GitManager: Branch is up to date with remote, no push needed");
+							result = true;
+						}
+					}
+					else
+					{
+						_logger.Log(EVerbosity.Error, $"GitManager: Branch '{_branch}' not found");
+					}
+				}
+				else
 				{
 					_logger.Log(EVerbosity.Error, $"GitManager: Remote '{remoteName}' not found");
-					return false;
 				}
+			}
+			else
+			{
+				_logger.Log(EVerbosity.Warning, "GitManager: No remote URL configured for push operation");
+			}
+			
+			return result;
+		}
 
-				var branch = _repository.Branches[_branch] ?? _repository.Head;
-				if (branch == null)
-				{
-					_logger.Log(EVerbosity.Error, $"GitManager: Branch '{_branch}' not found");
-					return false;
-				}
+		// Check if the branch has upstream tracking configured
+		private bool BranchHasUpstreamTracking(Branch branch)
+		{
+			bool hasTracking = false;
+			
+			if (branch.TrackedBranch != null)
+			{
+				hasTracking = true;
+				_logger.Log(EVerbosity.Debug, $"GitManager: Branch '{branch.FriendlyName}' tracks '{branch.TrackedBranch.FriendlyName}'");
+			}
+			else
+			{
+				_logger.Log(EVerbosity.Debug, $"GitManager: Branch '{branch.FriendlyName}' has no upstream tracking");
+			}
+			
+			return hasTracking;
+		}
 
-				var pushOptions = new PushOptions();
-				pushOptions.CredentialsProvider = MakeFetchOptions().CredentialsProvider;
+		// Check if local branch has commits ahead of remote
+		private bool HasLocalCommitsAhead(Branch branch)
+		{
+			bool hasCommitsAhead = false;
+			
+			if (branch.TrackedBranch != null)
+			{
+				// Compare commits between local and tracked branch
+				IEnumerable<Commit> commitsAhead = _repository.Commits.QueryBy(new CommitFilter 
+				{ 
+					IncludeReachableFrom = branch.Tip, 
+					ExcludeReachableFrom = branch.TrackedBranch.Tip 
+				});
+				
+				// Count commits manually without using LINQ
+				int aheadBy = 0;
+				foreach (Commit commit in commitsAhead)
+				{
+					aheadBy++;
+				}
+				
+				hasCommitsAhead = aheadBy > 0;
+				_logger.Log(EVerbosity.Debug, $"GitManager: Branch '{branch.FriendlyName}' is {aheadBy} commits ahead of remote");
+			}
+			else
+			{
+				// No tracked branch means we need to push to establish tracking
+				hasCommitsAhead = true;
+				_logger.Log(EVerbosity.Debug, $"GitManager: Branch '{branch.FriendlyName}' has no tracked branch, considering it has changes to push");
+			}
+			
+			return hasCommitsAhead;
+		}
 
-				try
-				{
-					// Try to push the branch
-					_repository.Network.Push(branch, pushOptions);
-					_logger.Log(EVerbosity.Info, $"GitManager: Successfully pushed to remote '{remoteName}'");
-					return true;
-				}
-				catch (LibGit2SharpException ex) when (ex.Message.Contains("does not track an upstream branch"))
-				{
-					// If the branch doesn't track upstream, set up tracking and try again
-					_logger.Log(EVerbosity.Info, $"GitManager: Setting up upstream tracking for branch '{branch.FriendlyName}'");
-					
-					// Create refspec for tracking
-					string refspec = $"refs/heads/{branch.FriendlyName}:refs/heads/{branch.FriendlyName}";
-					
-					try
-					{
-						_repository.Network.Push(remote, refspec, pushOptions);
-						_logger.Log(EVerbosity.Info, $"GitManager: Successfully pushed with upstream tracking to remote '{remoteName}'");
-						return true;
-					}
-					catch (Exception innerEx)
-					{
-						_logger.Log(EVerbosity.Error, $"GitManager: Push with upstream tracking failed: {innerEx.Message}");
-						return false;
-					}
-				}
+		// Try to push the branch directly
+		private bool TryPushBranch(Branch branch, PushOptions pushOptions)
+		{
+			bool success = false;
+			
+			try
+			{
+				_repository.Network.Push(branch, pushOptions);
+				success = true;
+			}
+			catch (LibGit2SharpException ex) when (ex.Message.Contains("does not track an upstream branch"))
+			{
+				_logger.Log(EVerbosity.Debug, $"GitManager: Direct push failed because branch '{branch.FriendlyName}' lacks upstream tracking");
 			}
 			catch (Exception ex)
 			{
-				_logger.Log(EVerbosity.Error, $"GitManager: Push failed: {ex.Message}");
-				return false;
+				_logger.Log(EVerbosity.Error, $"GitManager: Direct push failed: {ex.Message}");
 			}
+			
+			return success;
+		}
+
+		// Try to push with upstream tracking setup
+		private bool TryPushWithUpstreamTracking(Remote remote, Branch branch, PushOptions pushOptions)
+		{
+			bool success = false;
+			
+			try
+			{
+				_logger.Log(EVerbosity.Info, $"GitManager: Setting up upstream tracking for branch '{branch.FriendlyName}'");
+				
+				// Create refspec for tracking
+				string refspec = $"refs/heads/{branch.FriendlyName}:refs/heads/{branch.FriendlyName}";
+				
+				_repository.Network.Push(remote, refspec, pushOptions);
+				
+				// After successful push, set up tracking
+				Branch updatedBranch = _repository.Branches[branch.FriendlyName];
+				if (updatedBranch != null)
+				{
+					string remoteBranchName = $"refs/remotes/origin/{branch.FriendlyName}";
+					_repository.Branches.Update(updatedBranch, b => b.TrackedBranch = remoteBranchName);
+					_logger.Log(EVerbosity.Info, $"GitManager: Set up tracking: '{branch.FriendlyName}' -> '{remoteBranchName}'");
+				}
+				
+				success = true;
+			}
+			catch (Exception ex)
+			{
+				_logger.Log(EVerbosity.Error, $"GitManager: Push with upstream tracking failed: {ex.Message}");
+			}
+			
+			return success;
 		}
 
 		// Helper method to determine if an exception is a Git busy/lock error

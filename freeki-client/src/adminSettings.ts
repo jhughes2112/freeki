@@ -60,75 +60,75 @@ export interface ColorScheme {
 }
 
 const DEFAULT_LIGHT_SCHEME: ColorScheme = {
-  appBarBackground: '#1976d2',
-  appBarTextColor: '#ffffff',
+  appBarBackground: '#2979FF',
+  appBarTextColor: '#FFFFFF',
   appBarDivider: 'rgba(255, 255, 255, 0.2)',
-  foldersFontColor: '#222222',
-  foldersFontSize: 16,
-  foldersBackground: '#fafafa',
-  foldersSelectedBackground: '#e3f2fd',
-  h1FontColor: '#222222',
+  foldersFontColor: '#2E2E2E',
+  foldersFontSize: 14,
+  foldersBackground: '#F5F5F5',
+  foldersSelectedBackground: '#c2d8ff',
+  h1FontColor: '#2979FF',
   h1FontSize: 32,
-  h2FontColor: '#333333',
+  h2FontColor: '#1E88E5',
   h2FontSize: 24,
-  h3FontColor: '#444444',
+  h3FontColor: '#1565C0',
   h3FontSize: 20,
-  pFontColor: '#000000',
+  pFontColor: '#212121',
   pFontSize: 16,
-  viewBackground: '#ffffff',
-  editBackground: '#ffffff',
-  pageDetailsBackground: '#f9f9f9',
-  pageDetailsFontColor: '#222222',
-  pageDetailsFontSize: 16,
-  footerBackground: '#fafafa',
-  footerTextColor: '#666666',
-  borderColor: '#e0e0e0',
-  shadowColor: '#00000055', // Dark shadow for light mode
-  styleRowFontColor: '#222c36', // new: font color for style rows (light)
-  sliderMarkColor: '#7da4c7', // new: notch color for light
-  sliderThumbOutline: '#b0c4de', // new: thumb outline for light
-  styleBoxBg: '#eaf3fb', // new
-  inputBorder: '#b0c4de', // new
-  rowEvenBg: '#f7fafd', // new
-  rowOddBg: '#eaf3fb' // new
+  viewBackground: '#FAFAFA',
+  editBackground: '#FFFDE7',
+  pageDetailsBackground: '#ffffff',
+  pageDetailsFontColor: '#333333',
+  pageDetailsFontSize: 14,
+  footerBackground: '#ECECEC',
+  footerTextColor: '#606060',
+  borderColor: '#D1D5DB',
+  shadowColor: '#0000001F',
+  styleRowFontColor: '#222c36',
+  sliderMarkColor: '#7da4c7',
+  sliderThumbOutline: '#b0c4de',
+  styleBoxBg: '#eaf3fb',
+  inputBorder: '#b0c4de',
+  rowEvenBg: '#f7fafd',
+  rowOddBg: '#eaf3fb'
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
-  appBarBackground: '#1565c0',
+  appBarBackground: '#2979FF',
   appBarTextColor: '#ffffff',
   appBarDivider: 'rgba(0, 0, 0, 0.2)',
-  foldersFontColor: '#eeeeee',
+  foldersFontColor: '#E0E0E0',
   foldersFontSize: 16,
-  foldersBackground: '#2b2b2b',
-  foldersSelectedBackground: '#263238',
-  h1FontColor: '#eeeeee',
+  foldersBackground: '#1E1E1E',
+  foldersSelectedBackground: '#28324E',
+  h1FontColor: '#64B5F6',
   h1FontSize: 32,
-  h2FontColor: '#cccccc',
+  h2FontColor: '#42A5F5',
   h2FontSize: 24,
-  h3FontColor: '#bbbbbb',
+  h3FontColor: '#2196F3',
   h3FontSize: 20,
-  pFontColor: '#ffffff',
+  pFontColor: '#E0e0e0',
   pFontSize: 16,
   viewBackground: '#121212',
-  editBackground: '#1e1e1e',
-  pageDetailsBackground: '#1e1e1e',
-  pageDetailsFontColor: '#eeeeee',
+  editBackground: '#262626',
+  pageDetailsBackground: '#2b2b2b',
+  pageDetailsFontColor: '#cccccc',
   pageDetailsFontSize: 16,
-  footerBackground: '#2b2b2b',
-  footerTextColor: '#b3b3b3',
-  borderColor: '#222222',
-  shadowColor: '#ffffff33', // Light shadow for dark mode
-  styleRowFontColor: '#e0e0e0', // new: font color for style rows (dark)
-  sliderMarkColor: '#888', // new: notch color for dark
-  sliderThumbOutline: '#888', // new: thumb outline for dark
-  styleBoxBg: '#262b31', // new
-  inputBorder: '#444444', // new
-  rowEvenBg: '#23272b', // new
-  rowOddBg: '#202225' // new
+  footerBackground: '#202020',
+  footerTextColor: '#A0A0A0',
+  borderColor: '#2A2A2A',
+  shadowColor: '#FFFFFF19',
+  styleRowFontColor: '#e0e0e0',
+  sliderMarkColor: '#888',
+  sliderThumbOutline: '#888',
+  styleBoxBg: '#262b31',
+  inputBorder: '#444444',
+  rowEvenBg: '#23272b',
+  rowOddBg: '#202225'
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
-  companyName: 'Your Company',
+  companyName: 'Your Company Here',
   companyLogoPath: '/logo.png',
   wikiTitle: 'FreeKi Wiki',
   colorSchemes: {

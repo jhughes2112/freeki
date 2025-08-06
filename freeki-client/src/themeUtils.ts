@@ -122,6 +122,15 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   root.style.setProperty('--freeki-footer-text-color', colorScheme.footerTextColor || '#666666');
   root.style.setProperty('--freeki-border-color', colorScheme.borderColor || '#e0e0e0');
   root.style.setProperty('--freeki-shadow-color', colorScheme.shadowColor || '#22222233');
+  
+  // Add the new color properties
+  root.style.setProperty('--freeki-style-row-font-color', colorScheme.styleRowFontColor || '#222c36');
+  root.style.setProperty('--freeki-slider-mark-color', colorScheme.sliderMarkColor || '#7da4c7');
+  root.style.setProperty('--freeki-slider-thumb-outline', colorScheme.sliderThumbOutline || '#b0c4de');
+  root.style.setProperty('--freeki-style-box-bg', colorScheme.styleBoxBg || '#eaf3fb');
+  root.style.setProperty('--freeki-input-border', colorScheme.inputBorder || '#b0c4de');
+  root.style.setProperty('--freeki-row-even-bg', colorScheme.rowEvenBg || '#f7fafd');
+  root.style.setProperty('--freeki-row-odd-bg', colorScheme.rowOddBg || '#eaf3fb');
 }
 
 // Get current theme CSS values for real-time preview
@@ -153,7 +162,14 @@ export function getCurrentThemeColors(): Record<string, string> {
     footerBackground: computedStyle.getPropertyValue('--freeki-footer-background').trim(),
     footerTextColor: computedStyle.getPropertyValue('--freeki-footer-text-color').trim(),
     borderColor: computedStyle.getPropertyValue('--freeki-border-color').trim(),
-    shadowColor: computedStyle.getPropertyValue('--freeki-shadow-color').trim()
+    shadowColor: computedStyle.getPropertyValue('--freeki-shadow-color').trim(),
+    styleRowFontColor: computedStyle.getPropertyValue('--freeki-style-row-font-color').trim(),
+    sliderMarkColor: computedStyle.getPropertyValue('--freeki-slider-mark-color').trim(),
+    sliderThumbOutline: computedStyle.getPropertyValue('--freeki-slider-thumb-outline').trim(),
+    styleBoxBg: computedStyle.getPropertyValue('--freeki-style-box-bg').trim(),
+    inputBorder: computedStyle.getPropertyValue('--freeki-input-border').trim(),
+    rowEvenBg: computedStyle.getPropertyValue('--freeki-row-even-bg').trim(),
+    rowOddBg: computedStyle.getPropertyValue('--freeki-row-odd-bg').trim()
   }
 }
 
