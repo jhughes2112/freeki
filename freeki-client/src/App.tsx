@@ -4,19 +4,16 @@ import {
   AppBar,
   Toolbar,
   Typography,
-  TextField,
   Button,
   IconButton,
   Avatar,
   Divider,
-  InputAdornment,
   Snackbar,
   Alert,
   useMediaQuery,
   Tooltip
 } from '@mui/material'
 import {
-  Search,
   Edit,
   Save,
   Cancel,
@@ -28,32 +25,29 @@ import {
   DarkMode,
   Monitor,
   ChevronLeft,
-  ChevronRight,
-  FlashOn,
-  AccessTime
+  ChevronRight
 } from '@mui/icons-material'
 import FolderTree from './FolderTree'
 import PageViewer from './PageViewer'
 import PageEditor from './PageEditor'
-import PageMetadata from './PageMetadata'
+import PageMetadataPanel from './PageMetadata'
 import AdminSettingsDialog from './AdminSettingsDialog'
 import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState } from './globalState'
-import type { WikiPage } from './globalState'
+import { buildPageTree } from './pageTreeUtils'
+import type { PageMetadata } from './globalState'
 import { fetchAdminSettings } from './adminSettings'
 import apiClient from './apiClient'
-// Import theme service to ensure it's initialized
 import './themeService'
 import './App.css'
+import { testPageMetadata, testPageContent } from './testData'
 
-// FadePanelContent: fade in/out children based on visible prop
 const FadePanelContent = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (
   <div className={`fade-panel${visible ? '' : ' hidden'}`}>
     {children}
   </div>
 )
 
-// Enhanced Tooltip component with fast, modern styling
 const EnhancedTooltip = ({ children, title, ...props }: { 
   children: React.ReactElement; 
   title: string; 
@@ -73,355 +67,20 @@ const EnhancedTooltip = ({ children, title, ...props }: {
   </Tooltip>
 )
 
-// Sample data expanded with deeper hierarchies and additional folders
-const samplePages: WikiPage[] = [
-  {
-    id: 'home',
-    title: 'Home',
-    content: '<h1>Welcome to FreeKi Wiki</h1><p>This is the home page of your personal wiki.</p>',
-    path: '/home',
-    isFolder: false,
-    updatedAt: '2024-01-15T14:30:00Z',
-    author: 'John Doe',
-    version: 3,
-    tags: ['wiki', 'home', 'intro']
-  },
-  {
-    id: 'projects',
-    title: 'Projects',
-    content: '<h1>Projects</h1><p>This folder contains all your project documentation.</p>',
-    path: '/projects',
-    isFolder: true,
-    updatedAt: '2024-01-10T09:15:00Z',
-    author: 'Jane Smith',
-    version: 1,
-    tags: ['projects', 'folder'],
-    children: [
-      {
-        id: 'project-a',
-        title: 'Project Alpha',
-        content: '<h1>Project Alpha</h1><p>Revolutionary new approach to solving problems.</p>',
-        path: '/projects/project-a',
-        isFolder: false,
-        updatedAt: '2024-01-12T16:45:00Z',
-        author: 'Bob Wilson',
-        version: 2,
-        tags: ['alpha', 'project']
-      },
-      {
-        id: 'project-b',
-        title: 'Project Beta',
-        content: '<h1>Project Beta</h1><p>Next generation platform development.</p>',
-        path: '/projects/project-b',
-        isFolder: true,
-        updatedAt: '2024-01-11T14:20:00Z',
-        author: 'Lisa Wang',
-        version: 1,
-        tags: ['beta', 'platform'],
-        children: [
-          {
-            id: 'beta-planning',
-            title: 'Planning Documents',
-            content: '<h1>Planning Documents</h1><p>Project planning and roadmap.</p>',
-            path: '/projects/project-b/planning',
-            isFolder: false,
-            updatedAt: '2024-01-11T15:00:00Z',
-            author: 'Lisa Wang',
-            version: 1,
-            tags: ['planning', 'roadmap']
-          },
-          {
-            id: 'beta-design',
-            title: 'Design & Architecture',
-            content: '<h1>Design & Architecture</h1><p>System design documents.</p>',
-            path: '/projects/project-b/design',
-            isFolder: true,
-            updatedAt: '2024-01-12T10:30:00Z',
-            author: 'Alice Cooper',
-            version: 2,
-            tags: ['design', 'architecture'],
-            children: [
-              {
-                id: 'beta-wireframes',
-                title: 'UI Wireframes',
-                content: '<h1>UI Wireframes</h1><p>User interface wireframes and mockups.</p>',
-                path: '/projects/project-b/design/wireframes',
-                isFolder: false,
-                updatedAt: '2024-01-12T11:00:00Z',
-                author: 'UI Designer',
-                version: 1,
-                tags: ['wireframes', 'ui', 'mockups']
-              },
-              {
-                id: 'beta-database',
-                title: 'Database Schema',
-                content: '<h1>Database Schema</h1><p>Database design and relationships.</p>',
-                path: '/projects/project-b/design/database',
-                isFolder: false,
-                updatedAt: '2024-01-12T12:30:00Z',
-                author: 'Database Engineer',
-                version: 3,
-                tags: ['database', 'schema', 'design']
-              },
-              {
-                id: 'beta-security',
-                title: 'Security Architecture',
-                content: '<h1>Security Architecture</h1><p>Security design and protocols.</p>',
-                path: '/projects/project-b/design/security',
-                isFolder: false,
-                updatedAt: '2024-01-12T14:00:00Z',
-                author: 'Security Team',
-                version: 1,
-                tags: ['security', 'protocols', 'design']
-              }
-            ]
-          },
-          {
-            id: 'beta-development',
-            title: 'Development Notes',
-            content: '<h1>Development Notes</h1><p>Development progress and notes.</p>',
-            path: '/projects/project-b/development',
-            isFolder: false,
-            updatedAt: '2024-01-13T09:45:00Z',
-            author: 'Dev Team',
-            version: 4,
-            tags: ['development', 'progress']
-          }
-        ]
-      },
-      {
-        id: 'project-c',
-        title: 'Project Gamma',
-        content: '<h1>Project Gamma</h1><p>Research and innovation project.</p>',
-        path: '/projects/project-c',
-        isFolder: false,
-        updatedAt: '2024-01-09T11:45:00Z',
-        author: 'Rachel Green',
-        version: 1,
-        tags: ['gamma', 'research', 'innovation']
-      }
-    ]
-  },
-  {
-    id: 'documentation',
-    title: 'Documentation',
-    content: '<h1>Documentation</h1><p>User guides and technical documentation.</p>',
-    path: '/documentation',
-    isFolder: true,
-    updatedAt: '2024-01-08T10:00:00Z',
-    author: 'Technical Writer',
-    version: 1,
-    tags: ['documentation', 'guides'],
-    children: [
-      {
-        id: 'user-guide',
-        title: 'User Guide',
-        content: '<h1>User Guide</h1><p>Complete user guide and tutorials.</p>',
-        path: '/documentation/user-guide',
-        isFolder: true,
-        updatedAt: '2024-01-08T11:00:00Z',
-        author: 'Technical Writer',
-        version: 2,
-        tags: ['user-guide', 'tutorial'],
-        children: [
-          {
-            id: 'getting-started',
-            title: 'Getting Started',
-            content: '<h1>Getting Started</h1><p>Quick start guide for new users.</p>',
-            path: '/documentation/user-guide/getting-started',
-            isFolder: false,
-            updatedAt: '2024-01-08T12:00:00Z',
-            author: 'Technical Writer',
-            version: 1,
-            tags: ['getting-started', 'beginner']
-          },
-          {
-            id: 'advanced-features',
-            title: 'Advanced Features',
-            content: '<h1>Advanced Features</h1><p>Advanced functionality guide.</p>',
-            path: '/documentation/user-guide/advanced',
-            isFolder: false,
-            updatedAt: '2024-01-08T13:00:00Z',
-            author: 'Technical Writer',
-            version: 1,
-            tags: ['advanced', 'features']
-          },
-          {
-            id: 'troubleshooting',
-            title: 'Troubleshooting',
-            content: '<h1>Troubleshooting</h1><p>Common issues and solutions.</p>',
-            path: '/documentation/user-guide/troubleshooting',
-            isFolder: false,
-            updatedAt: '2024-01-08T14:00:00Z',
-            author: 'Support Team',
-            version: 3,
-            tags: ['troubleshooting', 'support']
-          }
-        ]
-      },
-      {
-        id: 'api-docs',
-        title: 'API Documentation',
-        content: '<h1>API Documentation</h1><p>REST API reference and examples.</p>',
-        path: '/documentation/api',
-        isFolder: false,
-        updatedAt: '2024-01-08T15:00:00Z',
-        author: 'Dev Team',
-        version: 2,
-        tags: ['api', 'reference', 'rest']
-      },
-      {
-        id: 'faq',
-        title: 'FAQ',
-        content: '<h1>Frequently Asked Questions</h1><p>Common questions and answers.</p>',
-        path: '/documentation/faq',
-        isFolder: false,
-        updatedAt: '2024-01-08T16:00:00Z',
-        author: 'Support Team',
-        version: 1,
-        tags: ['faq', 'questions', 'answers']
-      }
-    ]
-  },
-  {
-    id: 'team',
-    title: 'Team Resources',
-    content: '<h1>Team Resources</h1><p>Internal team information and resources.</p>',
-    path: '/team',
-    isFolder: true,
-    updatedAt: '2024-01-07T09:00:00Z',
-    author: 'HR Team',
-    version: 1,
-    tags: ['team', 'internal', 'hr'],
-    children: [
-      {
-        id: 'onboarding',
-        title: 'Onboarding',
-        content: '<h1>Onboarding</h1><p>New employee onboarding materials.</p>',
-        path: '/team/onboarding',
-        isFolder: true,
-        updatedAt: '2024-01-07T10:00:00Z',
-        author: 'HR Team',
-        version: 1,
-        tags: ['onboarding', 'new-employee'],
-        children: [
-          {
-            id: 'welcome-guide',
-            title: 'Welcome Guide',
-            content: '<h1>Welcome Guide</h1><p>Welcome to the team!</p>',
-            path: '/team/onboarding/welcome',
-            isFolder: false,
-            updatedAt: '2024-01-07T11:00:00Z',
-            author: 'HR Team',
-            version: 1,
-            tags: ['welcome', 'guide']
-          },
-          {
-            id: 'first-week',
-            title: 'Your First Week',
-            content: '<h1>Your First Week</h1><p>What to expect in your first week.</p>',
-            path: '/team/onboarding/first-week',
-            isFolder: false,
-            updatedAt: '2024-01-07T12:00:00Z',
-            author: 'HR Team',
-            version: 1,
-            tags: ['first-week', 'schedule']
-          },
-          {
-            id: 'tools-setup',
-            title: 'Tools & Setup',
-            content: '<h1>Tools & Setup</h1><p>Setting up your development environment.</p>',
-            path: '/team/onboarding/tools',
-            isFolder: false,
-            updatedAt: '2024-01-07T13:00:00Z',
-            author: 'IT Team',
-            version: 2,
-            tags: ['tools', 'setup']
-          }
-        ]
-      },
-      {
-        id: 'policies',
-        title: 'Company Policies',
-        content: '<h1>Company Policies</h1><p>Official company policies.</p>',
-        path: '/team/policies',
-        isFolder: false,
-        updatedAt: '2024-01-07T14:00:00Z',
-        author: 'Legal Team',
-        version: 1,
-        tags: ['policies', 'legal']
-      },
-      {
-        id: 'benefits',
-        title: 'Benefits',
-        content: '<h1>Benefits</h1><p>Employee benefits information.</p>',
-        path: '/team/benefits',
-        isFolder: false,
-        updatedAt: '2024-01-07T15:00:00Z',
-        author: 'HR Team',
-        version: 1,
-        tags: ['benefits', 'employee']
-      }
-    ]
-  },
-  {
-    id: 'meetings',
-    title: 'Meeting Notes',
-    content: '<h1>Meeting Notes</h1><p>Archive of meeting notes and minutes.</p>',
-    path: '/meetings',
-    isFolder: true,
-    updatedAt: '2024-01-06T09:00:00Z',
-    author: 'Various',
-    version: 1,
-    tags: ['meetings', 'notes'],
-    children: [
-      {
-        id: 'daily-standups',
-        title: 'Daily Standups',
-        content: '<h1>Daily Standups</h1><p>Daily standup meeting notes.</p>',
-        path: '/meetings/standups',
-        isFolder: false,
-        updatedAt: '2024-01-06T10:00:00Z',
-        author: 'Scrum Master',
-        version: 1,
-        tags: ['standup', 'daily']
-      },
-      {
-        id: 'sprint-planning',
-        title: 'Sprint Planning',
-        content: '<h1>Sprint Planning</h1><p>Sprint planning session notes.</p>',
-        path: '/meetings/planning',
-        isFolder: false,
-        updatedAt: '2024-01-06T11:00:00Z',
-        author: 'Product Owner',
-        version: 1,
-        tags: ['planning', 'sprint']
-      },
-      {
-        id: 'retrospectives',
-        title: 'Retrospectives',
-        content: '<h1>Retrospectives</h1><p>Sprint retrospective notes.</p>',
-        path: '/meetings/retros',
-        isFolder: false,
-        updatedAt: '2024-01-06T12:00:00Z',
-        author: 'Scrum Master',
-        version: 2,
-        tags: ['retrospective', 'improvement']
-      }
-    ]
-  }
-]
-
 export default function App() {
   const { settings, userInfo, isLoaded, updateSetting } = useUserSettings()
   
-  // Use global state for reactive updates
+  // Use global state with new structure
   const adminSettings = useGlobalState('adminSettings')
-  const currentPage = useGlobalState('currentPage')
+  const pageMetadata = useGlobalState('pageMetadata')
+  const currentPageMetadata = useGlobalState('currentPageMetadata')
+  const currentPageContent = useGlobalState('currentPageContent')
   const isEditing = useGlobalState('isEditing')
   const searchQuery = useGlobalState('searchQuery')
-  const pages = useGlobalState('pages')
   const isLoadingPages = useGlobalState('isLoadingPages')
+  
+  // Compute page tree from metadata - this belongs in the component, not global state
+  const pageTree = React.useMemo(() => buildPageTree(pageMetadata), [pageMetadata])
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [errorMessage, setErrorMessage] = React.useState<string>('')
@@ -443,27 +102,45 @@ export default function App() {
           globalState.set('adminSettings', settings)
         }
         
-        // Load pages from API
+        // Load page metadata from API
         globalState.set('isLoadingPages', true)
         try {
-          const response = await apiClient.get<WikiPage[]>('/api/pages')
+          const response = await apiClient.get<PageMetadata[]>('/api/pages')
           if (response.success && response.data && response.data.length > 0) {
-            globalState.set('pages', response.data)
-            // Set first non-folder page as current page if available
-            const firstPage = response.data.find(page => !page.isFolder) || response.data[0]
+            // Use real API data
+            globalState.set('pageMetadata', response.data)
+            
+            // Set first page as current
+            const firstPage = response.data[0]
             if (firstPage) {
-              globalState.set('currentPage', firstPage)
+              globalState.set('currentPageMetadata', firstPage)
+              // Load content for first page
+              const contentResponse = await apiClient.get(`/api/pages/${firstPage.pageId}`)
+              if (contentResponse.success && contentResponse.data && typeof contentResponse.data === 'object' && 'content' in contentResponse.data) {
+                globalState.set('currentPageContent', {
+                  pageId: firstPage.pageId,
+                  content: (contentResponse.data as { content: string }).content || ''
+                })
+              }
             }
           } else {
-            // Fallback to sample data if API returns empty or fails
-            globalState.set('pages', samplePages)
-            globalState.set('currentPage', samplePages[0])
+            // Fallback to test data
+            globalState.set('pageMetadata', testPageMetadata)
+            globalState.set('currentPageMetadata', testPageMetadata[0])
+            globalState.set('currentPageContent', {
+              pageId: testPageMetadata[0].pageId,
+              content: testPageContent[testPageMetadata[0].pageId] || ''
+            })
           }
         } catch (error) {
-          console.warn('Failed to load pages from API, using sample data:', error)
-          // Fallback to sample data
-          globalState.set('pages', samplePages)
-          globalState.set('currentPage', samplePages[0])
+          console.warn('Failed to load pages from API, using test data:', error)
+          // Fallback to test data
+          globalState.set('pageMetadata', testPageMetadata)
+          globalState.set('currentPageMetadata', testPageMetadata[0])
+          globalState.set('currentPageContent', {
+            pageId: testPageMetadata[0].pageId,
+            content: testPageContent[testPageMetadata[0].pageId] || ''
+          })
         } finally {
           globalState.set('isLoadingPages', false)
         }
@@ -477,14 +154,6 @@ export default function App() {
     loadInitialData()
   }, [])
 
-  // Initialize global state with sample data on first load
-  useEffect(() => {
-    if (pages.length === 0) {
-      globalState.set('pages', samplePages)
-      globalState.set('currentPage', samplePages[0])
-    }
-  }, [pages.length])
-
   // Sync theme changes between user settings and global state
   useEffect(() => {
     if (isLoaded) {
@@ -492,7 +161,7 @@ export default function App() {
     }
   }, [settings.theme, isLoaded])
 
-  // Enhanced search function - now uses searchMode setting, no search history
+  // Enhanced search function
   const performSearch = (query: string) => {
     globalState.set('searchQuery', query)
     
@@ -501,41 +170,22 @@ export default function App() {
       return
     }
     
-    // Enhanced search implementation with full/partial modes
-    const searchInPages = (pagesList: WikiPage[], searchQuery: string): WikiPage[] => {
-      const results: WikiPage[] = []
-      const searchRecursive = (pages: WikiPage[]) => {
-        for (const page of pages) {
-          if (!page.isFolder) {
-            const titleMatch = page.title.toLowerCase().includes(searchQuery)
-            const tagMatch = page.tags?.some(tag => tag.toLowerCase().includes(searchQuery))
-            const contentMatch = settings.searchMode === 'full' 
-              ? page.content.toLowerCase().includes(searchQuery)
-              : false
-            
-            if (titleMatch || tagMatch || contentMatch) {
-              results.push(page)
-            }
-          }
-          if (page.children) {
-            searchRecursive(page.children)
-          }
-        }
-      }
-      searchRecursive(pagesList)
-      return results
-    }
+    // Search through pageMetadata
+    const results = pageMetadata.filter(metadata => {
+      const titleMatch = metadata.title.toLowerCase().includes(query.toLowerCase())
+      const tagMatch = metadata.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
+      return titleMatch || tagMatch
+    })
     
-    const results = searchInPages(pages, query.toLowerCase())
     globalState.set('searchResults', results)
   }
 
   const handleTagClick = (tag: string) => {
     globalState.set('searchQuery', tag)
-    // The FolderTree will handle the actual search implementation
+    performSearch(tag)
   }
 
-  // Set up the error handler for the API client
+  // Set up error handler for API client
   useEffect(() => {
     apiClient.setErrorHandler((message: string) => {
       setErrorMessage(message)
@@ -543,7 +193,7 @@ export default function App() {
     })
   }, [])
 
-  // Initialize collapsed state based on screen size - only run once on mount
+  // Initialize collapsed state based on screen size
   useEffect(() => {
     if (!hasInitialized) {
       if (isNarrowScreen) {
@@ -599,54 +249,26 @@ export default function App() {
     }
   }, [isSidebarCollapsed, isMetadataCollapsed, hasInitialized, isNarrowScreen])
 
-  // Handle search mode toggle
-  const handleSearchModeToggle = () => {
-    const newMode = settings.searchMode === 'full' ? 'partial' : 'full'
-    updateSetting('searchMode', newMode)
-    // Re-run current search with new mode
-    if (searchQuery.trim()) {
-      performSearch(searchQuery)
-    }
-  }
-
-  // Handle theme toggle button click
+  // Handle theme toggle
   const handleThemeToggle = () => {
     const nextTheme = settings.theme === 'light' ? 'dark' : settings.theme === 'dark' ? 'auto' : 'light'
     updateSetting('theme', nextTheme)
   }
 
-  // Get current theme icon based on theme setting
+  // Get theme icon and tooltip
   const getThemeIcon = () => {
-    if (settings.theme === 'light') {
-      return <LightMode />
-    } else if (settings.theme === 'dark') {
-      return <DarkMode />
-    } else {
-      return <Monitor />
-    }
+    if (settings.theme === 'light') return <LightMode />
+    if (settings.theme === 'dark') return <DarkMode />
+    return <Monitor />
   }
 
-  // Get theme tooltip text
   const getThemeTooltip = () => {
-    if (settings.theme === 'light') {
-      return 'Switch to Dark Mode'
-    } else if (settings.theme === 'dark') {
-      return 'Switch to Auto Mode'
-    } else {
-      return 'Switch to Light Mode'
-    }
+    if (settings.theme === 'light') return 'Switch to Dark Mode'
+    if (settings.theme === 'dark') return 'Switch to Auto Mode'
+    return 'Switch to Light Mode'
   }
 
-  // Get search mode icon and tooltip - Lightning bolt for metadata, AccessTime (stopwatch) for full content
-  const getSearchModeIcon = () => {
-    return settings.searchMode === 'full' ? <AccessTime /> : <FlashOn />
-  }
-
-  const getSearchModeTooltip = () => {
-    return settings.searchMode === 'full' ? 'Full Content Search' : 'Metadata Search'
-  }
-
-  // Wait for settings to load before rendering
+  // Wait for settings to load
   if (!isLoaded) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -659,12 +281,35 @@ export default function App() {
     setShowError(false)
   }
   
-  const handlePageSelect = (page: WikiPage) => {
-    if (!page.isFolder) {
-      globalState.update({
-        currentPage: page,
-        isEditing: false // Auto-exit edit mode when changing pages
+  const handlePageSelect = async (metadata: PageMetadata) => {
+    globalState.set('currentPageMetadata', metadata)
+    globalState.set('isEditing', false)
+    
+    // Load content for selected page
+    globalState.set('isLoadingPageContent', true)
+    try {
+      const response = await apiClient.get(`/api/pages/${metadata.pageId}`)
+      if (response.success && response.data && typeof response.data === 'object' && 'content' in response.data) {
+        globalState.set('currentPageContent', {
+          pageId: metadata.pageId,
+          content: (response.data as { content: string }).content || ''
+        })
+      } else {
+        // Fallback to test content
+        globalState.set('currentPageContent', {
+          pageId: metadata.pageId,
+          content: testPageContent[metadata.pageId] || '# ' + metadata.title + '\n\nContent not found.'
+        })
+      }
+    } catch (error) {
+      console.warn('Failed to load page content:', error)
+      // Fallback to test content
+      globalState.set('currentPageContent', {
+        pageId: metadata.pageId,
+        content: testPageContent[metadata.pageId] || '# ' + metadata.title + '\n\nContent not found.'
       })
+    } finally {
+      globalState.set('isLoadingPageContent', false)
     }
   }
 
@@ -673,44 +318,36 @@ export default function App() {
   }
 
   const handleSave = async (content: string) => {
-    if (!currentPage) return
+    if (!currentPageMetadata) return
     
-    // Use the centralized API client for real save operations
-    const response = await apiClient.put(`/api/pages/${currentPage.id}`, { 
-      content,
-      title: currentPage.title,
-      path: currentPage.path
-    })
-    
-    if (response.success) {
-      // Update the page in global state
-      const updatedPage = { 
-        ...currentPage, 
-        content,
-        updatedAt: new Date().toISOString(),
-        version: (currentPage.version || 1) + 1
-      }
+    try {
+      const response = await apiClient.put(`/api/pages/${currentPageMetadata.pageId}?title=${encodeURIComponent(currentPageMetadata.title)}&tags=${encodeURIComponent(currentPageMetadata.tags.join(','))}&filepath=${encodeURIComponent(currentPageMetadata.path)}&sortOrder=${currentPageMetadata.sortOrder}`, content)
       
-      // Update pages array in global state
-      const updatePagesRecursively = (pagesList: WikiPage[]): WikiPage[] => {
-        return pagesList.map(page => {
-          if (page.id === updatedPage.id) {
-            return updatedPage
-          }
-          if (page.children) {
-            return { ...page, children: updatePagesRecursively(page.children) }
-          }
-          return page
+      if (response.success) {
+        // Update content in state
+        globalState.set('currentPageContent', {
+          pageId: currentPageMetadata.pageId,
+          content: content
         })
+        
+        // Update metadata version
+        const updatedMetadata = {
+          ...currentPageMetadata,
+          version: currentPageMetadata.version + 1,
+          lastModified: Date.now() / 1000
+        }
+        globalState.set('currentPageMetadata', updatedMetadata)
+        
+        // Update in pageMetadata list
+        const updatedPageMetadata = pageMetadata.map(p => 
+          p.pageId === updatedMetadata.pageId ? updatedMetadata : p
+        )
+        globalState.set('pageMetadata', updatedPageMetadata)
+        
+        globalState.set('isEditing', false)
       }
-      
-      globalState.update({
-        pages: updatePagesRecursively(pages),
-        currentPage: updatedPage,
-        isEditing: false
-      })
-    } else {
-      console.warn('Failed to save page:', response.error?.message)
+    } catch (error) {
+      console.error('Failed to save page:', error)
     }
   }
 
@@ -719,17 +356,44 @@ export default function App() {
   }
 
   const handleNewPage = async () => {
-    const response = await apiClient.post('/api/pages?title=New%20Page&filepath=new-page.md', 
-      '# New Page\n\nStart writing your content here...'
-    )
-    
-    if (response.success) {
-      console.log('Page created successfully:', response.data)
+    try {
+      const response = await apiClient.post('/api/pages?title=New%20Page&tags=&filepath=new-page.md&sortOrder=0', '# New Page\n\nStart writing your content here...')
+
+      if (response.success) {
+        console.log('Page created successfully:', response.data)
+        // Reload page metadata to include new page
+        const metadataResponse = await apiClient.get<PageMetadata[]>('/api/pages')
+        if (metadataResponse.success && metadataResponse.data) {
+          globalState.set('pageMetadata', metadataResponse.data)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create page:', error)
     }
   }
 
   const handleDelete = async () => {
-    console.log('Delete page')
+    if (!currentPageMetadata) return
+    
+    try {
+      const response = await apiClient.delete(`/api/pages/${currentPageMetadata.pageId}`)
+      
+      if (response.success) {
+        // Remove from pageMetadata
+        const updatedPageMetadata = pageMetadata.filter(p => p.pageId !== currentPageMetadata.pageId)
+        globalState.set('pageMetadata', updatedPageMetadata)
+        
+        // Select first remaining page
+        if (updatedPageMetadata.length > 0) {
+          handlePageSelect(updatedPageMetadata[0])
+        } else {
+          globalState.set('currentPageMetadata', null)
+          globalState.set('currentPageContent', null)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete page:', error)
+    }
   }
 
   const handleSettingsClick = () => {
@@ -806,7 +470,6 @@ export default function App() {
     document.body.style.userSelect = 'none'
   }
 
-  // Get current year for footer copyright
   const currentYear = new Date().getFullYear()
 
   return (
@@ -827,7 +490,7 @@ export default function App() {
       {/* Top Banner/AppBar */}
       <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)', color: 'var(--freeki-app-bar-text-color)', zIndex: 1300 }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
-          {/* Left side - Logo and Title as clickable button */}
+          {/* Left side - Logo and Title */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <EnhancedTooltip title="Return to home page">
               <Button
@@ -861,15 +524,13 @@ export default function App() {
             </EnhancedTooltip>
           </Box>
 
-          {/* Center - Empty space or logo could go here */}
-          <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2 }}>
-            {/* Search functionality moved to FolderTree component */}
-          </Box>
+          {/* Center - Empty space */}
+          <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2 }} />
 
-          {/* Right side - Action buttons in new order: Edit/New/Delete, separator, theme toggle, settings gear, account icon */}
+          {/* Right side - Action buttons */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {/* Edit/Save/Cancel buttons */}
-            {currentPage && !currentPage.isFolder && (
+            {currentPageMetadata && (
               <>
                 {isEditing ? (
                   <>
@@ -878,7 +539,7 @@ export default function App() {
                         variant="contained"
                         color="success"
                         startIcon={<Save sx={{ color: 'white' }} />}
-                        onClick={() => handleSave(currentPage.content)}
+                        onClick={() => handleSave(currentPageContent?.content || '')}
                         sx={{ color: 'white' }}
                         aria-label="Save changes"
                       >
@@ -930,7 +591,7 @@ export default function App() {
             </EnhancedTooltip>
 
             {/* Delete button */}
-            {currentPage && !currentPage.isFolder && (
+            {currentPageMetadata && (
               <EnhancedTooltip title="Delete page">
                 <IconButton 
                   sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
@@ -955,7 +616,7 @@ export default function App() {
               </IconButton>
             </EnhancedTooltip>
 
-            {/* Admin Settings gear - only show if user is admin */}
+            {/* Admin Settings gear */}
             {userInfo?.isAdmin && (
               <EnhancedTooltip title="Administration settings">
                 <IconButton 
@@ -1023,10 +684,10 @@ export default function App() {
               }}>
                 <Typography>Loading pages...</Typography>
               </Box>
-            ) : currentPage ? (
+            ) : pageTree.length > 0 ? (
               <FolderTree
-                pages={pages}
-                selectedPage={currentPage}
+                pageTree={pageTree}
+                selectedPageMetadata={currentPageMetadata}
                 onPageSelect={handlePageSelect}
                 searchQuery={searchQuery}
               />
@@ -1095,7 +756,7 @@ export default function App() {
             {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
           </button>
           
-          {currentPage && !currentPage.isFolder && settings.showMetadataPanel && (
+          {currentPageMetadata && settings.showMetadataPanel && (
             <button
               className={`chevron-button chevron-wide-screen chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
               onClick={handleMetadataToggle}
@@ -1108,16 +769,18 @@ export default function App() {
 
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }} role="main">
             <Box sx={{ flex: 1, overflow: 'auto' }} role="main">
-              {currentPage && (
+              {currentPageMetadata && currentPageContent && (
                 isEditing ? (
                   <PageEditor
-                    page={currentPage}
+                    metadata={currentPageMetadata}
+                    content={currentPageContent}
                     onSave={handleSave}
                     onCancel={handleCancel}
                   />
                 ) : (
                   <PageViewer
-                    page={currentPage}
+                    metadata={currentPageMetadata}
+                    content={currentPageContent}
                     onEdit={handleEdit}
                   />
                 )
@@ -1127,7 +790,7 @@ export default function App() {
         </div>
 
         {/* Right Metadata Panel */}  
-        {currentPage && !currentPage.isFolder && settings.showMetadataPanel && (
+        {currentPageMetadata && currentPageContent && settings.showMetadataPanel && (
           <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isMetadataCollapsed ? ' narrow-opened' : ''}`} 
             style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
           >
@@ -1141,8 +804,9 @@ export default function App() {
             </button>
 
             <FadePanelContent visible={!isMetadataCollapsed}>
-              <PageMetadata
-                page={currentPage}
+              <PageMetadataPanel
+                metadata={currentPageMetadata}
+                content={currentPageContent}
                 onTagClick={handleTagClick}
               />
             </FadePanelContent>

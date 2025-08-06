@@ -1,18 +1,21 @@
 import { AdminSettings, DEFAULT_ADMIN_SETTINGS } from './adminSettings'
 import type { UserInfo } from './useUserSettings'
 
-// Interface for a page/wiki page
-export interface WikiPage {
-  id: string
-  title: string
+// Server-side page metadata - exactly matches the C# PageMetadata class
+export interface PageMetadata {
+  pageId: string       // Maps to PageId in C#
+  tags: string[]       // Maps to Tags in C#
+  title: string        // Maps to Title in C#
+  lastModified: number // Maps to LastModified in C# (Unix timestamp)
+  version: number      // Maps to Version in C#
+  path: string         // Maps to Path in C#
+  sortOrder: number    // Maps to SortOrder in C#
+}
+
+// Page content is separate - only loaded for the current page
+export interface PageContent {
+  pageId: string
   content: string
-  path: string
-  children?: WikiPage[]
-  isFolder: boolean
-  updatedAt?: string
-  author?: string
-  version?: number
-  tags?: string[]
 }
 
 // Global application state interface
@@ -23,18 +26,21 @@ export interface AppState {
   // Current user information and auth status
   currentUser: UserInfo | null
   
-  // All pages/wiki content
-  pages: WikiPage[]
+  // All page metadata from server - flat list (this is the raw server data)
+  pageMetadata: PageMetadata[]
   
-  // Currently selected/viewed page
-  currentPage: WikiPage | null
+  // Currently selected page metadata
+  currentPageMetadata: PageMetadata | null
+  
+  // Content for the currently selected page (loaded separately)
+  currentPageContent: PageContent | null
   
   // Current edit state
   isEditing: boolean
   
   // Search state
   searchQuery: string
-  searchResults: WikiPage[]
+  searchResults: PageMetadata[]
   
   // UI state
   theme: 'light' | 'dark' | 'auto'
@@ -45,6 +51,7 @@ export interface AppState {
   isLoadingAdminSettings: boolean
   isLoadingPages: boolean
   isLoadingUser: boolean
+  isLoadingPageContent: boolean
 }
 
 // Type for property path strings (e.g., 'adminSettings.colorSchemes.light.appBarBackground')
@@ -86,8 +93,9 @@ class GlobalStateManager {
     const initialState: AppState = {
       adminSettings: DEFAULT_ADMIN_SETTINGS,
       currentUser: null,
-      pages: [],
-      currentPage: null,
+      pageMetadata: [],
+      currentPageMetadata: null,
+      currentPageContent: null,
       isEditing: false,
       searchQuery: '',
       searchResults: [],
@@ -96,7 +104,8 @@ class GlobalStateManager {
       metadataCollapsed: false,
       isLoadingAdminSettings: true,
       isLoadingPages: false,
-      isLoadingUser: false
+      isLoadingUser: false,
+      isLoadingPageContent: false
     }
     
     this.state = deepClone(initialState)
@@ -288,5 +297,3 @@ export function useGlobalStateListener(
     return globalState.subscribe(path, listener)
   }, deps)
 }
-
-export default globalState

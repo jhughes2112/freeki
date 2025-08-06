@@ -1,5 +1,5 @@
 import apiClient from './apiClient'
-import type { WikiPage } from './globalState'
+import type { PageMetadata } from './globalState'
 import type { UserInfo } from './useUserSettings'
 import type { AdminSettings } from './adminSettings'
 
@@ -9,6 +9,7 @@ export interface PageCreateRequest {
   content: string        // Required - sent as raw text, not JSON
   filepath: string       // Required - sent as URL parameter
   tags: string[]         // Required - sent as comma-separated URL parameter
+  sortOrder: number      // Required - explicit sortOrder value
 }
 
 export interface PageUpdateRequest {
@@ -16,9 +17,10 @@ export interface PageUpdateRequest {
   content: string        // Required - sent as raw text, not JSON  
   filepath: string       // Required - sent as URL parameter
   tags: string[]         // Required - sent as comma-separated URL parameter
+  sortOrder: number      // Required - explicit sortOrder value
 }
 
-// Fixed: Server returns PageMetadata for history, not Git commit info
+// Server returns PageMetadata for history, not Git commit info
 export interface PageHistoryItem {
   pageId: string
   tags: string[]
@@ -26,6 +28,7 @@ export interface PageHistoryItem {
   lastModified: number   // Unix timestamp from server
   version: number        // Server uses long but can be treated as number in TS
   path: string
+  sortOrder: number      // Added sortOrder field
 }
 
 export interface MediaFile {
@@ -41,6 +44,12 @@ export interface SearchResult {
   path: string
   excerpt: string        // Required - no optional fields
   score: number          // Server uses int, but compatible with number
+}
+
+// Page with content - combination of metadata and content
+export interface PageWithContent {
+  metadata: PageMetadata
+  content: string
 }
 
 // High-level API service that wraps the low-level apiClient
@@ -69,44 +78,46 @@ class ApiService {
     })
   }
 
-  // Pages API
-  async getPages(query?: string, includeContent?: boolean): Promise<WikiPage[]> {
+  // Pages API - now returns PageMetadata arrays
+  async getPages(query?: string): Promise<PageMetadata[]> {
     const url = query 
-      ? `/api/pages?q=${encodeURIComponent(query)}&content=${includeContent ? '1' : '0'}`
+      ? `/api/pages?q=${encodeURIComponent(query)}`
       : '/api/pages'
     
-    const response = await apiClient.get<WikiPage[]>(url)
+    const response = await apiClient.get<PageMetadata[]>(url)
     return response.success ? response.data || [] : []
   }
 
-  async getPage(pageId: string): Promise<WikiPage | null> {
-    const response = await apiClient.get<WikiPage>(`/api/pages/${pageId}`)
+  async getPage(pageId: string): Promise<PageWithContent | null> {
+    const response = await apiClient.get<PageWithContent>(`/api/pages/${pageId}`)
     return response.success ? response.data || null : null
   }
 
-  async createPage(page: PageCreateRequest): Promise<WikiPage | null> {
-    // Server expects: POST /api/pages?title=X&tags=Y&filepath=Z with content as raw text body
+  async createPage(page: PageCreateRequest): Promise<PageMetadata | null> {
+    // Server expects: POST /api/pages?title=X&tags=Y&filepath=Z&sortOrder=N with content as raw text body
     const params = new URLSearchParams()
     params.set('title', page.title)
     params.set('tags', page.tags.join(','))
     params.set('filepath', page.filepath)
+    params.set('sortOrder', page.sortOrder.toString())
     
     const url = `/api/pages?${params.toString()}`
-    const response = await apiClient.post<WikiPage>(url, page.content, {
+    const response = await apiClient.post<PageMetadata>(url, page.content, {
       headers: { 'Content-Type': 'text/plain' }
     })
     return response.success ? response.data || null : null
   }
 
-  async updatePage(pageId: string, updates: PageUpdateRequest): Promise<WikiPage | null> {
-    // Server expects: PUT /api/pages/{id}?title=X&tags=Y&filepath=Z with content as raw text body
+  async updatePage(pageId: string, updates: PageUpdateRequest): Promise<PageMetadata | null> {
+    // Server expects: PUT /api/pages/{id}?title=X&tags=Y&filepath=Z&sortOrder=N with content as raw text body
     const params = new URLSearchParams()
     params.set('title', updates.title)
     params.set('tags', updates.tags.join(','))
     params.set('filepath', updates.filepath)
+    params.set('sortOrder', updates.sortOrder.toString())
     
     const url = `/api/pages/${pageId}?${params.toString()}`
-    const response = await apiClient.put<WikiPage>(url, updates.content, {
+    const response = await apiClient.put<PageMetadata>(url, updates.content, {
       headers: { 'Content-Type': 'text/plain' }
     })
     return response.success ? response.data || null : null
@@ -122,9 +133,9 @@ class ApiService {
     return response.success ? response.data || [] : []
   }
 
-  async retrievePageVersion(pageId: string, version: string): Promise<WikiPage | null> {
-    // Fixed: Server expects version as query parameter, not in POST body
-    const response = await apiClient.post<WikiPage>(`/api/pages/${pageId}/retrieve?version=${encodeURIComponent(version)}`, '')
+  async retrievePageVersion(pageId: string, version: string): Promise<PageWithContent | null> {
+    // Server expects version as query parameter
+    const response = await apiClient.post<PageWithContent>(`/api/pages/${pageId}/retrieve?version=${encodeURIComponent(version)}`, '')
     return response.success ? response.data || null : null
   }
 
@@ -208,8 +219,8 @@ class ApiService {
   }
 
   // Batch operations
-  async batchUpdatePages(updates: Array<{ pageId: string; updates: PageUpdateRequest }>): Promise<WikiPage[]> {
-    const results: WikiPage[] = []
+  async batchUpdatePages(updates: Array<{ pageId: string; updates: PageUpdateRequest }>): Promise<PageMetadata[]> {
+    const results: PageMetadata[] = []
     
     // Process updates sequentially to maintain order and avoid conflicts
     for (const { pageId, updates: pageUpdates } of updates) {
@@ -291,15 +302,15 @@ class ApiService {
   }
 
   // Enhanced pages methods with caching
-  async getPagesCached(query?: string, includeContent?: boolean, cacheTtl?: number): Promise<WikiPage[]> {
-    const cacheKey = this.getCacheKey('GET', '/api/pages', { query, includeContent })
+  async getPagesCached(query?: string, cacheTtl?: number): Promise<PageMetadata[]> {
+    const cacheKey = this.getCacheKey('GET', '/api/pages', { query })
     
-    const cached = this.getCached<WikiPage[]>(cacheKey)
+    const cached = this.getCached<PageMetadata[]>(cacheKey)
     if (cached) {
       return cached
     }
 
-    const result = await this.getPages(query, includeContent)
+    const result = await this.getPages(query)
     this.setCached(cacheKey, result, cacheTtl)
     return result
   }

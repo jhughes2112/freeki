@@ -16,7 +16,8 @@ import {
   Description,
   Clear
 } from '@mui/icons-material'
-import type { WikiPage } from './globalState'
+import type { TreeNode } from './pageTreeUtils'
+import type { PageMetadata } from './globalState'
 import { useUserSettings } from './useUserSettings'
 
 // Search modes for the filter
@@ -101,45 +102,47 @@ function SearchDepthIndicator({ mode, onClick, title }: SearchDepthIndicatorProp
 }
 
 interface FolderTreeProps {
-  pages: WikiPage[]
-  selectedPage: WikiPage
-  onPageSelect: (page: WikiPage) => void
+  pageTree: TreeNode[]
+  selectedPageMetadata: PageMetadata | null
+  onPageSelect: (metadata: PageMetadata) => void
   onSearch?: (query: string, mode: SearchMode) => void
   searchQuery?: string
 }
 
-interface TreeNodeProps {
-  page: WikiPage
+interface TreeNodeComponentProps {
+  node: TreeNode
   level: number
-  selectedPage: WikiPage
-  onPageSelect: (page: WikiPage) => void
+  selectedPageMetadata: PageMetadata | null
+  onPageSelect: (metadata: PageMetadata) => void
   expandedNodes: Set<string>
   onToggleExpanded: (pageId: string) => void
   selectedItemRef?: React.RefObject<HTMLLIElement | null>
 }
 
-function TreeNode({ 
-  page, 
+function TreeNodeComponent({ 
+  node, 
   level, 
-  selectedPage, 
+  selectedPageMetadata, 
   onPageSelect, 
   expandedNodes, 
   onToggleExpanded,
   selectedItemRef
-}: TreeNodeProps) {
-  const isExpanded = expandedNodes.has(page.id)
-  const isSelected = selectedPage.id === page.id
-  const hasChildren = page.children && page.children.length > 0
+}: TreeNodeComponentProps) {
+  const isExpanded = expandedNodes.has(node.metadata.pageId)
+  const isSelected = selectedPageMetadata?.pageId === node.metadata.pageId
+  const hasChildren = node.children && node.children.length > 0
   const textRef = useRef<HTMLDivElement>(null)
   const folderIconRef = useRef<HTMLDivElement>(null)
 
   const handleClick = () => {
-    // Always select the page when clicked
-    onPageSelect(page)
+    // Always select the page when clicked (only if it's not a folder)
+    if (!node.isFolder) {
+      onPageSelect(node.metadata)
+    }
     
-    // If it's a folder with children, also toggle expansion
-    if (page.isFolder && hasChildren) {
-      onToggleExpanded(page.id)
+    // If it's a folder with children, toggle expansion
+    if (node.isFolder && hasChildren) {
+      onToggleExpanded(node.metadata.pageId)
     }
 
     // Position the text optimally when clicked
@@ -168,7 +171,6 @@ function TreeNode({
           const folderIconRect = folderIconElement.getBoundingClientRect()
           
           // Calculate the folder icon's X position within the scrollable content
-          // This is the exact left edge of the icon we want to make visible
           const folderIconLeftInContainer = folderIconRect.left - containerRect.left + scrollContainer.scrollLeft
           
           // Always position so folder icon appears at left edge (x=0) with smooth animation
@@ -185,17 +187,12 @@ function TreeNode({
     positionTextOptimally()
   }
 
-  const handleMouseLeave = () => {
-    // Do nothing - keep the scroll position as requested
-  }
-
   return (
     <>
       <ListItem
         ref={isSelected ? selectedItemRef : null}
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         sx={{
           pl: 1 + level * 1.5,
           pr: 1,
@@ -229,7 +226,7 @@ function TreeNode({
             mr: 0.75
           }}
         >
-          {page.isFolder ? (
+          {node.isFolder ? (
             isExpanded ? <FolderOpen fontSize="small" /> : <Folder fontSize="small" />
           ) : (
             <Description fontSize="small" />
@@ -264,27 +261,27 @@ function TreeNode({
                 transition: 'transform 0.3s ease-out',
                 display: 'inline-block'
               }}
-              title={page.title}
+              title={node.metadata.title}
             >
-              {page.title}
+              {node.metadata.title}
             </Typography>
           </Box>
         </Box>
       </ListItem>
       
       {/* Children - only show if folder is expanded */}
-      {page.isFolder && hasChildren && (
+      {node.isFolder && hasChildren && (
         <Collapse in={isExpanded} timeout="auto" unmountOnExit>
           <List component="div" disablePadding sx={{ 
             borderLeft: level > 0 ? `1px solid var(--freeki-border-color)` : 'none', 
             ml: level > 0 ? 1.5 : 0 
           }}>
-            {page.children?.map((child: WikiPage) => (
-              <TreeNode
-                key={child.id}
-                page={child}
+            {node.children?.map((child: TreeNode) => (
+              <TreeNodeComponent
+                key={child.metadata.pageId}
+                node={child}
                 level={level + 1}
-                selectedPage={selectedPage}
+                selectedPageMetadata={selectedPageMetadata}
                 onPageSelect={onPageSelect}
                 expandedNodes={expandedNodes}
                 onToggleExpanded={onToggleExpanded}
@@ -298,7 +295,7 @@ function TreeNode({
   )
 }
 
-export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch, searchQuery: externalSearchQuery }: FolderTreeProps) {
+export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelect, onSearch, searchQuery: externalSearchQuery }: FolderTreeProps) {
   const { settings, toggleExpandedNode } = useUserSettings()
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
@@ -308,57 +305,35 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
   // Convert user settings expandedNodes array to Set for efficient lookups
   const expandedNodes = useMemo(() => new Set(settings.expandedNodes), [settings.expandedNodes])
 
-  // Sort pages function - folders first, then alphabetically within each group
-  const sortPages = (pageList: WikiPage[]): WikiPage[] => {
-    return pageList
-      .map(page => ({
-        ...page,
-        children: page.children ? sortPages(page.children) : undefined
-      }))
-      .sort((a, b) => {
-        // First sort by type: folders before files
-        if (a.isFolder && !b.isFolder) return -1
-        if (!a.isFolder && b.isFolder) return 1
-        
-        // Then sort alphabetically by title within the same type
-        return a.title.localeCompare(b.title)
-      })
-  }
-
-  // Apply sorting to pages
-  const sortedPages = useMemo(() => sortPages(pages), [pages])
-
-  // Filter pages based on search text
-  const filteredPages = useMemo(() => {
-    if (!filterText.trim()) return sortedPages
+  // Filter tree nodes based on search text
+  const filteredPageTree = useMemo(() => {
+    if (!filterText.trim()) return pageTree
     
     const filterLower = filterText.toLowerCase()
     
-    const filterTree = (pageList: WikiPage[]): WikiPage[] => {
-      return pageList.reduce((filtered: WikiPage[], page) => {
+    const filterTree = (nodes: TreeNode[]): TreeNode[] => {
+      return nodes.reduce((filtered: TreeNode[], node) => {
         let matches = false
         
         if (searchMode === 'titles') {
-          matches = page.title?.toLowerCase()?.includes(filterLower) ?? false
+          matches = node.metadata.title.toLowerCase().includes(filterLower)
         } else if (searchMode === 'metadata') {
-          const titleMatch = page.title?.toLowerCase()?.includes(filterLower) ?? false
-          const tagMatch = page.tags?.some(tag => tag.toLowerCase().includes(filterLower)) ?? false
+          const titleMatch = node.metadata.title.toLowerCase().includes(filterLower)
+          const tagMatch = node.metadata.tags.some(tag => tag.toLowerCase().includes(filterLower))
           matches = titleMatch || tagMatch
         } else if (searchMode === 'fullContent') {
-          // For full content search, fall back to metadata search locally for now
-          // When using this mode, we should ideally make an API call
-          const titleMatch = page.title?.toLowerCase()?.includes(filterLower) ?? false
-          const tagMatch = page.tags?.some(tag => tag.toLowerCase().includes(filterLower)) ?? false
-          const contentMatch = page.content?.toLowerCase()?.includes(filterLower) ?? false
-          matches = titleMatch || tagMatch || contentMatch
+          // For full content search, fall back to metadata search locally
+          const titleMatch = node.metadata.title.toLowerCase().includes(filterLower)
+          const tagMatch = node.metadata.tags.some(tag => tag.toLowerCase().includes(filterLower))
+          matches = titleMatch || tagMatch
         }
         
-        const childMatches = page.children ? filterTree(page.children) : []
+        const childMatches = node.children ? filterTree(node.children) : []
         
         if (matches || childMatches.length > 0) {
           filtered.push({
-            ...page,
-            children: childMatches.length > 0 ? childMatches : page.children
+            ...node,
+            children: childMatches.length > 0 ? childMatches : node.children
           })
         }
         
@@ -366,8 +341,8 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
       }, [])
     }
     
-    return filterTree(sortedPages)
-  }, [sortedPages, filterText, searchMode])
+    return filterTree(pageTree)
+  }, [pageTree, filterText, searchMode])
 
   // Auto-expand all folders that contain matches when filtering
   const expandedNodesForFiltering = useMemo(() => {
@@ -375,33 +350,35 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
     
     const allExpandedNodes = new Set(expandedNodes)
     
-    const collectFolderIds = (pageList: WikiPage[]) => {
-      for (const page of pageList) {
-        if (page.isFolder && page.children) {
-          allExpandedNodes.add(page.id)
-          collectFolderIds(page.children)
+    const collectFolderIds = (nodes: TreeNode[]) => {
+      for (const node of nodes) {
+        if (node.isFolder && node.children) {
+          allExpandedNodes.add(node.metadata.pageId)
+          collectFolderIds(node.children)
         }
       }
     }
     
     // Expand all folders in filtered results
-    collectFolderIds(filteredPages)
+    collectFolderIds(filteredPageTree)
     
     return allExpandedNodes
-  }, [filteredPages, expandedNodes, filterText])
+  }, [filteredPageTree, expandedNodes, filterText])
 
   // Find path to selected page and auto-expand parents
   const getPathToPage = useMemo(() => {
-    const findPath = (pages: WikiPage[], targetId: string, currentPath: string[] = []): string[] | null => {
-      for (const page of pages) {
-        const newPath = [...currentPath, page.id]
+    if (!selectedPageMetadata) return null
+    
+    const findPath = (nodes: TreeNode[], targetId: string, currentPath: string[] = []): string[] | null => {
+      for (const node of nodes) {
+        const newPath = [...currentPath, node.metadata.pageId]
         
-        if (page.id === targetId) {
+        if (node.metadata.pageId === targetId) {
           return newPath
         }
         
-        if (page.children) {
-          const childPath = findPath(page.children, targetId, newPath)
+        if (node.children) {
+          const childPath = findPath(node.children, targetId, newPath)
           if (childPath) {
             return childPath
           }
@@ -410,8 +387,8 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
       return null
     }
     
-    return findPath(pages, selectedPage.id)
-  }, [pages, selectedPage.id])
+    return findPath(pageTree, selectedPageMetadata.pageId)
+  }, [pageTree, selectedPageMetadata])
 
   // Auto-expand path to selected page when it changes
   useEffect(() => {
@@ -428,7 +405,7 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
 
   // Center the selected item in the container
   useEffect(() => {
-    if (selectedItemRef.current && containerRef.current) {
+    if (selectedItemRef.current && containerRef.current && selectedPageMetadata) {
       const container = containerRef.current
       const selectedItem = selectedItemRef.current
       
@@ -452,7 +429,7 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
         })
       }, 100)
     }
-  }, [selectedPage.id, expandedNodes])
+  }, [selectedPageMetadata?.pageId, expandedNodes])
 
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value
@@ -494,7 +471,7 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
         setSearchMode('metadata')
       }
     }
-  }, [externalSearchQuery]) // Remove filterText and searchMode from dependencies to prevent infinite loop
+  }, [externalSearchQuery])
 
   const getSearchModeTitle = () => {
     switch (searchMode) {
@@ -508,7 +485,7 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
   return (
     <Box sx={{ 
       height: '100%', 
-      overflow: 'hidden', // Prevent user scrolling
+      overflow: 'hidden',
       color: 'var(--freeki-folders-font-color)',
       backgroundColor: 'var(--freeki-folders-background)',
       borderRadius: 'var(--freeki-border-radius)',
@@ -554,8 +531,8 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
             )
           }}
           inputProps={{
-            autoComplete: 'off', // Disable browser autocomplete/history
-            spellCheck: false // Disable spellcheck for search
+            autoComplete: 'off',
+            spellCheck: false
           }}
           sx={{
             borderRadius: 'var(--freeki-border-radius)',
@@ -566,19 +543,16 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
               },
               '&:hover fieldset': {
                 borderColor: 'var(--freeki-border-color)',
-                // Reset on hover
                 backgroundColor: 'transparent',
               },
               '&.Mui-focused fieldset': {
                 borderColor: 'var(--freeki-primary)',
-                // Keep the background color on focus
                 backgroundColor: 'transparent',
               },
             },
             '& .MuiInputBase-input': {
               py: 1.5,
               px: 2,
-              // Match the height of list items
               height: 'auto',
               color: 'var(--freeki-folders-font-color)',
               fontSize: 'var(--freeki-folders-font-size)',
@@ -590,7 +564,7 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
         />
       </Box>
       
-      {filteredPages.length === 0 ? (
+      {filteredPageTree.length === 0 ? (
         <Box sx={{ 
           display: 'flex', 
           flexDirection: 'column', 
@@ -613,28 +587,27 @@ export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch
           ref={containerRef}
           sx={{ 
             flex: 1, 
-            overflowY: 'auto', // Allow vertical scrolling for navigation
-            overflowX: 'auto', // Allow horizontal scrolling but hide scrollbar
+            overflowY: 'auto',
+            overflowX: 'auto',
             position: 'relative',
-            // Hide horizontal scrollbar while maintaining scroll functionality
             '&::-webkit-scrollbar:horizontal': {
               display: 'none'
             },
-            scrollbarWidth: 'none', // Firefox
-            msOverflowStyle: 'none' // IE/Edge
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
           }}
         >
           <List component="nav" dense disablePadding sx={{ 
             pt: 0.5,
-            minWidth: 'fit-content', // Allow the list to extend beyond container width
+            minWidth: 'fit-content',
             position: 'relative'
           }}>
-            {filteredPages.map((page) => (
-              <TreeNode
-                key={page.id}
-                page={page}
+            {filteredPageTree.map((node) => (
+              <TreeNodeComponent
+                key={node.metadata.pageId}
+                node={node}
                 level={0}
-                selectedPage={selectedPage}
+                selectedPageMetadata={selectedPageMetadata}
                 onPageSelect={onPageSelect}
                 expandedNodes={filterText.trim() ? expandedNodesForFiltering : expandedNodes}
                 onToggleExpanded={handleToggleExpanded}

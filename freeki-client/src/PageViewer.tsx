@@ -1,13 +1,16 @@
 import { Box, Typography, Paper, Divider } from '@mui/material'
-import type { WikiPage } from './globalState'
+import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
 
 interface PageViewerProps {
-  page: WikiPage
+  metadata: PageMetadata
+  content: PageContent
   onEdit: () => void
 }
 
-export default function PageViewer({ page }: PageViewerProps) {
+export default function PageViewer({ metadata, content }: PageViewerProps) {
+  const isFolder = metadata.path.includes('/') && !metadata.path.endsWith('.md')
+  
   return (
     <Box sx={{ 
       height: '100%', 
@@ -27,14 +30,14 @@ export default function PageViewer({ page }: PageViewerProps) {
             fontWeight: 'bold'
           }}
         >
-          {page.title}
+          {metadata.title}
         </Typography>
       </Box>
 
       <Divider sx={{ mb: { xs: 2, sm: 2.5, md: 3 }, borderColor: 'var(--freeki-border-color)' }} />
 
       <Box sx={{ flex: 1, overflow: 'auto' }}>
-        {page.isFolder ? (
+        {isFolder ? (
           <Paper sx={{ 
             ...themeStyles.paper,
             p: { xs: 1, sm: 2, md: 3 },
@@ -98,7 +101,7 @@ export default function PageViewer({ page }: PageViewerProps) {
                   mb: 0.5 
                 }
               }}
-              dangerouslySetInnerHTML={{ __html: page.content }} 
+              dangerouslySetInnerHTML={{ __html: content.content }} 
             />
           </Paper>
         )}

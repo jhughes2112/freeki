@@ -1,9 +1,10 @@
 import { Box, Typography, Paper, Chip, Stack } from '@mui/material'
-import type { WikiPage } from './globalState'
+import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
 
-interface PageMetadataProps {
-  page: WikiPage
+interface PageMetadataComponentProps {
+  metadata: PageMetadata
+  content: PageContent
   onTagClick?: (tag: string) => void
 }
 
@@ -29,7 +30,7 @@ const fakeHistory = [
   }
 ]
 
-export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
+export default function PageMetadataComponent({ metadata, content, onTagClick }: PageMetadataComponentProps) {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -81,8 +82,8 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
           Tags
         </Typography>
         <Stack direction="row" spacing={1}>
-          {Array.isArray(page.tags) && page.tags.length > 0 ? (
-            page.tags.map((tag: string) => (
+          {Array.isArray(metadata.tags) && metadata.tags.length > 0 ? (
+            metadata.tags.map((tag: string) => (
               <Chip
                 key={tag}
                 label={tag}
@@ -143,7 +144,7 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
               sx={{ 
                 p: 1, 
                 borderRadius: 'var(--freeki-border-radius)', 
-                backgroundColor: record.version === page.version ? 'var(--freeki-folders-selected-background)' : 'transparent' 
+                backgroundColor: record.version === metadata.version ? 'var(--freeki-folders-selected-background)' : 'transparent' 
               }}
             >
               <Typography 
@@ -154,7 +155,7 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
                   fontSize: 'var(--freeki-page-details-font-size)'
                 }}
               >
-                Version {record.version} {record.version === page.version ? '(Current)' : ''}
+                Version {record.version} {record.version === metadata.version ? '(Current)' : ''}
               </Typography>
               <Typography 
                 variant="body2" 
@@ -207,7 +208,17 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
             fontSize: 'var(--freeki-page-details-font-size)'
           }}
         >
-          Path: {page.path}
+          Path: {metadata.path}
+        </Typography>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            mb: 1, 
+            color: 'var(--freeki-page-details-font-color)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }}
+        >
+          Sort Order: {metadata.sortOrder}
         </Typography>
         <Typography 
           variant="body2" 
@@ -216,7 +227,7 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
             fontSize: 'var(--freeki-page-details-font-size)'
           }}
         >
-          Words: {page.content.replace(/<[^>]*>/g, '').split(/\s+/).length}
+          Words: {content.content.replace(/<[^>]*>/g, '').split(/\s+/).length}
         </Typography>
       </Paper>
     </Box>

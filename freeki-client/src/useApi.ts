@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
 import apiService from './apiService'
-import type { WikiPage } from './globalState'
-import type { PageCreateRequest, PageUpdateRequest, MediaFile, SearchResult } from './apiService'
+import type { PageMetadata, PageContent } from './globalState'
+import type { PageCreateRequest, PageUpdateRequest, MediaFile, SearchResult, PageWithContent } from './apiService'
 
 // Custom hook for managing pages data
 export function usePages() {
-  const [pages, setPages] = useState<WikiPage[]>([])
+  const [pages, setPages] = useState<PageMetadata[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
-  const loadPages = useCallback(async (query?: string, includeContent?: boolean) => {
+  const loadPages = useCallback(async (query?: string) => {
     setLoading(true)
     setError(null)
     try {
-      const data = await apiService.getPages(query, includeContent)
+      const data = await apiService.getPages(query)
       setPages(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load pages')
@@ -23,7 +23,7 @@ export function usePages() {
     }
   }, [])
 
-  const createPage = useCallback(async (pageData: PageCreateRequest): Promise<WikiPage | null> => {
+  const createPage = useCallback(async (pageData: PageCreateRequest): Promise<PageMetadata | null> => {
     setLoading(true)
     setError(null)
     try {
@@ -41,13 +41,13 @@ export function usePages() {
     }
   }, [])
 
-  const updatePage = useCallback(async (pageId: string, updates: PageUpdateRequest): Promise<WikiPage | null> => {
+  const updatePage = useCallback(async (pageId: string, updates: PageUpdateRequest): Promise<PageMetadata | null> => {
     setLoading(true)
     setError(null)
     try {
       const updatedPage = await apiService.updatePage(pageId, updates)
       if (updatedPage) {
-        setPages(prev => prev.map(page => page.id === pageId ? updatedPage : page))
+        setPages(prev => prev.map(page => page.pageId === pageId ? updatedPage : page))
       }
       return updatedPage
     } catch (err) {
@@ -65,7 +65,7 @@ export function usePages() {
     try {
       const success = await apiService.deletePage(pageId)
       if (success) {
-        setPages(prev => prev.filter(page => page.id !== pageId))
+        setPages(prev => prev.filter(page => page.pageId !== pageId))
       }
       return success
     } catch (err) {
@@ -89,9 +89,9 @@ export function usePages() {
   }
 }
 
-// Custom hook for managing individual page data
+// Custom hook for managing individual page data with content
 export function usePage(pageId: string | null) {
-  const [page, setPage] = useState<WikiPage | null>(null)
+  const [pageWithContent, setPageWithContent] = useState<PageWithContent | null>(null)
   const [loading, setLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -100,7 +100,7 @@ export function usePage(pageId: string | null) {
     setError(null)
     try {
       const data = await apiService.getPage(id)
-      setPage(data)
+      setPageWithContent(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load page')
       console.error('Failed to load page:', err)
@@ -113,12 +113,18 @@ export function usePage(pageId: string | null) {
     if (pageId) {
       loadPage(pageId)
     } else {
-      setPage(null)
+      setPageWithContent(null)
     }
   }, [pageId, loadPage])
 
+  // Extract metadata and content for convenient access
+  const metadata = pageWithContent?.metadata || null
+  const content = pageWithContent ? { pageId: pageWithContent.metadata.pageId, content: pageWithContent.content } : null
+
   return {
-    page,
+    pageWithContent,
+    metadata,
+    content,
     loading,
     error,
     reload: () => pageId ? loadPage(pageId) : undefined,
