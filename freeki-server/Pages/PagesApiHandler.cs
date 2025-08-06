@@ -3,9 +3,7 @@ using Logging;
 using Storage;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace FreeKi
@@ -57,7 +55,7 @@ namespace FreeKi
 			return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 		}
 
-		public async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string gitAuthorName, string gitAuthorEmail)
+		private async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string gitAuthorName, string gitAuthorEmail)
 		{
 			// Parse URL segments
 			List<string> segments = new List<string>(httpListenerContext.Request.Url?.Segments ?? []);

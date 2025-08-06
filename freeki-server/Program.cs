@@ -92,7 +92,7 @@ namespace FreeKi
 				userApiHandler = new UserApiHandler(authentication, logger);
 
 				// Create AdminSettingsApiHandler
-				adminSettingsApiHandler = new AdminSettingsApiHandler(adminStorage, authentication, logger);
+				adminSettingsApiHandler = new AdminSettingsApiHandler(adminStorage, authentication, logger, gitManager);
 
 				// The reason this takes in a CancellationTokenSource is Docker/someone may hit ^C and want to shutdown the server.
 				// The reason we explicitly call Shutdown is the server itself may exit for other reasons, and we need to make sure it shuts down in either case.

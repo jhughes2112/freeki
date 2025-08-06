@@ -23,13 +23,15 @@ namespace Admin
         private readonly IStorage        _storage;
         private readonly IAuthentication _authentication;
         private readonly ILogging        _logger;
-        private const string             SETTINGS_FILE = "freeki.config";
+        private readonly GitManager      _gitManager;
+        private const string             kSettingsFile = "freeki.config";
 
-        public AdminSettingsApiHandler(IStorage storage, IAuthentication authentication, ILogging logger)
+        public AdminSettingsApiHandler(IStorage storage, IAuthentication authentication, ILogging logger, GitManager gitManager)
         {
             _storage        = storage;
             _authentication = authentication;
             _logger         = logger;
+            _gitManager     = gitManager;
         }
 
         // Main entry point for /api/admin/settings requests - handles authentication and delegates to HandleRequest
@@ -43,10 +45,14 @@ namespace Admin
                 return (401, "text/plain", Encoding.UTF8.GetBytes("Unauthorized"));
             }
 
-            return await HandleRequest(httpListenerContext, accountId, roles).ConfigureAwait(false);
+			// Prepare git author information with fallbacks
+			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId;
+			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : "System@Freeki";
+
+            return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail, roles).ConfigureAwait(false);
         }
 
-        public async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string accountId, string[]? roles)
+        private async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string fullName, string email, string[]? roles)
         {
             string httpMethod = httpListenerContext.Request.HttpMethod;
             
@@ -62,11 +68,11 @@ namespace Admin
                     bool isAdmin = roles != null && Array.IndexOf(roles, IAuthentication.kAdminRole) >= 0;
                     if (!isAdmin)
                     {
-                        _logger.Log(EVerbosity.Warning, $"Non-admin user {accountId} attempted to modify admin settings");
+                        _logger.Log(EVerbosity.Warning, $"Non-admin user attempted to modify admin settings");
                         return (403, "text/plain", Encoding.UTF8.GetBytes("Admin role required to modify settings"));
                     }
 
-                    return await HandleSaveSettings(httpListenerContext, accountId).ConfigureAwait(false);
+                    return await HandleSaveSettings(httpListenerContext, fullName, email).ConfigureAwait(false);
                 }
                 else
                 {
@@ -85,7 +91,7 @@ namespace Admin
         {
             try
             {
-                byte[]? settingsData = await _storage.Read(SETTINGS_FILE).ConfigureAwait(false);
+                byte[]? settingsData = await _storage.Read(kSettingsFile).ConfigureAwait(false);
                 if (settingsData != null)
                 {
                     return (200, "application/json", settingsData);
@@ -104,7 +110,7 @@ namespace Admin
         }
 
         // POST /api/admin/settings - Save admin settings
-        private async Task<(int, string, byte[])> HandleSaveSettings(HttpListenerContext httpListenerContext, string accountId)
+        private async Task<(int, string, byte[])> HandleSaveSettings(HttpListenerContext httpListenerContext, string fullName, string email)
         {
             try
             {
@@ -117,7 +123,7 @@ namespace Admin
                 
                 if (string.IsNullOrWhiteSpace(jsonContent))
                 {
-                    _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Empty request body from {accountId}");
+                    _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Empty request body");
                     return (400, "text/plain", Encoding.UTF8.GetBytes("Request body cannot be empty"));
                 }
                 
@@ -126,28 +132,48 @@ namespace Admin
                 
                 // Store the settings as raw JSON in freeki.config
                 byte[] settingsData = Encoding.UTF8.GetBytes(jsonContent);
-                bool success = await _storage.Write(SETTINGS_FILE, settingsData).ConfigureAwait(false);
+                bool success = await _storage.Write(kSettingsFile, settingsData).ConfigureAwait(false);
                 if (success)
                 {
-                    _logger.Log(EVerbosity.Info, $"AdminSettingsApiHandler.HandleSaveSettings: Admin settings updated by {accountId}");
+                    _logger.Log(EVerbosity.Info, $"AdminSettingsApiHandler.HandleSaveSettings: Admin settings updated");
+                    
+                    // Commit to git for version control
+                    try
+                    {
+                        string commitMessage = $"Updated admin settings: {kSettingsFile}";
+                        string? commitSha = await _gitManager.CommitFile(kSettingsFile, settingsData, fullName, email, commitMessage).ConfigureAwait(false);
+                        if (commitSha != null)
+                        {
+                            _logger.Log(EVerbosity.Debug, $"AdminSettingsApiHandler.HandleSaveSettings: Committed file {kSettingsFile} to git with SHA={commitSha}");
+                        }
+                        else
+                        {
+                            _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Git commit returned null for file {kSettingsFile}");
+                        }
+                    }
+                    catch (Exception gitEx)
+                    {
+                        _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Git commit failed for file {kSettingsFile}: {gitEx.Message}");
+                    }
+
                     object response = new { success = true };
                     string jsonResponse = JsonSerializer.Serialize(response);
                     return (200, "application/json", Encoding.UTF8.GetBytes(jsonResponse));
                 }
                 else
                 {
-                    _logger.Log(EVerbosity.Error, $"AdminSettingsApiHandler.HandleSaveSettings: Failed to write settings file for {accountId}");
+                    _logger.Log(EVerbosity.Error, $"AdminSettingsApiHandler.HandleSaveSettings: Failed to write settings file");
                     return (500, "text/plain", Encoding.UTF8.GetBytes("Failed to save settings"));
                 }
             }
             catch (JsonException ex)
             {
-                _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Invalid JSON from {accountId}: {ex.Message}");
+                _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Invalid JSON: {ex.Message}");
                 return (400, "text/plain", Encoding.UTF8.GetBytes("Invalid JSON format"));
             }
             catch (Exception ex)
             {
-                _logger.Log(EVerbosity.Error, $"AdminSettingsApiHandler.HandleSaveSettings: Error saving admin settings from {accountId}: {ex.Message}");
+                _logger.Log(EVerbosity.Error, $"AdminSettingsApiHandler.HandleSaveSettings: Error saving admin settings: {ex.Message}");
                 return (500, "text/plain", Encoding.UTF8.GetBytes("Internal server error"));
             }
         }
