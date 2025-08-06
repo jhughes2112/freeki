@@ -1,24 +1,111 @@
-import React, { useEffect, useMemo, useRef } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Box,
   List,
   ListItem,
   ListItemIcon,
   Collapse,
-  Typography
+  Typography,
+  TextField,
+  IconButton,
+  Tooltip
 } from '@mui/material'
 import {
   Folder,
   FolderOpen,
-  Description
+  Description,
+  Clear
 } from '@mui/icons-material'
 import type { WikiPage } from './globalState'
 import { useUserSettings } from './useUserSettings'
+
+// Search modes for the filter
+type SearchMode = 'titles' | 'metadata' | 'fullContent'
+
+interface SearchDepthIndicatorProps {
+  mode: SearchMode
+  onClick: () => void
+  title: string
+}
+
+// Enhanced Tooltip component matching the header tooltips
+const EnhancedTooltip = ({ children, title, ...props }: { 
+  children: React.ReactElement; 
+  title: string; 
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+  arrow?: boolean;
+  enterDelay?: number;
+  leaveDelay?: number;
+}) => (
+  <Tooltip
+    title={title}
+    enterDelay={150}
+    leaveDelay={0}
+    arrow
+    {...props}
+  >
+    {children}
+  </Tooltip>
+)
+
+// Custom component for search depth indicator with vertical pips
+function SearchDepthIndicator({ mode, onClick, title }: SearchDepthIndicatorProps) {
+  const getPipCount = () => {
+    switch (mode) {
+      case 'titles': return 1
+      case 'metadata': return 2
+      case 'fullContent': return 3
+      default: return 1
+    }
+  }
+
+  const pipCount = getPipCount()
+
+  return (
+    <EnhancedTooltip title={title}>
+      <IconButton
+        size="small"
+        onClick={onClick}
+        sx={{ p: 0.5 }}
+        aria-label={title}
+      >
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'center', 
+          gap: 0.25,
+          width: 16,
+          height: 16
+        }}>
+          {/* Create 3 pips, fill based on mode */}
+          {[3, 2, 1].map((level) => (
+            <Box
+              key={level}
+              sx={{
+                width: 8,
+                height: 3,
+                borderRadius: 0.5,
+                backgroundColor: level <= pipCount 
+                  ? 'var(--freeki-folders-font-color)' 
+                  : 'transparent',
+                border: `1px solid var(--freeki-folders-font-color)`,
+                opacity: level <= pipCount ? 1 : 0.4,
+                transition: 'all 0.2s ease-in-out'
+              }}
+            />
+          ))}
+        </Box>
+      </IconButton>
+    </EnhancedTooltip>
+  )
+}
 
 interface FolderTreeProps {
   pages: WikiPage[]
   selectedPage: WikiPage
   onPageSelect: (page: WikiPage) => void
+  onSearch?: (query: string, mode: SearchMode) => void
+  searchQuery?: string
 }
 
 interface TreeNodeProps {
@@ -211,13 +298,97 @@ function TreeNode({
   )
 }
 
-export default function FolderTree({ pages, selectedPage, onPageSelect }: FolderTreeProps) {
+export default function FolderTree({ pages, selectedPage, onPageSelect, onSearch, searchQuery: externalSearchQuery }: FolderTreeProps) {
   const { settings, toggleExpandedNode } = useUserSettings()
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
+  const [filterText, setFilterText] = useState(externalSearchQuery || '')
+  const [searchMode, setSearchMode] = useState<SearchMode>('titles')
   
   // Convert user settings expandedNodes array to Set for efficient lookups
   const expandedNodes = useMemo(() => new Set(settings.expandedNodes), [settings.expandedNodes])
+
+  // Sort pages function - folders first, then alphabetically within each group
+  const sortPages = (pageList: WikiPage[]): WikiPage[] => {
+    return pageList
+      .map(page => ({
+        ...page,
+        children: page.children ? sortPages(page.children) : undefined
+      }))
+      .sort((a, b) => {
+        // First sort by type: folders before files
+        if (a.isFolder && !b.isFolder) return -1
+        if (!a.isFolder && b.isFolder) return 1
+        
+        // Then sort alphabetically by title within the same type
+        return a.title.localeCompare(b.title)
+      })
+  }
+
+  // Apply sorting to pages
+  const sortedPages = useMemo(() => sortPages(pages), [pages])
+
+  // Filter pages based on search text
+  const filteredPages = useMemo(() => {
+    if (!filterText.trim()) return sortedPages
+    
+    const filterLower = filterText.toLowerCase()
+    
+    const filterTree = (pageList: WikiPage[]): WikiPage[] => {
+      return pageList.reduce((filtered: WikiPage[], page) => {
+        let matches = false
+        
+        if (searchMode === 'titles') {
+          matches = page.title?.toLowerCase()?.includes(filterLower) ?? false
+        } else if (searchMode === 'metadata') {
+          const titleMatch = page.title?.toLowerCase()?.includes(filterLower) ?? false
+          const tagMatch = page.tags?.some(tag => tag.toLowerCase().includes(filterLower)) ?? false
+          matches = titleMatch || tagMatch
+        } else if (searchMode === 'fullContent') {
+          // For full content search, fall back to metadata search locally for now
+          // When using this mode, we should ideally make an API call
+          const titleMatch = page.title?.toLowerCase()?.includes(filterLower) ?? false
+          const tagMatch = page.tags?.some(tag => tag.toLowerCase().includes(filterLower)) ?? false
+          const contentMatch = page.content?.toLowerCase()?.includes(filterLower) ?? false
+          matches = titleMatch || tagMatch || contentMatch
+        }
+        
+        const childMatches = page.children ? filterTree(page.children) : []
+        
+        if (matches || childMatches.length > 0) {
+          filtered.push({
+            ...page,
+            children: childMatches.length > 0 ? childMatches : page.children
+          })
+        }
+        
+        return filtered
+      }, [])
+    }
+    
+    return filterTree(sortedPages)
+  }, [sortedPages, filterText, searchMode])
+
+  // Auto-expand all folders that contain matches when filtering
+  const expandedNodesForFiltering = useMemo(() => {
+    if (!filterText.trim()) return expandedNodes
+    
+    const allExpandedNodes = new Set(expandedNodes)
+    
+    const collectFolderIds = (pageList: WikiPage[]) => {
+      for (const page of pageList) {
+        if (page.isFolder && page.children) {
+          allExpandedNodes.add(page.id)
+          collectFolderIds(page.children)
+        }
+      }
+    }
+    
+    // Expand all folders in filtered results
+    collectFolderIds(filteredPages)
+    
+    return allExpandedNodes
+  }, [filteredPages, expandedNodes, filterText])
 
   // Find path to selected page and auto-expand parents
   const getPathToPage = useMemo(() => {
@@ -283,8 +454,55 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
     }
   }, [selectedPage.id, expandedNodes])
 
+  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.value
+    setFilterText(newValue)
+    
+    // Call the parent's search handler if provided
+    if (onSearch) {
+      onSearch(newValue, searchMode)
+    }
+  }
+
   const handleToggleExpanded = (pageId: string) => {
     toggleExpandedNode(pageId)
+  }
+
+  const handleSearchModeToggle = () => {
+    // Cycle through search modes: titles -> metadata -> fullContent -> titles
+    const nextMode = searchMode === 'titles' ? 'metadata' 
+                   : searchMode === 'metadata' ? 'fullContent' 
+                   : 'titles'
+    setSearchMode(nextMode)
+    
+    // If switching from titles to metadata and there's a search query, 
+    // auto-upgrade to metadata mode for tag searching
+    if (searchMode === 'titles' && filterText.trim()) {
+      // Call the parent's search handler with new mode
+      if (onSearch) {
+        onSearch(filterText, nextMode)
+      }
+    }
+  }
+
+  // Update filter text when external search query changes (from tag clicks)
+  useEffect(() => {
+    if (externalSearchQuery !== undefined && externalSearchQuery !== filterText) {
+      setFilterText(externalSearchQuery)
+      // Auto-switch to metadata mode if currently in titles mode for tag searches
+      if (searchMode === 'titles' && externalSearchQuery.trim()) {
+        setSearchMode('metadata')
+      }
+    }
+  }, [externalSearchQuery]) // Remove filterText and searchMode from dependencies to prevent infinite loop
+
+  const getSearchModeTitle = () => {
+    switch (searchMode) {
+      case 'titles': return 'Search Titles'
+      case 'metadata': return 'Search Titles & Tags'
+      case 'fullContent': return 'Search Everything'
+      default: return 'Search mode'
+    }
   }
 
   return (
@@ -297,22 +515,82 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
       display: 'flex',
       flexDirection: 'column'
     }}>
-      <Typography variant="h6" sx={{ 
-        p: 2, 
-        pb: 1,
-        fontWeight: 600,
-        color: 'var(--freeki-folders-font-color)',
-        fontSize: 'var(--freeki-folders-font-size)',
-        borderBottom: `1px solid var(--freeki-border-color)`,
-
-        mb: 0,
-        userSelect: 'none',
-        flexShrink: 0
-      }}>
-        Pages
-      </Typography>
+      {/* Search/filter bar */}
+      <Box sx={{ px: 2, pb: 1, flexShrink: 0 }}>
+        <TextField
+          variant="outlined"
+          size="small"
+          placeholder="Search pages"
+          value={filterText}
+          onChange={handleFilterChange}
+          fullWidth
+          InputProps={{
+            endAdornment: (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                {filterText && (
+                  <EnhancedTooltip title="Clear search">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setFilterText('')
+                        if (onSearch) {
+                          onSearch('', searchMode)
+                        }
+                      }}
+                      sx={{ p: 0.5 }}
+                      aria-label="Clear search"
+                    >
+                      <Clear fontSize="small" />
+                    </IconButton>
+                  </EnhancedTooltip>
+                )}
+                
+                <SearchDepthIndicator
+                  mode={searchMode}
+                  onClick={handleSearchModeToggle}
+                  title={getSearchModeTitle()}
+                />
+              </Box>
+            )
+          }}
+          inputProps={{
+            autoComplete: 'off', // Disable browser autocomplete/history
+            spellCheck: false // Disable spellcheck for search
+          }}
+          sx={{
+            borderRadius: 'var(--freeki-border-radius)',
+            backgroundColor: 'var(--freeki-search-background)',
+            '& .MuiOutlinedInput-root': {
+              '& fieldset': {
+                borderColor: 'var(--freeki-border-color)'
+              },
+              '&:hover fieldset': {
+                borderColor: 'var(--freeki-border-color)',
+                // Reset on hover
+                backgroundColor: 'transparent',
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: 'var(--freeki-primary)',
+                // Keep the background color on focus
+                backgroundColor: 'transparent',
+              },
+            },
+            '& .MuiInputBase-input': {
+              py: 1.5,
+              px: 2,
+              // Match the height of list items
+              height: 'auto',
+              color: 'var(--freeki-folders-font-color)',
+              fontSize: 'var(--freeki-folders-font-size)',
+            },
+            '& .MuiSvgIcon-root': {
+              color: 'var(--freeki-folders-font-color)',
+            },
+          }}
+        />
+      </Box>
       
-      {pages.length === 0 ? (
+      {filteredPages.length === 0 ? (
         <Box sx={{ 
           display: 'flex', 
           flexDirection: 'column', 
@@ -324,10 +602,10 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
           flex: 1
         }}>
           <Typography variant="body2" sx={{ mb: 1 }}>
-            No pages available
+            No pages found
           </Typography>
           <Typography variant="caption">
-            Create your first page to get started
+            Try changing your search terms
           </Typography>
         </Box>
       ) : (
@@ -351,14 +629,14 @@ export default function FolderTree({ pages, selectedPage, onPageSelect }: Folder
             minWidth: 'fit-content', // Allow the list to extend beyond container width
             position: 'relative'
           }}>
-            {pages.map((page) => (
+            {filteredPages.map((page) => (
               <TreeNode
                 key={page.id}
                 page={page}
                 level={0}
                 selectedPage={selectedPage}
                 onPageSelect={onPageSelect}
-                expandedNodes={expandedNodes}
+                expandedNodes={filterText.trim() ? expandedNodesForFiltering : expandedNodes}
                 onToggleExpanded={handleToggleExpanded}
                 selectedItemRef={selectedItemRef}
               />

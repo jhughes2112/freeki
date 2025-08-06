@@ -531,13 +531,8 @@ export default function App() {
   }
 
   const handleTagClick = (tag: string) => {
-    performSearch(tag)
-    // Focus the search input for better UX
-    const input = document.querySelector('input[aria-label="Search pages"]') as HTMLInputElement | null;
-    if (input) {
-      input.focus();
-      input.setSelectionRange(tag.length, tag.length);
-    }
+    globalState.set('searchQuery', tag)
+    // The FolderTree will handle the actual search implementation
   }
 
   // Set up the error handler for the API client
@@ -866,58 +861,9 @@ export default function App() {
             </EnhancedTooltip>
           </Box>
 
-          {/* Center - Search Bar with Integrated Search Mode Toggle */}
+          {/* Center - Empty space or logo could go here */}
           <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              placeholder={`Search pages (${settings.searchMode})...`}
-              value={searchQuery}
-              onChange={(e) => performSearch(e.target.value)}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search sx={{ color: 'var(--freeki-app-bar-text-color)' }} />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <EnhancedTooltip title={getSearchModeTooltip()}>
-                      <IconButton
-                        size="small"
-                        sx={{ color: 'var(--freeki-app-bar-text-color)' }}
-                        onClick={handleSearchModeToggle}
-                        aria-label={getSearchModeTooltip()}
-                      >
-                        {getSearchModeIcon()}
-                      </IconButton>
-                    </EnhancedTooltip>
-                  </InputAdornment>
-                ),
-                sx: { 
-                  backgroundColor: 'rgba(255,255,255,0.15)', 
-                  color: 'var(--freeki-app-bar-text-color)' 
-                }
-              }}
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  color: 'var(--freeki-app-bar-text-color)',
-                  '& fieldset': {
-                    borderColor: 'var(--freeki-app-bar-text-color)',
-                  },
-                  '&:hover fieldset': {
-                    borderColor: 'var(--freeki-app-bar-text-color)',
-                  },
-                  '&.Mui-focused fieldset': {
-                    borderColor: 'var(--freeki-app-bar-text-color)',
-                  },
-                },
-                '& .MuiInputBase-input::placeholder': {
-                  color: 'var(--freeki-app-bar-text-color)',
-                },
-              }}
-              aria-label="Search pages"
-            />
+            {/* Search functionality moved to FolderTree component */}
           </Box>
 
           {/* Right side - Action buttons in new order: Edit/New/Delete, separator, theme toggle, settings gear, account icon */}
@@ -1082,6 +1028,7 @@ export default function App() {
                 pages={pages}
                 selectedPage={currentPage}
                 onPageSelect={handlePageSelect}
+                searchQuery={searchQuery}
               />
             ) : (
               <Box sx={{ 
