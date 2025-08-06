@@ -74,10 +74,53 @@ export function injectGlobalStyles() {
       box-shadow: 0 8px 32px var(--freeki-shadow-color) !important;
     }
 
+    /* Enhanced tooltip styling */
+    .MuiTooltip-tooltip {
+      background-color: var(--freeki-app-bar-background) !important;
+      color: var(--freeki-app-bar-text-color) !important;
+      font-size: 0.75rem !important;
+      font-weight: 500 !important;
+      padding: 8px 12px !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
+      backdrop-filter: blur(8px) !important;
+      border: 1px solid var(--freeki-app-bar-divider) !important;
+      max-width: 300px !important;
+    }
+
+    .MuiTooltip-arrow {
+      color: var(--freeki-app-bar-background) !important;
+    }
+
     /* Flat papers with no shadow or border */
     .freeki-flat {
       box-shadow: none !important;
       border: none !important;
+    }
+
+    /* Page content typography styling */
+    .freeki-page-content h1 {
+      color: var(--freeki-h1-font-color) !important;
+      font-size: var(--freeki-h1-font-size) !important;
+    }
+
+    .freeki-page-content h2 {
+      color: var(--freeki-h2-font-color) !important;
+      font-size: var(--freeki-h2-font-size) !important;
+    }
+
+    .freeki-page-content h3 {
+      color: var(--freeki-h3-font-color) !important;
+      font-size: var(--freeki-h3-font-size) !important;
+    }
+
+    .freeki-page-content p {
+      color: var(--freeki-p-font-color) !important;
+      font-size: var(--freeki-p-font-size) !important;
+    }
+
+    .freeki-page-content li {
+      color: var(--freeki-p-font-color) !important;
+      font-size: var(--freeki-p-font-size) !important;
     }
   `
   document.head.appendChild(style)
@@ -102,12 +145,12 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   root.style.setProperty('--freeki-app-bar-text-color', colorScheme.appBarTextColor || '#ffffff');
   root.style.setProperty('--freeki-app-bar-divider', colorScheme.appBarDivider || 'rgba(255, 255, 255, 0.2)');
   root.style.setProperty('--freeki-folders-font-color', colorScheme.foldersFontColor || '#222222');
-  root.style.setProperty('--freeki-folders-font-size', (colorScheme.foldersFontSize || 16) + 'px');
+  root.style.setProperty('--freeki-folders-font-size', (colorScheme.foldersFontSize || 12) + 'px');
   root.style.setProperty('--freeki-folders-background', colorScheme.foldersBackground || '#fafafa');
   root.style.setProperty('--freeki-page-details-font-color', colorScheme.pageDetailsFontColor || '#222222');
-  root.style.setProperty('--freeki-page-details-font-size', (colorScheme.pageDetailsFontSize || 16) + 'px');
+  root.style.setProperty('--freeki-page-details-font-size', (colorScheme.pageDetailsFontSize || 12) + 'px');
   root.style.setProperty('--freeki-page-details-background', colorScheme.pageDetailsBackground || '#f9f9f9');
-  root.style.setProperty('--freeki-folders-selected-background', colorScheme.foldersSelectedBackground || '#e3f2fd');
+	root.style.setProperty('--freeki-folders-selected-background', colorScheme.foldersSelectedBackground || '#d5e9fb');
   root.style.setProperty('--freeki-h1-font-color', colorScheme.h1FontColor || '#222222');
   root.style.setProperty('--freeki-h1-font-size', (colorScheme.h1FontSize || 32) + 'px');
   root.style.setProperty('--freeki-h2-font-color', colorScheme.h2FontColor || '#333333');
@@ -115,7 +158,7 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   root.style.setProperty('--freeki-h3-font-color', colorScheme.h3FontColor || '#444444');
   root.style.setProperty('--freeki-h3-font-size', (colorScheme.h3FontSize || 20) + 'px');
   root.style.setProperty('--freeki-p-font-color', colorScheme.pFontColor || '#000000');
-  root.style.setProperty('--freeki-p-font-size', (colorScheme.pFontSize || 16) + 'px');
+  root.style.setProperty('--freeki-p-font-size', (colorScheme.pFontSize || 14) + 'px');
   root.style.setProperty('--freeki-view-background', colorScheme.viewBackground || '#ffffff');
   root.style.setProperty('--freeki-edit-background', colorScheme.editBackground || '#ffffff');
   root.style.setProperty('--freeki-footer-background', colorScheme.footerBackground || '#fafafa');

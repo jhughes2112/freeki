@@ -2,7 +2,7 @@ import apiClient from './apiClient'
 
 export interface AdminSettings {
   companyName: string
-  companyLogoPath: string
+  iconUrl: string
   wikiTitle: string
   colorSchemes: {
     light: ColorScheme
@@ -129,7 +129,7 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   companyName: 'Your Company Here',
-  companyLogoPath: '/logo.png',
+  iconUrl: '/assets/freeki-icon.png',
   wikiTitle: 'FreeKi Wiki',
   colorSchemes: {
     light: DEFAULT_LIGHT_SCHEME,

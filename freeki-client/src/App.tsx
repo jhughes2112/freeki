@@ -12,7 +12,8 @@ import {
   InputAdornment,
   Snackbar,
   Alert,
-  useMediaQuery
+  useMediaQuery,
+  Tooltip
 } from '@mui/material'
 import {
   Search,
@@ -27,7 +28,9 @@ import {
   DarkMode,
   Monitor,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FlashOn,
+  AccessTime
 } from '@mui/icons-material'
 import FolderTree from './FolderTree'
 import PageViewer from './PageViewer'
@@ -50,7 +53,27 @@ const FadePanelContent = ({ visible, children }: { visible: boolean; children: R
   </div>
 )
 
-// Example content structure
+// Enhanced Tooltip component with fast, modern styling
+const EnhancedTooltip = ({ children, title, ...props }: { 
+  children: React.ReactElement; 
+  title: string; 
+  placement?: 'top' | 'bottom' | 'left' | 'right';
+  arrow?: boolean;
+  enterDelay?: number;
+  leaveDelay?: number;
+}) => (
+  <Tooltip
+    title={title}
+    enterDelay={150}
+    leaveDelay={0}
+    arrow
+    {...props}
+  >
+    {children}
+  </Tooltip>
+)
+
+// Sample data expanded with deeper hierarchies and additional folders
 const samplePages: WikiPage[] = [
   {
     id: 'home',
@@ -84,6 +107,306 @@ const samplePages: WikiPage[] = [
         author: 'Bob Wilson',
         version: 2,
         tags: ['alpha', 'project']
+      },
+      {
+        id: 'project-b',
+        title: 'Project Beta',
+        content: '<h1>Project Beta</h1><p>Next generation platform development.</p>',
+        path: '/projects/project-b',
+        isFolder: true,
+        updatedAt: '2024-01-11T14:20:00Z',
+        author: 'Lisa Wang',
+        version: 1,
+        tags: ['beta', 'platform'],
+        children: [
+          {
+            id: 'beta-planning',
+            title: 'Planning Documents',
+            content: '<h1>Planning Documents</h1><p>Project planning and roadmap.</p>',
+            path: '/projects/project-b/planning',
+            isFolder: false,
+            updatedAt: '2024-01-11T15:00:00Z',
+            author: 'Lisa Wang',
+            version: 1,
+            tags: ['planning', 'roadmap']
+          },
+          {
+            id: 'beta-design',
+            title: 'Design & Architecture',
+            content: '<h1>Design & Architecture</h1><p>System design documents.</p>',
+            path: '/projects/project-b/design',
+            isFolder: true,
+            updatedAt: '2024-01-12T10:30:00Z',
+            author: 'Alice Cooper',
+            version: 2,
+            tags: ['design', 'architecture'],
+            children: [
+              {
+                id: 'beta-wireframes',
+                title: 'UI Wireframes',
+                content: '<h1>UI Wireframes</h1><p>User interface wireframes and mockups.</p>',
+                path: '/projects/project-b/design/wireframes',
+                isFolder: false,
+                updatedAt: '2024-01-12T11:00:00Z',
+                author: 'UI Designer',
+                version: 1,
+                tags: ['wireframes', 'ui', 'mockups']
+              },
+              {
+                id: 'beta-database',
+                title: 'Database Schema',
+                content: '<h1>Database Schema</h1><p>Database design and relationships.</p>',
+                path: '/projects/project-b/design/database',
+                isFolder: false,
+                updatedAt: '2024-01-12T12:30:00Z',
+                author: 'Database Engineer',
+                version: 3,
+                tags: ['database', 'schema', 'design']
+              },
+              {
+                id: 'beta-security',
+                title: 'Security Architecture',
+                content: '<h1>Security Architecture</h1><p>Security design and protocols.</p>',
+                path: '/projects/project-b/design/security',
+                isFolder: false,
+                updatedAt: '2024-01-12T14:00:00Z',
+                author: 'Security Team',
+                version: 1,
+                tags: ['security', 'protocols', 'design']
+              }
+            ]
+          },
+          {
+            id: 'beta-development',
+            title: 'Development Notes',
+            content: '<h1>Development Notes</h1><p>Development progress and notes.</p>',
+            path: '/projects/project-b/development',
+            isFolder: false,
+            updatedAt: '2024-01-13T09:45:00Z',
+            author: 'Dev Team',
+            version: 4,
+            tags: ['development', 'progress']
+          }
+        ]
+      },
+      {
+        id: 'project-c',
+        title: 'Project Gamma',
+        content: '<h1>Project Gamma</h1><p>Research and innovation project.</p>',
+        path: '/projects/project-c',
+        isFolder: false,
+        updatedAt: '2024-01-09T11:45:00Z',
+        author: 'Rachel Green',
+        version: 1,
+        tags: ['gamma', 'research', 'innovation']
+      }
+    ]
+  },
+  {
+    id: 'documentation',
+    title: 'Documentation',
+    content: '<h1>Documentation</h1><p>User guides and technical documentation.</p>',
+    path: '/documentation',
+    isFolder: true,
+    updatedAt: '2024-01-08T10:00:00Z',
+    author: 'Technical Writer',
+    version: 1,
+    tags: ['documentation', 'guides'],
+    children: [
+      {
+        id: 'user-guide',
+        title: 'User Guide',
+        content: '<h1>User Guide</h1><p>Complete user guide and tutorials.</p>',
+        path: '/documentation/user-guide',
+        isFolder: true,
+        updatedAt: '2024-01-08T11:00:00Z',
+        author: 'Technical Writer',
+        version: 2,
+        tags: ['user-guide', 'tutorial'],
+        children: [
+          {
+            id: 'getting-started',
+            title: 'Getting Started',
+            content: '<h1>Getting Started</h1><p>Quick start guide for new users.</p>',
+            path: '/documentation/user-guide/getting-started',
+            isFolder: false,
+            updatedAt: '2024-01-08T12:00:00Z',
+            author: 'Technical Writer',
+            version: 1,
+            tags: ['getting-started', 'beginner']
+          },
+          {
+            id: 'advanced-features',
+            title: 'Advanced Features',
+            content: '<h1>Advanced Features</h1><p>Advanced functionality guide.</p>',
+            path: '/documentation/user-guide/advanced',
+            isFolder: false,
+            updatedAt: '2024-01-08T13:00:00Z',
+            author: 'Technical Writer',
+            version: 1,
+            tags: ['advanced', 'features']
+          },
+          {
+            id: 'troubleshooting',
+            title: 'Troubleshooting',
+            content: '<h1>Troubleshooting</h1><p>Common issues and solutions.</p>',
+            path: '/documentation/user-guide/troubleshooting',
+            isFolder: false,
+            updatedAt: '2024-01-08T14:00:00Z',
+            author: 'Support Team',
+            version: 3,
+            tags: ['troubleshooting', 'support']
+          }
+        ]
+      },
+      {
+        id: 'api-docs',
+        title: 'API Documentation',
+        content: '<h1>API Documentation</h1><p>REST API reference and examples.</p>',
+        path: '/documentation/api',
+        isFolder: false,
+        updatedAt: '2024-01-08T15:00:00Z',
+        author: 'Dev Team',
+        version: 2,
+        tags: ['api', 'reference', 'rest']
+      },
+      {
+        id: 'faq',
+        title: 'FAQ',
+        content: '<h1>Frequently Asked Questions</h1><p>Common questions and answers.</p>',
+        path: '/documentation/faq',
+        isFolder: false,
+        updatedAt: '2024-01-08T16:00:00Z',
+        author: 'Support Team',
+        version: 1,
+        tags: ['faq', 'questions', 'answers']
+      }
+    ]
+  },
+  {
+    id: 'team',
+    title: 'Team Resources',
+    content: '<h1>Team Resources</h1><p>Internal team information and resources.</p>',
+    path: '/team',
+    isFolder: true,
+    updatedAt: '2024-01-07T09:00:00Z',
+    author: 'HR Team',
+    version: 1,
+    tags: ['team', 'internal', 'hr'],
+    children: [
+      {
+        id: 'onboarding',
+        title: 'Onboarding',
+        content: '<h1>Onboarding</h1><p>New employee onboarding materials.</p>',
+        path: '/team/onboarding',
+        isFolder: true,
+        updatedAt: '2024-01-07T10:00:00Z',
+        author: 'HR Team',
+        version: 1,
+        tags: ['onboarding', 'new-employee'],
+        children: [
+          {
+            id: 'welcome-guide',
+            title: 'Welcome Guide',
+            content: '<h1>Welcome Guide</h1><p>Welcome to the team!</p>',
+            path: '/team/onboarding/welcome',
+            isFolder: false,
+            updatedAt: '2024-01-07T11:00:00Z',
+            author: 'HR Team',
+            version: 1,
+            tags: ['welcome', 'guide']
+          },
+          {
+            id: 'first-week',
+            title: 'Your First Week',
+            content: '<h1>Your First Week</h1><p>What to expect in your first week.</p>',
+            path: '/team/onboarding/first-week',
+            isFolder: false,
+            updatedAt: '2024-01-07T12:00:00Z',
+            author: 'HR Team',
+            version: 1,
+            tags: ['first-week', 'schedule']
+          },
+          {
+            id: 'tools-setup',
+            title: 'Tools & Setup',
+            content: '<h1>Tools & Setup</h1><p>Setting up your development environment.</p>',
+            path: '/team/onboarding/tools',
+            isFolder: false,
+            updatedAt: '2024-01-07T13:00:00Z',
+            author: 'IT Team',
+            version: 2,
+            tags: ['tools', 'setup']
+          }
+        ]
+      },
+      {
+        id: 'policies',
+        title: 'Company Policies',
+        content: '<h1>Company Policies</h1><p>Official company policies.</p>',
+        path: '/team/policies',
+        isFolder: false,
+        updatedAt: '2024-01-07T14:00:00Z',
+        author: 'Legal Team',
+        version: 1,
+        tags: ['policies', 'legal']
+      },
+      {
+        id: 'benefits',
+        title: 'Benefits',
+        content: '<h1>Benefits</h1><p>Employee benefits information.</p>',
+        path: '/team/benefits',
+        isFolder: false,
+        updatedAt: '2024-01-07T15:00:00Z',
+        author: 'HR Team',
+        version: 1,
+        tags: ['benefits', 'employee']
+      }
+    ]
+  },
+  {
+    id: 'meetings',
+    title: 'Meeting Notes',
+    content: '<h1>Meeting Notes</h1><p>Archive of meeting notes and minutes.</p>',
+    path: '/meetings',
+    isFolder: true,
+    updatedAt: '2024-01-06T09:00:00Z',
+    author: 'Various',
+    version: 1,
+    tags: ['meetings', 'notes'],
+    children: [
+      {
+        id: 'daily-standups',
+        title: 'Daily Standups',
+        content: '<h1>Daily Standups</h1><p>Daily standup meeting notes.</p>',
+        path: '/meetings/standups',
+        isFolder: false,
+        updatedAt: '2024-01-06T10:00:00Z',
+        author: 'Scrum Master',
+        version: 1,
+        tags: ['standup', 'daily']
+      },
+      {
+        id: 'sprint-planning',
+        title: 'Sprint Planning',
+        content: '<h1>Sprint Planning</h1><p>Sprint planning session notes.</p>',
+        path: '/meetings/planning',
+        isFolder: false,
+        updatedAt: '2024-01-06T11:00:00Z',
+        author: 'Product Owner',
+        version: 1,
+        tags: ['planning', 'sprint']
+      },
+      {
+        id: 'retrospectives',
+        title: 'Retrospectives',
+        content: '<h1>Retrospectives</h1><p>Sprint retrospective notes.</p>',
+        path: '/meetings/retros',
+        isFolder: false,
+        updatedAt: '2024-01-06T12:00:00Z',
+        author: 'Scrum Master',
+        version: 2,
+        tags: ['retrospective', 'improvement']
       }
     ]
   }
@@ -169,7 +492,7 @@ export default function App() {
     }
   }, [settings.theme, isLoaded])
 
-  // Simple search function
+  // Enhanced search function - now uses searchMode setting, no search history
   const performSearch = (query: string) => {
     globalState.set('searchQuery', query)
     
@@ -178,17 +501,19 @@ export default function App() {
       return
     }
     
-    // Simple search implementation
+    // Enhanced search implementation with full/partial modes
     const searchInPages = (pagesList: WikiPage[], searchQuery: string): WikiPage[] => {
       const results: WikiPage[] = []
       const searchRecursive = (pages: WikiPage[]) => {
         for (const page of pages) {
           if (!page.isFolder) {
-            if (
-              page.title.toLowerCase().includes(searchQuery) ||
-              page.content.toLowerCase().includes(searchQuery) ||
-              page.tags?.some(tag => tag.toLowerCase().includes(searchQuery))
-            ) {
+            const titleMatch = page.title.toLowerCase().includes(searchQuery)
+            const tagMatch = page.tags?.some(tag => tag.toLowerCase().includes(searchQuery))
+            const contentMatch = settings.searchMode === 'full' 
+              ? page.content.toLowerCase().includes(searchQuery)
+              : false
+            
+            if (titleMatch || tagMatch || contentMatch) {
               results.push(page)
             }
           }
@@ -279,6 +604,16 @@ export default function App() {
     }
   }, [isSidebarCollapsed, isMetadataCollapsed, hasInitialized, isNarrowScreen])
 
+  // Handle search mode toggle
+  const handleSearchModeToggle = () => {
+    const newMode = settings.searchMode === 'full' ? 'partial' : 'full'
+    updateSetting('searchMode', newMode)
+    // Re-run current search with new mode
+    if (searchQuery.trim()) {
+      performSearch(searchQuery)
+    }
+  }
+
   // Handle theme toggle button click
   const handleThemeToggle = () => {
     const nextTheme = settings.theme === 'light' ? 'dark' : settings.theme === 'dark' ? 'auto' : 'light'
@@ -305,6 +640,15 @@ export default function App() {
     } else {
       return 'Switch to Light Mode'
     }
+  }
+
+  // Get search mode icon and tooltip - Lightning bolt for metadata, AccessTime (stopwatch) for full content
+  const getSearchModeIcon = () => {
+    return settings.searchMode === 'full' ? <AccessTime /> : <FlashOn />
+  }
+
+  const getSearchModeTooltip = () => {
+    return settings.searchMode === 'full' ? 'Full Content Search' : 'Metadata Search'
   }
 
   // Wait for settings to load before rendering
@@ -488,33 +832,66 @@ export default function App() {
       {/* Top Banner/AppBar */}
       <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)', color: 'var(--freeki-app-bar-text-color)', zIndex: 1300 }}>
         <Toolbar sx={{ justifyContent: 'space-between' }}>
-          {/* Left side - Logo and Title */}
+          {/* Left side - Logo and Title as clickable button */}
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Avatar
-              src={adminSettings.companyLogoPath}
-              alt={`${adminSettings.companyName} logo`}
-              sx={{ mr: 2, width: 32, height: 32, backgroundColor: 'white' }}
-              aria-label={adminSettings.companyName}
-            >
-              {adminSettings.companyName.charAt(0)}
-            </Avatar>
-            <Typography variant="h6" sx={{ mr: 4, color: 'var(--freeki-app-bar-text-color)' }} variantMapping={{ h6: 'div' }}>
-              {adminSettings.wikiTitle}
-            </Typography>
+            <EnhancedTooltip title="Return to home page">
+              <Button
+                onClick={() => window.location.reload()}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  textTransform: 'none',
+                  color: 'var(--freeki-app-bar-text-color)',
+                  minHeight: 'auto',
+                  p: 0,
+                  mr: 4,
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                  }
+                }}
+                aria-label="Return to home page"
+              >
+                <Avatar
+                  src={adminSettings.iconUrl}
+                  alt={`${adminSettings.companyName} icon`}
+                  sx={{ mr: 2, width: 32, height: 32, backgroundColor: 'white' }}
+                  aria-label={adminSettings.companyName}
+                >
+                  {adminSettings.companyName.charAt(0)}
+                </Avatar>
+                <Typography variant="h6" sx={{ color: 'var(--freeki-app-bar-text-color)' }} variantMapping={{ h6: 'div' }}>
+                  {adminSettings.wikiTitle}
+                </Typography>
+              </Button>
+            </EnhancedTooltip>
           </Box>
 
-          {/* Center - Search Bar */}
-          <Box sx={{ flexGrow: 1, maxWidth: 400, mx: 2 }}>
+          {/* Center - Search Bar with Integrated Search Mode Toggle */}
+          <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2 }}>
             <TextField
               fullWidth
               size="small"
-              placeholder="Search pages..."
+              placeholder={`Search pages (${settings.searchMode})...`}
               value={searchQuery}
               onChange={(e) => performSearch(e.target.value)}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
                     <Search sx={{ color: 'var(--freeki-app-bar-text-color)' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <EnhancedTooltip title={getSearchModeTooltip()}>
+                      <IconButton
+                        size="small"
+                        sx={{ color: 'var(--freeki-app-bar-text-color)' }}
+                        onClick={handleSearchModeToggle}
+                        aria-label={getSearchModeTooltip()}
+                      >
+                        {getSearchModeIcon()}
+                      </IconButton>
+                    </EnhancedTooltip>
                   </InputAdornment>
                 ),
                 sx: { 
@@ -543,127 +920,132 @@ export default function App() {
             />
           </Box>
 
-          {/* Right side - Action buttons */}
+          {/* Right side - Action buttons in new order: Edit/New/Delete, separator, theme toggle, settings gear, account icon */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Edit/Save/Cancel buttons */}
             {currentPage && !currentPage.isFolder && (
               <>
                 {isEditing ? (
                   <>
-                    <Button
-                      variant="contained"
-                      color="success"
-                      startIcon={<Save sx={{ color: 'white' }} />}
-                      onClick={() => handleSave(currentPage.content)}
-                      sx={{ color: 'white' }}
-                      aria-label="Save changes"
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<Cancel sx={{ color: 'var(--freeki-app-bar-text-color)' }} />}
-                      onClick={handleCancel}
-                      sx={{ 
-                        color: 'var(--freeki-app-bar-text-color)', 
-                        borderColor: 'var(--freeki-app-bar-text-color)',
-                        '&:hover': {
-                          backgroundColor: 'var(--freeki-app-bar-hover-background)',
-                          borderColor: 'var(--freeki-app-bar-text-color)'
-                        }
-                      }}
-                      aria-label="Cancel editing"
-                    >
-                      Cancel
-                    </Button>
+                    <EnhancedTooltip title="Save changes">
+                      <Button
+                        variant="contained"
+                        color="success"
+                        startIcon={<Save sx={{ color: 'white' }} />}
+                        onClick={() => handleSave(currentPage.content)}
+                        sx={{ color: 'white' }}
+                        aria-label="Save changes"
+                      >
+                        Save
+                      </Button>
+                    </EnhancedTooltip>
+                    <EnhancedTooltip title="Cancel editing">
+                      <Button
+                        variant="outlined"
+                        startIcon={<Cancel sx={{ color: 'var(--freeki-app-bar-text-color)' }} />}
+                        onClick={handleCancel}
+                        sx={{ 
+                          color: 'var(--freeki-app-bar-text-color)', 
+                          borderColor: 'var(--freeki-app-bar-text-color)',
+                          '&:hover': {
+                            backgroundColor: 'var(--freeki-app-bar-hover-background)',
+                            borderColor: 'var(--freeki-app-bar-text-color)'
+                          }
+                        }}
+                        aria-label="Cancel editing"
+                      >
+                        Cancel
+                      </Button>
+                    </EnhancedTooltip>
                   </>
                 ) : (
-                  <Button
-                    variant="outlined"
-                    startIcon={<Edit sx={{ color: 'var(--freeki-app-bar-text-color)' }} />}
-                    onClick={handleEdit}
-                    sx={{ 
-                      color: 'var(--freeki-app-bar-text-color)', 
-                      borderColor: 'var(--freeki-app-bar-text-color)',
-                      backgroundColor: 'transparent',
-                      '&:hover': {
-                        backgroundColor: 'var(--freeki-app-bar-hover-background)',
-                        borderColor: 'var(--freeki-app-bar-text-color)'
-                      }
-                    }}
-                    aria-label="Edit page"
-                  >
-                    Edit
-                  </Button>
+                  <EnhancedTooltip title="Edit page">
+                    <IconButton 
+                      sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+                      onClick={handleEdit} 
+                      aria-label="Edit page"
+                    >
+                      <Edit />
+                    </IconButton>
+                  </EnhancedTooltip>
                 )}
               </>
             )}
 
-            <IconButton 
-              sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-              onClick={handleNewPage} 
-              title="New Page" 
-              aria-label="Create new page"
-            >
-              <Add />
-            </IconButton>
-
-            {currentPage && !currentPage.isFolder && (
+            {/* New Page button */}
+            <EnhancedTooltip title="Create new page">
               <IconButton 
                 sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-                onClick={handleDelete} 
-                title="Delete" 
-                aria-label="Delete page"
+                onClick={handleNewPage} 
+                aria-label="Create new page"
               >
-                <Delete />
+                <Add />
               </IconButton>
+            </EnhancedTooltip>
+
+            {/* Delete button */}
+            {currentPage && !currentPage.isFolder && (
+              <EnhancedTooltip title="Delete page">
+                <IconButton 
+                  sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+                  onClick={handleDelete} 
+                  aria-label="Delete page"
+                >
+                  <Delete />
+                </IconButton>
+              </EnhancedTooltip>
             )}
 
             <Divider orientation="vertical" flexItem sx={{ backgroundColor: 'var(--freeki-app-bar-divider)', mx: 1 }} />
 
-            {/* Only show admin settings gear if user is admin */}
-            {userInfo?.isAdmin && (
-              <IconButton 
-                sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-                onClick={handleSettingsClick} 
-                title="Administration" 
-                aria-label="Open administration settings"
+            {/* Theme Toggle Button */}
+            <EnhancedTooltip title={getThemeTooltip()}>
+              <IconButton
+                sx={{ color: 'var(--freeki-app-bar-text-color)' }}
+                onClick={handleThemeToggle}
+                aria-label={getThemeTooltip()}
               >
-                <Settings />
+                {getThemeIcon()}
               </IconButton>
+            </EnhancedTooltip>
+
+            {/* Admin Settings gear - only show if user is admin */}
+            {userInfo?.isAdmin && (
+              <EnhancedTooltip title="Administration settings">
+                <IconButton 
+                  sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+                  onClick={handleSettingsClick} 
+                  aria-label="Open administration settings"
+                >
+                  <Settings />
+                </IconButton>
+              </EnhancedTooltip>
             )}
 
-            <Box
-              sx={{ color: 'var(--freeki-app-bar-text-color)', p: 0.5 }}
-              title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Not signed in"}
-              aria-label={userInfo ? `User: ${userInfo.fullName}` : "Not signed in"}
-            >
-              {userInfo?.gravatarUrl ? (
-                <Avatar
-                  src={userInfo.gravatarUrl}
-                  alt={userInfo.fullName}
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    border: '2px solid var(--freeki-app-bar-divider)'
-                  }}
-                  aria-label={userInfo.fullName}
-                >
-                  {userInfo.fullName.charAt(0)}
-                </Avatar>
-              ) : (
-                <AccountCircle />
-              )}
-            </Box>
-
-            {/* Theme Toggle Button */}
-            <IconButton
-              sx={{ color: 'var(--freeki-app-bar-text-color)' }}
-              onClick={handleThemeToggle}
-              title={getThemeTooltip()}
-              aria-label={getThemeTooltip()}
-            >
-              {getThemeIcon()}
-            </IconButton>
+            {/* User Account icon */}
+            <EnhancedTooltip title={userInfo ? `${userInfo.fullName}\n${userInfo.email}` : "Not signed in"}>
+              <IconButton
+                sx={{ color: 'var(--freeki-app-bar-text-color)', p: 0.5 }}
+                aria-label={userInfo ? `User: ${userInfo.fullName}` : "Not signed in"}
+              >
+                {userInfo?.gravatarUrl ? (
+                  <Avatar
+                    src={userInfo.gravatarUrl}
+                    alt={userInfo.fullName}
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      border: '2px solid var(--freeki-app-bar-divider)'
+                    }}
+                    aria-label={userInfo.fullName}
+                  >
+                    {userInfo.fullName.charAt(0)}
+                  </Avatar>
+                ) : (
+                  <AccountCircle />
+                )}
+              </IconButton>
+            </EnhancedTooltip>
           </Box>
         </Toolbar>
       </AppBar>

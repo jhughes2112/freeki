@@ -126,6 +126,7 @@ namespace FreeKi
 			}
 			finally
 			{
+				webServer?.UnregisterPrefixEndpoint("/");
 				webServer?.UnregisterPrefixEndpoint("/api/pages");
 				webServer?.UnregisterPrefixEndpoint("/api/media");
 

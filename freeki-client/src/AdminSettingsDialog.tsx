@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   Dialog,
   DialogTitle,
@@ -21,7 +21,7 @@ import {
   Refresh,
   Photo
 } from '@mui/icons-material'
-import type { AdminSettings, ColorScheme } from './adminSettings'
+import type { ColorScheme } from './adminSettings'
 import { DEFAULT_ADMIN_SETTINGS, saveAdminSettings } from './adminSettings'
 import { useGlobalState, globalState } from './globalState'
 import AdvancedColorPicker from './AdvancedColorPicker'
@@ -101,7 +101,7 @@ function SettingRow({
   onDarkChange,
   fontSize,
   onFontSizeChange,
-  min = 12,
+  min = 10,
   max = 32,
   style,
   mode
@@ -159,7 +159,7 @@ function SettingRow({
             value={fontSize}
             min={min}
             max={max}
-            step={2}
+            step={1}
             marks={[]}
             valueLabelDisplay="auto"
             onChange={(_, value) => onFontSizeChange(value as number)}
@@ -371,7 +371,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
               <Grid item xs={12}>
                 <Box sx={{ 
                   display: 'grid', 
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr 1fr auto' }, 
+                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr auto' }, 
                   gap: 2, 
                   alignItems: 'stretch' 
                 }}>
@@ -430,11 +430,11 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                     }}
                   />
                   <TextField
-                    label="Company Logo Path"
-                    value={adminSettings.companyLogoPath}
-                    onChange={(e) => globalState.setProperty('adminSettings.companyLogoPath', e.target.value)}
+                    label="Icon URL"
+                    value={adminSettings.iconUrl}
+                    onChange={(e) => globalState.setProperty('adminSettings.iconUrl', e.target.value)}
                     size="small"
-                    aria-label="Company Logo Path"
+                    aria-label="Icon URL"
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         backgroundColor: style.inputBg,

@@ -15,12 +15,12 @@ export interface UserSettings {
   companyName: string
   wikiTitle: string
   expandedNodes: string[]
-  searchHistory: string[]
   lastSelectedPageId?: string
   showMetadataPanel: boolean
   defaultEditMode: 'wysiwyg' | 'markdown'
   autoSave: boolean
   autoSaveInterval: number
+  searchMode: 'full' | 'partial'
   // Layout settings for different screen modes
   wideScreenLayout: {
     sidebarCollapsed: boolean
@@ -39,11 +39,11 @@ const DEFAULT_SETTINGS: UserSettings = {
   companyName: 'Your Company',
   wikiTitle: 'FreeKi Wiki',
   expandedNodes: ['projects'],
-  searchHistory: [],
   showMetadataPanel: true,
   defaultEditMode: 'wysiwyg',
   autoSave: true,
   autoSaveInterval: 30,
+  searchMode: 'full',
   wideScreenLayout: {
     sidebarCollapsed: false,
     metadataCollapsed: false,
@@ -153,17 +153,6 @@ export function useUserSettings() {
     }
   }, [deviceKey])
   
-  const addToSearchHistory = useCallback((query: string) => {
-    if (!query.trim()) return
-    
-    const newHistory = [
-      query,
-      ...settings.searchHistory.filter(item => item !== query)
-    ].slice(0, 10)
-    
-    updateSetting('searchHistory', newHistory)
-  }, [settings.searchHistory, updateSetting])
-  
   const toggleExpandedNode = useCallback((nodeId: string) => {
     const currentExpanded = settings.expandedNodes
     const newExpanded = currentExpanded.includes(nodeId)
@@ -180,7 +169,6 @@ export function useUserSettings() {
     updateSetting,
     saveSettings,
     resetSettings,
-    addToSearchHistory,
     toggleExpandedNode,
     deviceKey
   }

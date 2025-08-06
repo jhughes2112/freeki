@@ -1,5 +1,6 @@
 import { Box, Typography, Paper, Chip, Stack } from '@mui/material'
 import type { WikiPage } from './globalState'
+import { themeStyles } from './themeUtils'
 
 interface PageMetadataProps {
   page: WikiPage
@@ -45,21 +46,38 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
       height: '100%', 
       overflow: 'auto',
       backgroundColor: 'var(--freeki-page-details-background)',
-      color: 'var(--freeki-text-primary)'
+      color: 'var(--freeki-page-details-font-color)'
     }}>
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold', color: 'var(--freeki-text-primary)' }}>
+      <Typography 
+        variant="h6" 
+        sx={{ 
+          mb: 2, 
+          fontWeight: 'bold', 
+          color: 'var(--freeki-page-details-font-color)',
+          fontSize: 'var(--freeki-page-details-font-size)'
+        }}
+      >
         Page Details
       </Typography>
 
       {/* Tags Box */}
       <Paper sx={{ 
+        ...themeStyles.paper,
         p: 2, 
         mb: 2,
         backgroundColor: 'var(--freeki-page-details-background)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'
       }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: 'var(--freeki-text-primary)' }}>
+        <Typography 
+          variant="subtitle2" 
+          fontWeight="bold" 
+          sx={{ 
+            mb: 1, 
+            color: 'var(--freeki-page-details-font-color)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }}
+        >
           Tags
         </Typography>
         <Stack direction="row" spacing={1}>
@@ -70,14 +88,14 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
                 label={tag}
                 size="small"
                 sx={{
-                  backgroundColor: 'var(--freeki-view-mode-background)',
-                  color: 'var(--freeki-text-primary)',
+                  backgroundColor: 'var(--freeki-view-background)',
+                  color: 'var(--freeki-p-font-color)',
                   cursor: 'pointer',
                   transition: 'box-shadow 0.2s',
                   boxShadow: 'none',
                   '&:hover': {
                     boxShadow: '0 0 0 2px var(--freeki-border-color)',
-                    backgroundColor: 'var(--freeki-sidebar-hover-background)',
+                    backgroundColor: 'var(--freeki-folders-selected-background)',
                   }
                 }}
                 onClick={() => onTagClick && onTagClick(tag)}
@@ -85,32 +103,75 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
               />
             ))
           ) : (
-            <Typography variant="body2" sx={{ color: 'var(--freeki-text-secondary)' }}>No tags</Typography>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'var(--freeki-page-details-font-color)',
+                fontSize: 'var(--freeki-page-details-font-size)'
+              }}
+            >
+              No tags
+            </Typography>
           )}
         </Stack>
       </Paper>
 
       {/* Page History Box */}
       <Paper sx={{ 
+        ...themeStyles.paper,
         p: 2, 
         mb: 2,
         backgroundColor: 'var(--freeki-page-details-background)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'
       }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: 'var(--freeki-text-primary)' }}>
+        <Typography 
+          variant="subtitle2" 
+          fontWeight="bold" 
+          sx={{ 
+            mb: 1, 
+            color: 'var(--freeki-page-details-font-color)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }}
+        >
           Page History
         </Typography>
         <Stack spacing={1}>
           {fakeHistory.map((record) => (
-            <Box key={record.version} sx={{ p: 1, borderRadius: 1, backgroundColor: record.version === page.version ? 'var(--freeki-sidebar-hover-background)' : 'transparent' }}>
-              <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'var(--freeki-text-primary)' }}>
+            <Box 
+              key={record.version} 
+              sx={{ 
+                p: 1, 
+                borderRadius: 'var(--freeki-border-radius)', 
+                backgroundColor: record.version === page.version ? 'var(--freeki-folders-selected-background)' : 'transparent' 
+              }}
+            >
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  fontWeight: 'bold', 
+                  color: 'var(--freeki-page-details-font-color)',
+                  fontSize: 'var(--freeki-page-details-font-size)'
+                }}
+              >
                 Version {record.version} {record.version === page.version ? '(Current)' : ''}
               </Typography>
-              <Typography variant="body2" sx={{ color: 'var(--freeki-text-secondary)' }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: 'var(--freeki-page-details-font-color)',
+                  fontSize: 'var(--freeki-page-details-font-size)'
+                }}
+              >
                 Author: {record.author} | Updated: {formatDate(record.updatedAt)}
               </Typography>
-              <Typography variant="body2" sx={{ color: 'var(--freeki-text-primary)' }}>
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  color: 'var(--freeki-page-details-font-color)',
+                  fontSize: 'var(--freeki-page-details-font-size)'
+                }}
+              >
                 {record.summary}
               </Typography>
             </Box>
@@ -120,19 +181,41 @@ export default function PageMetadata({ page, onTagClick }: PageMetadataProps) {
 
       {/* Statistics Box */}
       <Paper sx={{ 
+        ...themeStyles.paper,
         p: 2, 
         mb: 2,
         backgroundColor: 'var(--freeki-page-details-background)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'
       }}>
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1, color: 'var(--freeki-text-primary)' }}>
+        <Typography 
+          variant="subtitle2" 
+          fontWeight="bold" 
+          sx={{ 
+            mb: 1, 
+            color: 'var(--freeki-page-details-font-color)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }}
+        >
           Statistics
         </Typography>
-        <Typography variant="body2" sx={{ mb: 1, color: 'var(--freeki-text-primary)' }}>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            mb: 1, 
+            color: 'var(--freeki-page-details-font-color)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }}
+        >
           Path: {page.path}
         </Typography>
-        <Typography variant="body2" sx={{ color: 'var(--freeki-text-primary)' }}>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            color: 'var(--freeki-page-details-font-color)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }}
+        >
           Words: {page.content.replace(/<[^>]*>/g, '').split(/\s+/).length}
         </Typography>
       </Paper>

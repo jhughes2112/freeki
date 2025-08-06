@@ -11,11 +11,18 @@ export default function PageEditor({ page, onSave, onCancel }: PageEditorProps) 
   return (
     <Box sx={{ 
       p: 3,
-      backgroundColor: 'var(--freeki-edit-mode-background)',
-      color: 'var(--freeki-text-primary)',
+      backgroundColor: 'var(--freeki-edit-background)',
+      color: 'var(--freeki-p-font-color)',
       height: '100%'
     }}>
-      <Typography variant="h4" sx={{ color: 'var(--freeki-text-primary)', mb: 2 }}>
+      <Typography 
+        variant="h4" 
+        sx={{ 
+          color: 'var(--freeki-h1-font-color)', 
+          fontSize: 'var(--freeki-h1-font-size)',
+          mb: 2 
+        }}
+      >
         Editing: {page.title}
       </Typography>
       <Button onClick={() => onSave(page.content)} variant="contained" sx={{ mr: 1 }}>
