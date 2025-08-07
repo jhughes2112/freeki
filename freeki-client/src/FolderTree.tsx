@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -16,10 +16,9 @@ import {
   FolderOpen,
   Description
 } from '@mui/icons-material'
-import { buildPageTree } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
 import type { TreeNode } from './pageTreeUtils'
-import { createSemanticApi } from './semanticApiFactory'
+import type { ISemanticApi } from './semanticApiInterface'
 import { useUserSettings } from './useUserSettings'
 
 // Search modes for the filter
@@ -109,10 +108,12 @@ interface FolderTreeProps {
   onPageSelect: (metadata: PageMetadata) => void
   onSearch?: (query: string, mode: SearchMode) => void
   searchQuery?: string
+  pageMetadata: PageMetadata[]  // Add this to get the actual page data
+  semanticApi: ISemanticApi | null
   onDragDrop?: (
     dragData: import('./pageTreeUtils').DragData, 
     dropTarget: import('./pageTreeUtils').DropTarget,
-    pageTree: TreeNode[]
+    updatedPages: PageMetadata[]  // Change signature to pass updated pages
   ) => Promise<void>
 }
 
@@ -171,8 +172,7 @@ function TreeNodeComponent({
     const dragData = {
       pageId: node.metadata.pageId,
       isFolder: node.isFolder,
-      path: node.metadata.path,
-      sortOrder: node.metadata.sortOrder
+      path: node.metadata.path
     }
     
     e.dataTransfer.setData('application/json', JSON.stringify(dragData))
@@ -260,8 +260,7 @@ function TreeNodeComponent({
       const dropTarget = {
         targetPageId: node.metadata.pageId,
         targetPath: node.metadata.path,
-        position: dragOver as 'before' | 'after' | 'inside',
-        targetSortOrder: node.metadata.sortOrder
+        position: dragOver as 'before' | 'after' | 'inside'
       }
       
       // Call the drag drop handler if provided  
@@ -277,43 +276,8 @@ function TreeNodeComponent({
     }
   }
 
-  const positionTextOptimally = () => {
-    if (textRef.current && folderIconRef.current) {
-      const textElement = textRef.current
-      const folderIconElement = folderIconRef.current
-      
-      requestAnimationFrame(() => {
-        // Find the scrollable container
-        let scrollContainer = textElement.parentElement
-        while (scrollContainer) {
-          const styles = window.getComputedStyle(scrollContainer)
-          if (styles.overflowX === 'auto' || styles.overflow === 'auto') {
-            break
-          }
-          scrollContainer = scrollContainer.parentElement
-        }
-        
-        if (scrollContainer) {
-          // Get the exact position of the folder icon using DOM measurement
-          const containerRect = scrollContainer.getBoundingClientRect()
-          const folderIconRect = folderIconElement.getBoundingClientRect()
-          
-          // Calculate the folder icon's X position within the scrollable content
-          const folderIconLeftInContainer = folderIconRect.left - containerRect.left + scrollContainer.scrollLeft
-          
-          // Always position so folder icon appears at left edge (x=0) with smooth animation
-          scrollContainer.scrollTo({
-            left: Math.max(0, folderIconLeftInContainer),
-            behavior: 'smooth'
-          })
-        }
-      })
-    }
-  }
-
   const handleMouseEnter = () => {
-    // Disable automatic horizontal scrolling on hover to prevent unwanted scroll behavior
-    // positionTextOptimally()
+    // DISABLED: Drag and drop functionality including horizontal scrolling
   }
 
   // Calculate visual styles for drag states
@@ -479,7 +443,7 @@ function TreeNodeComponent({
   )
 }
 
-export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelect, onSearch, searchQuery: externalSearchQuery, onDragDrop }: FolderTreeProps) {
+export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelect, onSearch, searchQuery: externalSearchQuery, pageMetadata, semanticApi, onDragDrop }: FolderTreeProps) {
   const { settings, toggleExpandedNode } = useUserSettings()
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
@@ -489,64 +453,15 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
   // Convert user settings expandedNodes array to Set for efficient lookups
   const expandedNodes = useMemo(() => new Set(settings.expandedNodes), [settings.expandedNodes])
 
-  // Handle drag and drop operation at the FolderTree level (where it belongs!)
+  // Handle drag and drop operation at the FolderTree level
   const handleDragDropInTree = async (
     dragData: import('./pageTreeUtils').DragData, 
     dropTarget: import('./pageTreeUtils').DropTarget
   ) => {
-    try {
-      // Get current pages for calculation
-      const semanticApi = createSemanticApi()
-      const allPages = await semanticApi.listAllPages()
-      
-      // Calculate the drag operation using proper tree walking
-      const { calculateDragOperation } = await import('./pageTreeUtils')
-      const result = calculateDragOperation(dragData, dropTarget, allPages, pageTree)
-      
-      console.log('✅ FolderTree: Drag operation calculated:', result)
-      
-      if (result.updatedPages.length === 0) {
-        console.warn('No pages to update')
-        return
-      }
-      
-      // Update each affected page using the semantic API
-      const updatePromises = result.updatedPages.map(async (updatedPage) => {
-        // Get current page content to preserve it
-        const currentPage = await semanticApi.getSinglePage(updatedPage.pageId)
-        if (!currentPage) {
-          console.error(`Could not find page content for ${updatedPage.pageId}`)
-          return null
-        }
-        
-        // Update the page with new metadata but preserve content
-        return await semanticApi.updatePage({
-          pageId: updatedPage.pageId,
-          title: updatedPage.title,
-          content: currentPage.content, // Preserve existing content
-          filepath: updatedPage.path,
-          tags: updatedPage.tags,
-          sortOrder: updatedPage.sortOrder
-        })
-      })
-      
-      const results = await Promise.all(updatePromises)
-      const successfulUpdates = results.filter(result => result !== null)
-      
-      if (successfulUpdates.length === result.updatedPages.length) {
-        console.log(`✅ FolderTree: Successfully updated ${successfulUpdates.length} pages via drag and drop`)
-        
-        // Call the parent's onDragDrop handler if provided (for state updates)
-        if (onDragDrop) {
-          await onDragDrop(dragData, dropTarget, pageTree)
-        }
-      } else {
-        console.error(`❌ FolderTree: Only ${successfulUpdates.length}/${result.updatedPages.length} pages were successfully updated`)
-      }
-      
-    } catch (error) {
-      console.error('❌ FolderTree: Error handling drag and drop:', error)
-    }
+    // DISABLED: Drag and drop is disabled since we removed sortOrder
+    console.log('🚫 Drag and drop is disabled - using alphabetical sorting only')
+    console.log('Attempted to drag:', dragData)
+    console.log('Attempted to drop on:', dropTarget)
   }
 
   // Filter tree nodes based on search text

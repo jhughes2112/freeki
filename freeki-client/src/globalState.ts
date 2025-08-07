@@ -9,7 +9,6 @@ export interface PageMetadata {
   lastModified: number // Maps to LastModified in C# (Unix timestamp)
   version: number      // Maps to Version in C#
   path: string         // Maps to Path in C#
-  sortOrder: number    // Maps to SortOrder in C#
 }
 
 // Page content is separate - only loaded for the current page

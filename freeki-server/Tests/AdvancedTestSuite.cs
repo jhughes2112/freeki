@@ -59,7 +59,7 @@ namespace TestApp
 					for (int i = 0; i < 10; i++)
 					{
 						List<string> tags = new List<string> { "concurrent", $"test{i}" };
-						PageMetadata metadata = new PageMetadata($"concurrent-page-{i}", tags, $"Concurrent Page {i}", PageMetadata.Now, 0, $"concurrent-page-{i}.txt", 0.0);
+						PageMetadata metadata = new PageMetadata($"concurrent-page-{i}", tags, $"Concurrent Page {i}", PageMetadata.Now, 0, $"concurrent-page-{i}.txt");
 						Page page = new Page(metadata, $"# Concurrent Page {i}\n\nConcurrent test content {i}");
 						bool result = await pageManager.WritePage(page, "TestUser", "test@example.com").ConfigureAwait(false);
 						writeResults.Add(result);
@@ -294,7 +294,7 @@ namespace TestApp
 				{
 					string veryLongContent = new string('A', 1024 * 1024); // 1MB of content
 					List<string> tags = new List<string> { "large" };
-					PageMetadata largeMetadata = new PageMetadata("large-page", tags, "Large Page", PageMetadata.Now, 0, "large-page.txt", 0.0);
+					PageMetadata largeMetadata = new PageMetadata("large-page", tags, "Large Page", PageMetadata.Now, 0, "large-page.txt");
 					Page largePage = new Page(largeMetadata, veryLongContent);
 					
 					bool largeWriteSuccess = await pageManager.WritePage(largePage, "TestUser", "test@example.com").ConfigureAwait(false);
@@ -537,7 +537,7 @@ namespace TestApp
 					for (int i = 0; i < 20; i++)
 					{
 						List<string> tags = new List<string> { "stress", $"rapid{i}" };
-						PageMetadata metadata = new PageMetadata($"rapid-page-{i}", tags, $"Rapid Page {i}", PageMetadata.Now, 0, $"rapid-page-{i}.txt", 0.0);
+						PageMetadata metadata = new PageMetadata($"rapid-page-{i}", tags, $"Rapid Page {i}", PageMetadata.Now, 0, $"rapid-page-{i}.txt");
 						Page page = new Page(metadata, $"# Rapid Page {i}\n\nRapid commit test {i}");
 						bool result = await pageManager.WritePage(page, "TestUser", "test@example.com").ConfigureAwait(false);
 						commitResults.Add(result);
@@ -577,7 +577,7 @@ namespace TestApp
 				{
 					string largeContent = new string('X', 5 * 1024 * 1024); // 5MB content
 					List<string> tags = new List<string> { "large", "stress" };
-					PageMetadata metadata = new PageMetadata("huge-page", tags, "Huge Page", PageMetadata.Now, 0, "huge-page.txt", 0.0);
+					PageMetadata metadata = new PageMetadata("huge-page", tags, "Huge Page", PageMetadata.Now, 0, "huge-page.txt");
 					Page hugePage = new Page(metadata, largeContent);
 					
 					bool writeSuccess = await pageManager.WritePage(hugePage, "TestUser", "test@example.com").ConfigureAwait(false);
@@ -614,7 +614,7 @@ namespace TestApp
 					for (int i = 0; i < 10; i++)
 					{
 						List<string> tags = new List<string> { "cache", $"perf{i}" };
-						PageMetadata metadata = new PageMetadata($"cache-page-{i}", tags, $"Cache Page {i}", PageMetadata.Now, 0, $"cache-page-{i}.txt", 0.0);
+						PageMetadata metadata = new PageMetadata($"cache-page-{i}", tags, $"Cache Page {i}", PageMetadata.Now, 0, $"cache-page-{i}.txt");
 						Page page = new Page(metadata, $"Cache test content {i}");
 						await pageManager.WritePage(page, "TestUser", "test@example.com").ConfigureAwait(false);
 					}

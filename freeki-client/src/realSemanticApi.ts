@@ -122,7 +122,6 @@ export class RealSemanticApi implements ISemanticApi {
       title: request.title, 
       filepath: request.filepath, 
       tags: request.tags,
-      sortOrder: request.sortOrder,
       contentLength: request.content.length 
     })
     
@@ -131,7 +130,6 @@ export class RealSemanticApi implements ISemanticApi {
       params.set('title', request.title)
       params.set('tags', request.tags.join(','))
       params.set('filepath', request.filepath)
-      params.set('sortOrder', request.sortOrder.toString())
 
       const result = await this.makeRequest<PageMetadata>(
         `/api/pages?${params.toString()}`, 
@@ -155,7 +153,6 @@ export class RealSemanticApi implements ISemanticApi {
       title: request.title, 
       filepath: request.filepath, 
       tags: request.tags,
-      sortOrder: request.sortOrder,
       contentLength: request.content.length 
     })
     
@@ -164,7 +161,6 @@ export class RealSemanticApi implements ISemanticApi {
       params.set('title', request.title)
       params.set('tags', request.tags.join(','))
       params.set('filepath', request.filepath)
-      params.set('sortOrder', request.sortOrder.toString())
 
       const result = await this.makeRequest<PageMetadata>(
         `/api/pages/${request.pageId}?${params.toString()}`, 

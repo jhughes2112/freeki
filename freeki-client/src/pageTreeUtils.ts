@@ -15,22 +15,14 @@ export interface TreeNode {
   metadata: PageMetadata
   isFolder: boolean     // Computed: true if this path has children
   children: TreeNode[]  // Computed: child nodes based on path hierarchy
+  firstFilePageId: string  // For folders: pageId of the first file in this folder (always set)
+  lastFilePageId: string   // For folders: pageId of the last file in this folder (always set)
 }
 
-// FIXED: True flattened sorting - sorts by sortOrder FIRST, then builds tree structure
-export function buildFlattenedList(pageMetadata: PageMetadata[]): FlattenedItem[] {
-  if (pageMetadata.length === 0) {
-    return []
-  }
-
-  // Step 1: Sort ALL pages by sortOrder FIRST (true flattened sorting)
-  const sortedPages = [...pageMetadata].sort((a, b) => {
-    // Primary sort: sortOrder
-    if (a.sortOrder !== b.sortOrder) {
-      return a.sortOrder - b.sortOrder
-    }
-    
-    // Secondary sort: path similarity with proper folder/file precedence
+// Simple alphabetical sorting function - files before folders at each level
+export function sortPagesByDisplayOrder(pageMetadata: PageMetadata[]): PageMetadata[] {
+  return [...pageMetadata].sort((a, b) => {
+    // Compare paths depth-first: shallower paths (files/folders at root) come before deeper ones
     const aPathParts = a.path.split('/').filter(Boolean)
     const bPathParts = b.path.split('/').filter(Boolean)
     
@@ -41,33 +33,43 @@ export function buildFlattenedList(pageMetadata: PageMetadata[]): FlattenedItem[
       const bSegment = bPathParts[i]
       
       if (aSegment !== bSegment) {
-        // Determine if each segment represents a folder or file
-        const aIsFolder = i < aPathParts.length - 1  // Not the last segment = folder
-        const bIsFolder = i < bPathParts.length - 1  // Not the last segment = folder
+        // If we're at the final segment, determine if it's a file or folder
+        const aIsFile = i === aPathParts.length - 1 // Last segment = file
+        const bIsFile = i === bPathParts.length - 1 // Last segment = file
         
-        // If one is a folder and one is a file, folder comes first
-        if (aIsFolder && !bIsFolder) {
-          return -1  // a (folder) comes before b (file)
+        // FILES BEFORE FOLDERS: If one is a file and one is a folder, file comes first
+        if (aIsFile && !bIsFile) {
+          return -1  // a (file) comes before b (folder)
         }
-        if (!aIsFolder && bIsFolder) {
-          return 1   // b (folder) comes before a (file)
+        if (!aIsFile && bIsFile) {
+          return 1   // b (file) comes before a (folder)
         }
         
-        // Both are folders or both are files, sort alphabetically
+        // Both are files or both are folders - sort alphabetically
         return aSegment.localeCompare(bSegment)
       }
     }
     
-    // If all common segments are equal, shorter path comes first (folders before deeper files)
+    // If all common segments are equal, shorter path comes first
     if (aPathParts.length !== bPathParts.length) {
       return aPathParts.length - bPathParts.length
     }
     
-    // Quaternary sort: alphabetical by title
+    // Final fallback: alphabetical by title
     return a.title.localeCompare(b.title)
   })
+}
 
-  // Step 2: Create flat list with visual depth only (no folder grouping)
+// Alphabetical flattened list - simple depth-based layout
+export function buildFlattenedList(pageMetadata: PageMetadata[]): FlattenedItem[] {
+  if (pageMetadata.length === 0) {
+    return []
+  }
+
+  // Sort pages alphabetically
+  const sortedPages = sortPagesByDisplayOrder(pageMetadata)
+
+  // Create flat list with visual depth only
   const flattenedItems: FlattenedItem[] = []
 
   for (const page of sortedPages) {
@@ -85,58 +87,43 @@ export function buildFlattenedList(pageMetadata: PageMetadata[]): FlattenedItem[
   return flattenedItems
 }
 
-// FIXED: Tree building that maintains global sortOrder sequence
+// Tree building with alphabetical sorting - files before folders
 export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
   if (pageMetadata.length === 0) {
     return []
   }
 
-  // Step 1: Sort ALL pages by sortOrder FIRST (true flattened sorting)
-  const sortedPages = [...pageMetadata].sort((a, b) => {
-    // Primary sort: sortOrder
-    if (a.sortOrder !== b.sortOrder) {
-      return a.sortOrder - b.sortOrder
-    }
+  // Sort pages alphabetically
+  const sortedPages = sortPagesByDisplayOrder(pageMetadata)
+
+  // Build folder structure and track first/last files for each folder
+  const rootNodes: TreeNode[] = []
+  const folderTracker = new Map<string, { firstPageId: string; lastPageId: string }>()
+
+  // First pass: track which files belong to each folder
+  for (const pageMetadata of sortedPages) {
+    const pathParts = pageMetadata.path.split('/').filter(Boolean)
+    const folderParts = pathParts.slice(0, -1) // all parts except the file
     
-    // Secondary sort: path similarity with proper folder/file precedence
-    const aPathParts = a.path.split('/').filter(Boolean)
-    const bPathParts = b.path.split('/').filter(Boolean)
-    
-    // Compare path segment by segment
-    const minLength = Math.min(aPathParts.length, bPathParts.length)
-    for (let i = 0; i < minLength; i++) {
-      const aSegment = aPathParts[i]
-      const bSegment = bPathParts[i]
+    // Update folder tracking for all parent folders of this file
+    for (let depth = 0; depth < folderParts.length; depth++) {
+      const folderPath = folderParts.slice(0, depth + 1).join('/')
       
-      if (aSegment !== bSegment) {
-        // Determine if each segment represents a folder or file
-        const aIsFolder = i < aPathParts.length - 1  // Not the last segment = folder
-        const bIsFolder = i < bPathParts.length - 1  // Not the last segment = folder
-        
-        // If one is a folder and one is a file, folder comes first
-        if (aIsFolder && !bIsFolder) {
-          return -1  // a (folder) comes before b (file)
-        }
-        if (!aIsFolder && bIsFolder) {
-          return 1   // b (folder) comes before a (file)
-        }
-        
-        // Both are folders or both are files, sort alphabetically
-        return aSegment.localeCompare(bSegment)
+      if (!folderTracker.has(folderPath)) {
+        // First file in this folder - initialize tracking
+        folderTracker.set(folderPath, {
+          firstPageId: pageMetadata.pageId,
+          lastPageId: pageMetadata.pageId
+        })
+      } else {
+        // Update last file for this folder (since we're processing in sorted order)
+        const tracker = folderTracker.get(folderPath)!
+        tracker.lastPageId = pageMetadata.pageId
       }
     }
-    
-    // If all common segments are equal, shorter path comes first (folders before deeper files)
-    if (aPathParts.length !== bPathParts.length) {
-      return aPathParts.length - bPathParts.length
-    }
-    
-    // Quaternary sort: alphabetical by title
-    return a.title.localeCompare(b.title)
-  })
+  }
 
-  // Step 2: Path walking with proper folder reuse and node stack management
-  const rootNodes: TreeNode[] = []
+  // Second pass: Build the actual tree structure
   let previousPath: string[] = []
   let nodeStack: TreeNode[][] = [rootNodes]  // Stack of current node arrays at each depth level
   
@@ -161,22 +148,24 @@ export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
     for (let i = commonDepth; i < folderParts.length; i++) {
       const folderName = folderParts[i]
       const folderPath = folderParts.slice(0, i + 1).join('/')
+      const tracker = folderTracker.get(folderPath)!
       
-      // Create unique pageId using full path + sortOrder (guarantees no duplicates)
+      // Create unique pageId using full path
       const virtualMetadata: PageMetadata = {
-        pageId: `folder_${folderPath}_${pageMetadata.sortOrder}`,
+        pageId: `folder_${folderPath}`,
         tags: [],
         title: folderName,
         lastModified: Date.now() / 1000,
         version: 0,
-        path: folderPath,
-        sortOrder: pageMetadata.sortOrder
+        path: folderPath
       }
       
       const folderNode: TreeNode = {
         metadata: virtualMetadata,
         isFolder: true,
-        children: []
+        children: [],
+        firstFilePageId: tracker.firstPageId,  // Always set - first file in this folder
+        lastFilePageId: tracker.lastPageId     // Always set - last file in this folder
       }
       
       // Add folder to current level
@@ -191,7 +180,9 @@ export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
     const pageNode: TreeNode = {
       metadata: pageMetadata,
       isFolder: false,
-      children: []
+      children: [],
+      firstFilePageId: pageMetadata.pageId,  // For files: references itself
+      lastFilePageId: pageMetadata.pageId    // For files: references itself
     }
     
     currentNodes.push(pageNode)
@@ -203,19 +194,17 @@ export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
   return rootNodes
 }
 
-// Drag and Drop Types and Utilities
+// Drag and Drop Types and Utilities (DISABLED)
 export interface DragData {
   pageId: string
   isFolder: boolean
   path: string
-  sortOrder: number
 }
 
 export interface DropTarget {
   targetPageId: string
   targetPath: string
   position: 'before' | 'after' | 'inside'
-  targetSortOrder?: number
 }
 
 export interface DragOperationResult {
@@ -223,7 +212,7 @@ export interface DragOperationResult {
   affectedPageIds: string[]
 }
 
-// Collect all pages that would be affected by dragging a TreeNode (walking the tree properly)
+// Collect all pages that would be affected by dragging a TreeNode (for compatibility)
 export function collectAffectedPagesFromTree(
   draggedNode: TreeNode, 
   allPages: PageMetadata[]
@@ -252,7 +241,7 @@ export function collectAffectedPagesFromTree(
   return affectedPages
 }
 
-// Updated function that works with DragData from the UI
+// Function that works with DragData from the UI (for compatibility)
 export function collectAffectedPages(
   dragData: DragData, 
   allPages: PageMetadata[],
@@ -287,228 +276,58 @@ export function collectAffectedPages(
   return collectAffectedPagesFromTree(draggedNode, allPages)
 }
 
-// Calculate new sortOrders for dragged pages based on target location
-export function calculateNewSortOrders(
-  draggedPages: PageMetadata[],
-  targetPath: string,
-  position: 'before' | 'after' | 'inside',
-  allPages: PageMetadata[]
-): number[] {
-  
-  // Determine the target folder path based on position
-  let targetFolderPath = ''
-  
-  if (position === 'inside') {
-    // Dropping inside means the target IS the folder
-    targetFolderPath = targetPath
-  } else {
-    // Dropping before/after means we're in the same folder as the target
-    targetFolderPath = targetPath.substring(0, targetPath.lastIndexOf('/')) || ''
-  }
-  
-  // Find all files in the target folder
-  const targetFolderFiles = allPages.filter(page => {
-    const pageFolder = page.path.substring(0, page.path.lastIndexOf('/')) || ''
-    return pageFolder === targetFolderPath
-  }).sort((a, b) => a.sortOrder - b.sortOrder)
-  
-  // If target folder is empty, use default sortOrder
-  if (targetFolderFiles.length === 0) {
-    return draggedPages.map(() => 1.0)
-  }
-  
-  // Get unique sortOrders in the target folder
-  const uniqueSortOrders = Array.from(new Set(targetFolderFiles.map(p => p.sortOrder)))
-    .sort((a, b) => a - b)
-  
-  if (uniqueSortOrders.length === 1) {
-    // All files in target folder have the same sortOrder - snap to it
-    return draggedPages.map(() => uniqueSortOrders[0])
-  }
-  
-  // Determine insertion point
-  let beforeSortOrder: number
-  let afterSortOrder: number
-  
-  if (position === 'inside') {
-    // Insert at the end of the folder
-    beforeSortOrder = Math.max(...uniqueSortOrders)
-    
-    // Find the next file outside this folder hierarchy
-    const allSortedFiles = allPages.sort((a, b) => a.sortOrder - b.sortOrder)
-    const nextFileIndex = allSortedFiles.findIndex(page => {
-      const pageFolder = page.path.substring(0, page.path.lastIndexOf('/')) || ''
-      return pageFolder !== targetFolderPath && page.sortOrder > beforeSortOrder
-    })
-    
-    afterSortOrder = nextFileIndex >= 0 ? allSortedFiles[nextFileIndex].sortOrder : beforeSortOrder + 1.0
-  } else {
-    // Insert before/after target file
-    const targetFile = allPages.find(p => p.path === targetPath)
-    if (!targetFile) {
-      // Fallback to end of folder
-      beforeSortOrder = Math.max(...uniqueSortOrders)
-      afterSortOrder = beforeSortOrder + 1.0
-    } else {
-      const refIndex = uniqueSortOrders.indexOf(targetFile.sortOrder)
-      
-      if (position === 'before') {
-        afterSortOrder = targetFile.sortOrder
-        beforeSortOrder = refIndex > 0 ? uniqueSortOrders[refIndex - 1] : afterSortOrder - 1.0
-      } else { // position === 'after'
-        beforeSortOrder = targetFile.sortOrder
-        afterSortOrder = refIndex < uniqueSortOrders.length - 1 
-          ? uniqueSortOrders[refIndex + 1] 
-          : beforeSortOrder + 1.0
-      }
-    }
-  }
-  
-  // Distribute dragged pages between beforeSortOrder and afterSortOrder
-  return distributeEvenly(draggedPages, beforeSortOrder, afterSortOrder)
+// Calculate the complete drag operation result (DISABLED)
+export function calculateDragOperation(): DragOperationResult {
+  // DISABLED: Drag and drop is disabled since we removed sortOrder
+  console.log('🚫 Drag and drop is disabled - using alphabetical sorting only')
+  return { updatedPages: [], affectedPageIds: [] }
 }
 
-// Distribute pages evenly between two sortOrder values
-function distributeEvenly(draggedPages: PageMetadata[], beforeSortOrder: number, afterSortOrder: number): number[] {
-  if (draggedPages.length === 0) return []
-  
-  // Get unique sortOrders from dragged pages and sort them
-  const draggedSortOrders = Array.from(new Set(draggedPages.map(p => p.sortOrder))).sort((a, b) => a - b)
-  
-  if (draggedSortOrders.length === 1) {
-    // All dragged pages have same sortOrder - they all get the same new sortOrder
-    const targetSortOrder = beforeSortOrder + (afterSortOrder - beforeSortOrder) * 0.5
-    return draggedPages.map(() => targetSortOrder)
-  }
-  
-  // Multiple unique sortOrders - map proportionally
-  // Example: dragging [3.1, 3.2, 3.3, 3.4] between 1.0 and 2.0
-  // Result: evenly distributed [1.2, 1.4, 1.6, 1.8]
-  
-  const range = afterSortOrder - beforeSortOrder
-  const sourceMin = Math.min(...draggedSortOrders)
-  const sourceMax = Math.max(...draggedSortOrders)
-  const sourceRange = sourceMax - sourceMin || 1 // Avoid division by zero
-  
-  // Create mapping for each unique sortOrder
-  const sortOrderMap = new Map<number, number>()
-  
-  if (draggedSortOrders.length === 2) {
-    // Special case: two different sortOrders [3.0, 4.0] -> [1.33, 1.66]
-    const step = range / 3
-    sortOrderMap.set(draggedSortOrders[0], beforeSortOrder + step)
-    sortOrderMap.set(draggedSortOrders[1], beforeSortOrder + 2 * step)
-  } else {
-    // General case: proportional mapping
-    draggedSortOrders.forEach((sortOrder, index) => {
-      const proportion = draggedSortOrders.length === 1 ? 0.5 : index / (draggedSortOrders.length - 1)
-      const newSortOrder = beforeSortOrder + range * proportion * 0.8 + range * 0.1 // Leave 10% margin on each side
-      sortOrderMap.set(sortOrder, newSortOrder)
-    })
-  }
-  
-  // Map each dragged page to its new sortOrder
-  return draggedPages.map(page => sortOrderMap.get(page.sortOrder) || beforeSortOrder + range * 0.5)
-}
-
-// Calculate the complete drag operation result
-export function calculateDragOperation(
-  dragData: DragData,
-  dropTarget: DropTarget,
-  allPages: PageMetadata[],
-  pageTree: TreeNode[]
-): DragOperationResult {
-  // Use proper tree walking instead of path filtering
-  const affectedPages = collectAffectedPages(dragData, allPages, pageTree)
-  
-  if (affectedPages.length === 0) {
-    return { updatedPages: [], affectedPageIds: [] }
-  }
-  
-  // Calculate new sortOrders based on drop position
-  const newSortOrders = calculateNewSortOrders(
-    affectedPages,
-    dropTarget.targetPath,
-    dropTarget.position,
-    allPages
-  )
-  
-  // Calculate new paths for reparented pages
-  const updatedPages = affectedPages.map((page, index) => {
-    // Determine new parent path based on drop target
-    let newParentPath = ''
-    
-    if (dropTarget.position === 'inside') {
-      // Dropping inside a folder - the target path IS the new parent
-      newParentPath = dropTarget.targetPath
-    } else {
-      // Dropping before/after a file or folder - extract parent directory
-      const targetParentPath = dropTarget.targetPath.substring(0, dropTarget.targetPath.lastIndexOf('/'))
-      newParentPath = targetParentPath || '' // Root level if no parent
-    }
-    
-    // Calculate new full path
-    const fileName = page.path.substring(page.path.lastIndexOf('/') + 1)
-    const newPath = newParentPath ? `${newParentPath}/${fileName}` : fileName
-    
-    return {
-      ...page,
-      path: newPath,
-      sortOrder: newSortOrders[index]
-    }
-  })
-  
-  return {
-    updatedPages,
-    affectedPageIds: affectedPages.map(p => p.pageId)
-  }
-}
-
-// DIAGNOSTIC: Test with simple case to identify the issue
+// DIAGNOSTIC: Test with simple case to verify alphabetical sorting
 if (typeof window !== 'undefined') {
-  (window as any).testSimpleTreeBuild = function() {
-    console.log('🔬 DIAGNOSTIC: Simple Tree Build Test')
+  (window as unknown as { testSimpleTreeBuild: () => void }).testSimpleTreeBuild = function() {
+    console.log('🔬 DIAGNOSTIC: Simple Tree Build Test (Alphabetical Sorting)')
     
     const testPages: PageMetadata[] = [
       {
         pageId: 'api-getting-started',
-        title: '[1.0] API Getting Started',
+        title: 'API Getting Started',
         path: 'documentation/api/getting-started.md',
         tags: [],
         lastModified: 1000,
-        version: 1,
-        sortOrder: 1.0
+        version: 1
       },
       {
         pageId: 'doc-intro',
-        title: '[1.0] Documentation Introduction',
+        title: 'Documentation Introduction',
         path: 'documentation/intro.md',
         tags: [],
         lastModified: 1000,
-        version: 1,
-        sortOrder: 1.0
+        version: 1
       },
       {
-        pageId: 'api-overview',
-        title: '[2.0] API Overview',
-        path: 'documentation/api/overview.md',
+        pageId: 'home',
+        title: 'Home Page',
+        path: 'home.md',
         tags: [],
         lastModified: 1000,
-        version: 1,
-        sortOrder: 2.0
+        version: 1
       }
     ]
     
-    console.log('Input pages:', testPages.map(p => `[${p.sortOrder}] ${p.title} (${p.path})`))
+    console.log('Input pages:', testPages.map(p => `${p.title} (${p.path})`))
     
     const tree = buildPageTree(testPages)
-    console.log('Generated tree:')
+    console.log('Generated tree (alphabetical, files before folders):')
     
     function walkTree(nodes: TreeNode[], depth = 0): void {
-      nodes.forEach((node, index) => {
+      nodes.forEach((node) => {
         const indent = '  '.repeat(depth)
         const icon = node.isFolder ? '📁' : '📄'
-        console.log(`${indent}${icon} [${node.metadata.sortOrder}] ${node.metadata.title} (ID: ${node.metadata.pageId})`)
+        const bookendInfo = node.isFolder 
+          ? ` (first: ${node.firstFilePageId}, last: ${node.lastFilePageId})` 
+          : ''
+        console.log(`${indent}${icon} ${node.metadata.title} (ID: ${node.metadata.pageId})${bookendInfo}`)
         
         if (node.children && node.children.length > 0) {
           walkTree(node.children, depth + 1)

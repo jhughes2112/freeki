@@ -14,8 +14,8 @@ namespace FreeKi
 	| ------ | --------------------------    | --------------------------- |
 	| GET    | `/api/pages`                  | List all pages              |
 	| GET    | `/api/pages/{id}`             | Fetch page content          |
-	| POST   | `/api/pages`                  | Create a new page           | title, tags, filepath, sortOrder in query, content in body
-	| PUT    | `/api/pages/{id}`             | Update existing page        | title, tags, filepath, sortOrder in query, content in body
+	| POST   | `/api/pages`                  | Create a new page           | title, tags, filepath in query, content in body
+	| PUT    | `/api/pages/{id}`             | Update existing page        | title, tags, filepath in query, content in body
 	| DELETE | `/api/pages/{id}`             | Delete a page               |
 	| GET    | `/api/pages?q=term`           | Search page metadata        |
 	| GET    | `/api/pages?q=term&content=1` | Search page metadata and content |
@@ -127,20 +127,19 @@ namespace FreeKi
 					string? title = httpListenerContext.Request.QueryString["title"];
 					string? tags = httpListenerContext.Request.QueryString["tags"];
 					string? filepath = httpListenerContext.Request.QueryString["filepath"];
-					string? sortOrderStr = httpListenerContext.Request.QueryString["sortOrder"];
 					string? content = httpListenerContext.Request.InputStream != null
 						? await new System.IO.StreamReader(httpListenerContext.Request.InputStream, httpListenerContext.Request.ContentEncoding).ReadToEndAsync().ConfigureAwait(false)
 						: null;
 
 					// Validate that all required fields are present
-					if (string.IsNullOrEmpty(title) || tags == null || string.IsNullOrEmpty(filepath) || string.IsNullOrEmpty(content) || string.IsNullOrEmpty(sortOrderStr) || double.TryParse(sortOrderStr, out double sortOrder)==false)
+					if (string.IsNullOrEmpty(title) || tags == null || string.IsNullOrEmpty(filepath) || string.IsNullOrEmpty(content)==false)
 					{
 						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} bad parameters");
 						return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
 					}
 
 					List<string> tagsList = ParseTags(tags);
-					return await HandleCreatePage(title, tagsList, filepath, sortOrder, content, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
+					return await HandleCreatePage(title, tagsList, filepath, content, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 				}
 				else if (segments.Count == 5 && segments[4] == "retrieve") // '/', 'api/', 'pages/', '{pageid}/', 'retrieve'
 				{
@@ -169,19 +168,18 @@ namespace FreeKi
 					string? title = httpListenerContext.Request.QueryString["title"];
 					string? tags = httpListenerContext.Request.QueryString["tags"];
 					string? filepath = httpListenerContext.Request.QueryString["filepath"];
-					string? sortOrderStr = httpListenerContext.Request.QueryString["sortOrder"];
 					string? content = httpListenerContext.Request.InputStream != null
 						? await new System.IO.StreamReader(httpListenerContext.Request.InputStream, httpListenerContext.Request.ContentEncoding).ReadToEndAsync().ConfigureAwait(false)
 						: null;
 
-					if (string.IsNullOrEmpty(pageId) || string.IsNullOrEmpty(title) || tags == null || string.IsNullOrEmpty(filepath) || string.IsNullOrEmpty(content) || string.IsNullOrEmpty(sortOrderStr) || double.TryParse(sortOrderStr, out double sortOrder)==false)
+					if (string.IsNullOrEmpty(pageId) || string.IsNullOrEmpty(title) || tags == null || string.IsNullOrEmpty(filepath) || string.IsNullOrEmpty(content))
 					{
 						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} bad parameters");
 						return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
 					}
 
 					List<string> tagsList = ParseTags(tags);
-					return await HandleUpdatePage(pageId, title, tagsList, filepath, sortOrder, content, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
+					return await HandleUpdatePage(pageId, title, tagsList, filepath, content, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 				}
 				else
 				{
@@ -262,12 +260,12 @@ namespace FreeKi
 		}
 
 		// POST /api/pages - Create a new page
-		private async Task<(int, string, byte[])> HandleCreatePage(string title, List<string> tagsList, string filepath, double sortOrder, string content, string gitAuthorName, string gitAuthorEmail)
+		private async Task<(int, string, byte[])> HandleCreatePage(string title, List<string> tagsList, string filepath, string content, string gitAuthorName, string gitAuthorEmail)
 		{
 			string pageId = Guid.NewGuid().ToString();
 
 			// Create new page using the full constructor with sortOrder
-			PageMetadata metadata = new PageMetadata(pageId, tagsList, title, PageMetadata.Now, 0, filepath, sortOrder);
+			PageMetadata metadata = new PageMetadata(pageId, tagsList, title, PageMetadata.Now, 0, filepath);
 			Page newPage = new Page(metadata, content);
 			bool success = await _pageManager.WritePage(newPage, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 
@@ -283,14 +281,14 @@ namespace FreeKi
 		}
 
 		// PUT /api/pages/{id} - Update existing page
-		private async Task<(int, string, byte[])> HandleUpdatePage(string pageId, string title, List<string> tagsList, string filepath, double sortOrder, string content, string gitAuthorName, string gitAuthorEmail)
+		private async Task<(int, string, byte[])> HandleUpdatePage(string pageId, string title, List<string> tagsList, string filepath, string content, string gitAuthorName, string gitAuthorEmail)
 		{
 			// Get the existing page
 			Page? existingPage = await _pageManager.ReadPage(pageId).ConfigureAwait(false);
 			if (existingPage != null)
 			{
 				// Determine if we need to update metadata (title, tags, and/or filepath)
-				PageMetadata updatedMetadata = new PageMetadata(pageId, tagsList, title, PageMetadata.Now, existingPage.Metadata.Version + 1, filepath, sortOrder);
+				PageMetadata updatedMetadata = new PageMetadata(pageId, tagsList, title, PageMetadata.Now, existingPage.Metadata.Version + 1, filepath);
 
 				// Create updated page
 				Page updatedPage = new Page(updatedMetadata, content);

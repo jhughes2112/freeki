@@ -98,7 +98,6 @@ export class FakeSemanticApi implements ISemanticApi {
       title: request.title, 
       filepath: request.filepath, 
       tags: request.tags,
-      sortOrder: request.sortOrder,
       contentLength: request.content.length 
     })
     
@@ -110,8 +109,7 @@ export class FakeSemanticApi implements ISemanticApi {
         path: request.filepath,
         tags: [...request.tags],
         lastModified: Date.now() / 1000,
-        version: 1,
-        sortOrder: request.sortOrder
+        version: 1
       }
 
       this.fakePages.push(newPage)
@@ -133,7 +131,6 @@ export class FakeSemanticApi implements ISemanticApi {
       title: request.title, 
       filepath: request.filepath, 
       tags: request.tags,
-      sortOrder: request.sortOrder,
       contentLength: request.content.length 
     })
     
@@ -151,8 +148,7 @@ export class FakeSemanticApi implements ISemanticApi {
         path: request.filepath,
         tags: [...request.tags],
         lastModified: Date.now() / 1000,
-        version: this.fakePages[index].version + 1,
-        sortOrder: request.sortOrder
+        version: this.fakePages[index].version + 1
       }
 
       this.fakePages[index] = updatedPage

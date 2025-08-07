@@ -82,37 +82,27 @@ interface AppState {
 
 ---
 
-### 3. FLATTENED SORTORDER SYSTEM
-**Location**: `src/pageTreeUtils.ts` + test data
-**Pattern**: Global sortOrder maintains sequence across all folder depths
+### 3. ALPHABETICAL SORTING SYSTEM
+**Location**: `src/pageTreeUtils.ts`
+**Pattern**: Simple alphabetical sorting with files before folders
 
 ```typescript
-// Server sends flat list with sortOrder values
-const pages = [
-  { pageId: 'welcome', path: 'welcome.md', sortOrder: 1.0 },
-  { pageId: 'api-start', path: 'docs/api/start.md', sortOrder: 1.5 },
-  { pageId: 'overview', path: 'overview.md', sortOrder: 2.0 },
-  { pageId: 'api-ref', path: 'docs/api/reference.md', sortOrder: 3.0 }
-]
+// Pages are sorted alphabetically by path, files before folders
+const sortedPages = sortPagesByDisplayOrder(pageMetadata)
 
-// UI displays in global sortOrder regardless of folder structure:
-// 1.0 Welcome (root)
-// 1.5 API Getting Started (docs/api/)
-// 2.0 Overview (root) 
-// 3.0 API Reference (docs/api/)
+// Results in clean, predictable ordering:
+// - home.md (file)
+// - welcome.md (file)  
+// - documentation/ (folder)
+//   - intro.md
+//   - basic.md
 ```
 
 **Key Principles**:
-- sortOrder is GLOBAL across all pages
-- Tree structure is visual only (folders derived from paths)
-- Drag & drop updates sortOrder to maintain sequence
-- Prevents traditional "folder then contents" ordering issues
-
-**Test Data**: `testData.ts` contains comprehensive sortOrder test cases:
-- Decimal values (1.1, 1.5, 2.5)
-- Large values (2024.01 for dates)
-- Edge cases (negative, zero, 999.9)
-- Complex nesting scenarios
+- Simple alphabetical sorting by path
+- Files appear before folders at each level
+- No complex ordering management needed
+- Predictable, consistent results
 
 ---
 
@@ -164,11 +154,11 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 - Handles all CRUD operations directly (no service layer)
 - Responsive layout with collapsible panels
 
-#### FolderTree.tsx - Tree Visualization + Drag/Drop
+#### FolderTree.tsx - Tree Visualization
 - Converts flat pageMetadata to visual tree
-- Implements drag & drop with sortOrder recalculation
 - Search filtering with multiple modes
 - Auto-expansion and selection tracking
+- Drag/drop disabled (using alphabetical sorting)
 
 #### Semantic Components
 - Each component imports `createSemanticApi()` directly
@@ -182,7 +172,7 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 ### Test Data System
 **Location**: `src/testData.ts`
 
-- `testPageMetadata[]` - Comprehensive sortOrder test cases
+- `testPageMetadata[]` - Clean test data for alphabetical sorting
 - `testPageContent` - Sample content for all test pages
 - Used by FakeSemanticApi for realistic testing
 
@@ -203,7 +193,7 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 - ? Clean real/fake implementations
 - ? Hardcoded auth (no configuration)
 - ? Global reactive state system
-- ? Flattened sortOrder across folders
+- ? Alphabetical sorting across folders
 - ? Runtime CSS customization
 - ? Comprehensive test data
 
@@ -240,7 +230,7 @@ src/
 This architecture provides a clean, maintainable foundation with unique solutions for:
 - API abstraction without over-engineering
 - Global state management without complexity
-- Flexible visual ordering across folder hierarchies  
+- Simple alphabetical sorting across folder hierarchies  
 - Runtime theming without CSS rebuilds
 - Comprehensive testing without server dependencies
 
@@ -253,5 +243,5 @@ export const LAST_UPDATED = '2024-12-19'
 export default {
   version: API_SUMMARY_VERSION,
   lastUpdated: LAST_UPDATED,
-  overview: 'Clean semantic API + reactive global state + flattened sortOrder system'
+  overview: 'Clean semantic API + reactive global state + alphabetical sorting system'
 } as ArchitectureSummary

@@ -213,16 +213,6 @@ export default function PageMetadataComponent({ metadata, content, onTagClick }:
         <Typography 
           variant="body2" 
           sx={{ 
-            mb: 1, 
-            color: 'var(--freeki-page-details-font-color)',
-            fontSize: 'var(--freeki-page-details-font-size)'
-          }}
-        >
-          Sort Order: {metadata.sortOrder}
-        </Typography>
-        <Typography 
-          variant="body2" 
-          sx={{ 
             color: 'var(--freeki-page-details-font-color)',
             fontSize: 'var(--freeki-page-details-font-size)'
           }}

@@ -11,7 +11,6 @@ export interface PageCreateRequest {
   content: string
   filepath: string
   tags: string[]
-  sortOrder: number
 }
 
 export interface PageUpdateRequest {
@@ -20,7 +19,6 @@ export interface PageUpdateRequest {
   content: string
   filepath: string
   tags: string[]
-  sortOrder: number
 }
 
 export interface PageWithContent {

@@ -36,6 +36,7 @@ import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
+import type { DragData, DropTarget } from './pageTreeUtils'
 import { fetchAdminSettings } from './adminSettings'
 import { createSemanticApi } from './semanticApiFactory'
 import type { ISemanticApi } from './semanticApiInterface'
@@ -68,7 +69,7 @@ const EnhancedTooltip = ({ children, title, ...props }: {
 )
 
 export default function App() {
-  // API client instance
+  // API client instance - centralized and passed down
   const [semanticApi, setSemanticApi] = React.useState<ISemanticApi | null>(null)
   
   const { settings, userInfo, isLoaded, updateSetting } = useUserSettings(semanticApi)
@@ -93,7 +94,7 @@ export default function App() {
   const [isMetadataCollapsed, setIsMetadataCollapsed] = React.useState(false)
   const [hasInitialized, setHasInitialized] = React.useState(false)
 
-  // Initialize Semantic API
+  // Initialize Semantic API - centralized creation
   useEffect(() => {
     const api = createSemanticApi()
     setSemanticApi(api)
@@ -121,18 +122,17 @@ export default function App() {
         if (pages.length > 0) {
           globalState.set('pageMetadata', pages)
           
-          // Set first page as current
-          const firstPage = pages[0]
-          if (firstPage) {
-            globalState.set('currentPageMetadata', firstPage)
-            // Load content for first page
-            const pageWithContent = await api.getSinglePage(firstPage.pageId)
-            if (pageWithContent) {
-              globalState.set('currentPageContent', {
-                pageId: firstPage.pageId,
-                content: pageWithContent.content
-              })
-            }
+          // Find the first page alphabetically to serve as the default/home page
+          const defaultPage = pages.slice().sort((a, b) => a.path.localeCompare(b.path))[0]
+          
+          globalState.set('currentPageMetadata', defaultPage)
+          // Load content for default page
+          const pageWithContent = await api.getSinglePage(defaultPage.pageId)
+          if (pageWithContent) {
+            globalState.set('currentPageContent', {
+              pageId: defaultPage.pageId,
+              content: pageWithContent.content
+            })
           }
         } else {
           // No pages available
@@ -277,6 +277,12 @@ export default function App() {
   const handlePageSelect = async (metadata: PageMetadata) => {
     if (!semanticApi) return
     
+    // Don't reload if the same page is already selected
+    if (currentPageMetadata?.pageId === metadata.pageId) {
+      console.log('Page already selected, skipping reload:', metadata.pageId)
+      return
+    }
+    
     globalState.set('currentPageMetadata', metadata)
     globalState.set('isEditing', false)
     
@@ -320,8 +326,7 @@ export default function App() {
         title: currentPageMetadata.title,
         content: content,
         filepath: currentPageMetadata.path,
-        tags: currentPageMetadata.tags,
-        sortOrder: currentPageMetadata.sortOrder
+        tags: currentPageMetadata.tags
       })
       
       if (updatedMetadata) {
@@ -361,8 +366,7 @@ export default function App() {
         title: 'New Page',
         content: '# New Page\n\nStart writing your content here...',
         filepath: 'new-page.md',
-        tags: [],
-        sortOrder: 0
+        tags: []
       })
 
       if (newMetadata) {
@@ -389,9 +393,10 @@ export default function App() {
         const updatedPageMetadata = pageMetadata.filter(p => p.pageId !== currentPageMetadata.pageId)
         globalState.set('pageMetadata', updatedPageMetadata)
         
-        // Select first remaining page
+        // Select first remaining page alphabetically
         if (updatedPageMetadata.length > 0) {
-          handlePageSelect(updatedPageMetadata[0])
+          const nextDefaultPage = updatedPageMetadata.slice().sort((a, b) => a.path.localeCompare(b.path))[0]
+          handlePageSelect(nextDefaultPage)
         } else {
           globalState.set('currentPageMetadata', null)
           globalState.set('currentPageContent', null)
@@ -476,6 +481,41 @@ export default function App() {
     document.addEventListener('mouseup', handleMouseUp)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+  }
+
+  const handleDragDrop = async (
+    dragData: DragData,
+    dropTarget: DropTarget,
+    updatedPages: PageMetadata[]
+  ) => {
+    // Simplified: just update the global state with the updated pages from FolderTree
+    console.log('?? App: Updating global state with drag and drop results')
+    
+    // Update the global pageMetadata with the updated pages
+    const currentPages = [...pageMetadata]
+    let hasChanges = false
+    
+    for (const updatedPage of updatedPages) {
+      const index = currentPages.findIndex(p => p.pageId === updatedPage.pageId)
+      if (index >= 0) {
+        currentPages[index] = updatedPage
+        hasChanges = true
+      }
+    }
+    
+    if (hasChanges) {
+      globalState.set('pageMetadata', currentPages)
+      
+      // Update current page metadata if it was affected
+      if (currentPageMetadata) {
+        const updatedCurrentPage = updatedPages.find(p => p.pageId === currentPageMetadata.pageId)
+        if (updatedCurrentPage) {
+          globalState.set('currentPageMetadata', updatedCurrentPage)
+        }
+      }
+      
+      console.log('? App: Successfully updated global state')
+    }
   }
 
   const currentYear = new Date().getFullYear()
@@ -698,6 +738,9 @@ export default function App() {
                 selectedPageMetadata={currentPageMetadata}
                 onPageSelect={handlePageSelect}
                 searchQuery={searchQuery}
+                pageMetadata={pageMetadata}
+                onDragDrop={handleDragDrop}
+                semanticApi={semanticApi}
               />
             ) : (
               <Box sx={{ 
