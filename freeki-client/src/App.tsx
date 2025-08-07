@@ -41,6 +41,7 @@ import apiClient from './apiClient'
 import './themeService'
 import './App.css'
 import { testPageMetadata, testPageContent } from './testData'
+import './treeUnitTests'  // Import unit tests for browser console access
 
 const FadePanelContent = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (
   <div className={`fade-panel${visible ? '' : ' hidden'}`}>
@@ -79,7 +80,7 @@ export default function App() {
   const searchQuery = useGlobalState('searchQuery')
   const isLoadingPages = useGlobalState('isLoadingPages')
   
-  // Compute page tree from metadata - this belongs in the component, not global state
+  // Compute page tree from metadata - using fixed flattened approach
   const pageTree = React.useMemo(() => buildPageTree(pageMetadata), [pageMetadata])
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)

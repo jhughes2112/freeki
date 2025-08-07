@@ -145,8 +145,8 @@ function TreeNodeComponent({
       onToggleExpanded(node.metadata.pageId)
     }
 
-    // Position the text optimally when clicked
-    positionTextOptimally()
+    // DISABLED: Position text optimally to prevent unwanted scrolling on folder toggle
+    // positionTextOptimally()
   }
 
   const positionTextOptimally = () => {
@@ -184,7 +184,8 @@ function TreeNodeComponent({
   }
 
   const handleMouseEnter = () => {
-    positionTextOptimally()
+    // Disable automatic horizontal scrolling on hover to prevent unwanted scroll behavior
+    // positionTextOptimally()
   }
 
   return (
@@ -403,7 +404,7 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
     }
   }, [getPathToPage, settings.expandedNodes, toggleExpandedNode])
 
-  // Center the selected item in the container
+  // Center the selected item in the container only when selection actually changes
   useEffect(() => {
     if (selectedItemRef.current && containerRef.current && selectedPageMetadata) {
       const container = containerRef.current
@@ -429,7 +430,7 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
         })
       }, 100)
     }
-  }, [selectedPageMetadata?.pageId, expandedNodes])
+  }, [selectedPageMetadata?.pageId]) // Remove expandedNodes dependency to prevent scroll on folder toggle
 
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value

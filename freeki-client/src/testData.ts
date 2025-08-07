@@ -1,4 +1,4 @@
-// TEST DATA FOR SORTORDER AND TREE CONSTRUCTION VERIFICATION
+﻿// TEST DATA FOR SORTORDER AND TREE CONSTRUCTION VERIFICATION
 // This file contains all sample data for testing - comprehensive sortOrder verification data
 // plus simple fallback data. This is temporary test data that can be easily removed when no longer needed.
 
@@ -425,75 +425,303 @@ export const testPageContent: Record<string, string> = {
   'meeting-notes': '# Daily Standup Notes\n\nDaily team meeting notes.'
 }
 
-/*
-EXPECTED VERIFICATION RESULTS:
+// Debug utility functions for testing flattened sorting
+export function debugFlattenedSortOrder(pageMetadata: PageMetadata[]): void {
+  console.log('🔍 DEBUG: Flattened Sort Order')
+  console.log('='.repeat(50))
+  
+  const sortedPages = [...pageMetadata].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) {
+      return a.sortOrder - b.sortOrder
+    }
+    const aDepth = a.path.split('/').length
+    const bDepth = b.path.split('/').length
+    if (aDepth !== bDepth) {
+      return aDepth - bDepth
+    }
+    return a.title.localeCompare(b.title)
+  })
 
-When using this test data, you should see the following sortOrder verification:
+  sortedPages.forEach((page, index) => {
+    const depth = page.path.split('/').length - 1
+    const indent = '  '.repeat(depth)
+    console.log(`${(index + 1).toString().padStart(2)}. ${indent}[${page.sortOrder}] ${page.title} (${page.path})`)
+  })
+}
 
-ROOT LEVEL (should be sorted by sortOrder):
-1. [1.0] Welcome Guide 
-2. [2.0] System Overview
-3. [3.0] Home Page
+// SPECIFIC TEST FOR YOUR PROBLEMATIC CASE
+export function testProblematicCase(): void {
+  console.log('🚨 TESTING PROBLEMATIC SORTING CASE')
+  console.log('='.repeat(60))
+  
+  console.log('\n📝 INPUT DATA:')
+	testPageMetadata.forEach((page, index) => {
+    console.log(`${index + 1}. [${page.sortOrder}] ${page.title} (${page.path})`)
+  })
+  
+  console.log('\n📊 EXPECTED ORDER (by sortOrder):')
+  console.log('1. [1.0] API Getting Started (documentation/api/getting-started.md)')
+  console.log('2. [1.0] Documentation Introduction (documentation/intro.md)')
+  console.log('3. [2.0] API Overview (documentation/api/overview.md)')
+  
+  console.log('\n🔄 ACTUAL SORT ORDER (using current algorithm):')
+	debugFlattenedSortOrder(testPageMetadata)
+  
+  // Test if we have buildPageTree available
+  try {
+    // Try to import buildPageTree dynamically
+    import('./pageTreeUtils').then(({ buildPageTree }) => {
+      console.log('\n🌳 TREE STRUCTURE:')
+		const tree = buildPageTree(testPageMetadata)
+      
+      function walkTree(nodes: any[], depth = 0): void {
+        nodes.forEach((node, index) => {
+          const indent = '  '.repeat(depth)
+          const icon = node.isFolder ? '📁' : '📄'
+          console.log(`${indent}${icon} [${node.metadata.sortOrder}] ${node.metadata.title}`)
+          
+          if (node.children && node.children.length > 0) {
+            walkTree(node.children, depth + 1)
+          }
+        })
+      }
+      
+      walkTree(tree)
+      
+      // Check if the issue exists
+      const flatSequence: any[] = []
+      function flatten(nodes: any[]): void {
+        for (const node of nodes) {
+          flatSequence.push(node)
+          if (node.children && node.children.length > 0) {
+            flatten(node.children)
+          }
+        }
+      }
+      flatten(tree)
+      
+      console.log('\n🔍 ANALYSIS:')
+      const apiOverviewIndex = flatSequence.findIndex(n => n.metadata.title.includes('API Overview'))
+      const docIntroIndex = flatSequence.findIndex(n => n.metadata.title.includes('Documentation Introduction'))
+      
+      console.log(`API Overview (2.0) appears at index: ${apiOverviewIndex}`)
+      console.log(`Doc Introduction (1.0) appears at index: ${docIntroIndex}`)
+      
+      if (apiOverviewIndex < docIntroIndex) {
+        console.log('❌ PROBLEM CONFIRMED: API Overview (2.0) appears BEFORE Doc Introduction (1.0)')
+        console.log('   This breaks the global sortOrder sequence!')
+      } else {
+        console.log('✅ No problem: Items appear in correct sortOrder sequence')
+      }
+    }).catch(err => {
+      console.log('❌ Could not import buildPageTree:', err.message)
+    })
+  } catch (err) {
+    console.log('❌ buildPageTree not available for testing')
+  }
+}
 
-FOLDERS (should contain their items sorted by sortOrder):
-- complex/
-  - section-a/
-    - subsection-1/ ? [1.0] Complex Nested A-1
-    - subsection-2/ ? [2.0] Complex Nested A-2
-  - section-b/
-    - subsection-1/ ? [1.0] Complex Nested B-1
+// Simple diagnostic test to isolate the path-walking issue
+export function testSimpleCase(): void {
+  console.log('🔬 SIMPLE DIAGNOSTIC TEST')
+  console.log('='.repeat(50))
+  
+  // Minimal test case that should expose the issue
+  const simpleTestPages: PageMetadata[] = [
+    {
+      pageId: 'api-getting-started',
+      title: '[1.0] API Getting Started',
+      path: 'documentation/api/getting-started.md',
+      tags: [],
+      lastModified: 1000,
+      version: 1,
+      sortOrder: 1.0
+    },
+    {
+      pageId: 'doc-intro',
+      title: '[1.0] Documentation Introduction',
+      path: 'documentation/intro.md',
+      tags: [],
+      lastModified: 1000,
+      version: 1,
+      sortOrder: 1.0
+    },
+    {
+      pageId: 'api-overview',
+      title: '[2.0] API Overview',
+      path: 'documentation/api/overview.md',
+      tags: [],
+      lastModified: 1000,
+      version: 1,
+      sortOrder: 2.0
+    }
+  ]
+  
+  console.log('\n📝 MINIMAL TEST DATA:')
+  simpleTestPages.forEach((page, index) => {
+    console.log(`${index + 1}. [${page.sortOrder}] ${page.title} (${page.path})`)
+  })
+  
+  console.log('\n🔄 EXPECTED FLATTENED ORDER:')
+  const expectedOrder = [...simpleTestPages].sort((a, b) => {
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    const aDepth = a.path.split('/').length
+    const bDepth = b.path.split('/').length
+    if (aDepth !== bDepth) return aDepth - bDepth
+    return a.title.localeCompare(b.title)
+  })
+  
+  expectedOrder.forEach((page, index) => {
+    console.log(`${index + 1}. [${page.sortOrder}] ${page.title}`)
+  })
+  
+  try {
+    import('./pageTreeUtils').then(({ buildPageTree }) => {
+      console.log('\n🌳 ACTUAL TREE RESULT:')
+      const tree = buildPageTree(simpleTestPages)
+      
+      function walkTree(nodes: any[], depth = 0): void {
+        nodes.forEach((node, index) => {
+          const indent = '  '.repeat(depth)
+          const icon = node.isFolder ? '📁' : '📄'
+          console.log(`${indent}${icon} [${node.metadata.sortOrder}] ${node.metadata.title}`)
+          
+          if (node.children && node.children.length > 0) {
+            walkTree(node.children, depth + 1)
+          }
+        })
+      }
+      
+      walkTree(tree)
+      
+      // Check order integrity
+      const flatSequence: any[] = []
+      function flatten(nodes: any[]): void {
+        for (const node of nodes) {
+          if (!node.isFolder) flatSequence.push(node)
+          if (node.children && node.children.length > 0) flatten(node.children)
+        }
+      }
+      flatten(tree)
+      
+      console.log('\n🔍 ORDER CHECK:')
+      for (let i = 1; i < flatSequence.length; i++) {
+        const prev = flatSequence[i-1].metadata.sortOrder
+        const curr = flatSequence[i].metadata.sortOrder
+        if (curr < prev) {
+          console.log(`❌ ORDER VIOLATION: [${prev}] "${flatSequence[i-1].metadata.title}" before [${curr}] "${flatSequence[i].metadata.title}"`)
+        }
+      }
+    })
+  } catch (err) {
+    console.log('❌ Test failed:', err)
+  }
+}
 
-- documentation/
-  - [1.0] Documentation Introduction
-  - [2.0] Basic Documentation  
-  - [3.0] Advanced Documentation
-  - api/
-    - [1.0] API Getting Started
-    - [2.0] API Overview
-    - [3.0] API Reference
-    - examples/
-      - [1.0] REST API Examples
-      - [2.0] GraphQL Examples
+// Wire up tests for browser console access
+if (typeof window !== 'undefined') {
+  (window as any).testProblematicCase = testProblematicCase;
+  (window as any).debugFlattenedSortOrder = debugFlattenedSortOrder;
+  (window as any).testPageMetadata = testPageMetadata;
+  (window as any).testFullDataset = testFullDataset;
+}
 
-- edge-cases/
-  - [-1.0] Negative Sort Order Test
-  - [0.0] Zero Sort Order Test
-  - [999.9] Large Sort Order Test
-
-- meetings/
-  - [5.0] Daily Standups
-  - [10.0] Weekly Meetings
-  - [20.0] Monthly Reviews
-  - archive/
-    - [2024.01] January 2024 Archive
-    - [2024.02] February 2024 Archive
-
-- projects/
-  - [1.0] Project Alpha
-  - [1.5] Project Gamma
-  - [2.0] Project Delta
-  - [3.0] Project Beta
-  - alpha/
-    - [1.0] Alpha README
-    - [2.0] Alpha Setup Guide
-    - config/
-      - [1.0] Alpha Development Config
-      - [2.0] Alpha Production Config
-
-- reference/
-  - [1.1] API Reference
-  - [1.5] Frequently Asked Questions
-  - [2.5] Troubleshooting Guide
-
-- tutorials/
-  - [1.0] Tutorial Step 1
-  - [2.0] Tutorial Step 2
-  - [3.0] Tutorial Step 3
-
-This data proves that:
-? sortOrder takes precedence over alphabetical ordering
-? Decimal sortOrder values work correctly (1.1 < 1.5 < 2.5)
-? Negative and large sortOrder values are handled properly
-? Deep nesting preserves sortOrder at each level
-? Tree construction builds the correct hierarchical structure
-*/
+// COMPREHENSIVE TEST FOR THE FULL DATASET
+export function testFullDataset(): void {
+  console.log('🌍 TESTING FULL DATASET TREE BUILDING')
+  console.log('='.repeat(70))
+  
+  console.log('\n📊 ANALYZING PROBLEMATIC FOLDER DUPLICATION')
+  
+  // Import and test with the full dataset
+  try {
+    import('./pageTreeUtils').then(({ buildPageTree }) => {
+      const tree = buildPageTree(testPageMetadata)
+      
+      // Analyze folder duplication
+      const folderPaths = new Map<string, number[]>()
+      function collectFolders(nodes: any[], currentPath: string[] = []): void {
+        for (const node of nodes) {
+          if (node.isFolder) {
+            const fullPath = [...currentPath, node.metadata.title].join('/')
+            if (!folderPaths.has(fullPath)) {
+              folderPaths.set(fullPath, [])
+            }
+            folderPaths.get(fullPath)!.push(node.metadata.sortOrder)
+            
+            // Recurse into children
+            collectFolders(node.children, [...currentPath, node.metadata.title])
+          }
+        }
+      }
+      
+      collectFolders(tree)
+      
+      console.log('\n🔍 FOLDER DUPLICATION ANALYSIS:')
+      let duplicates = 0
+      for (const [path, sortOrders] of folderPaths.entries()) {
+        if (sortOrders.length > 1) {
+          duplicates++
+          console.log(`❌ DUPLICATE: "${path}" appears at sortOrders: [${sortOrders.join(', ')}]`)
+        }
+      }
+      
+      if (duplicates === 0) {
+        console.log('✅ No duplicate folders found')
+      } else {
+        console.log(`❌ Found ${duplicates} duplicate folder paths`)
+      }
+      
+      // Verify sortOrder sequence integrity  
+      const flatSequence: any[] = []
+      function flatten(nodes: any[]): void {
+        for (const node of nodes) {
+          if (!node.isFolder) {  // Only check files for sequence
+            flatSequence.push(node)
+          }
+          if (node.children && node.children.length > 0) {
+            flatten(node.children)
+          }
+        }
+      }
+      flatten(tree)
+      
+      console.log('\n📈 SORTORDER SEQUENCE ANALYSIS:')
+      let sequenceBreaks = 0
+      for (let i = 1; i < flatSequence.length; i++) {
+        const prev = flatSequence[i-1].metadata.sortOrder
+        const curr = flatSequence[i].metadata.sortOrder
+        if (curr < prev) {
+          sequenceBreaks++
+          console.log(`❌ SEQUENCE BREAK: [${prev}] "${flatSequence[i-1].metadata.title}" followed by [${curr}] "${flatSequence[i].metadata.title}"`)
+        }
+      }
+      
+      if (sequenceBreaks === 0) {
+        console.log('✅ File sequence maintains sortOrder integrity')
+      } else {
+        console.log(`❌ Found ${sequenceBreaks} sortOrder sequence breaks`)
+      }
+      
+      console.log('\n📋 SUMMARY:')
+      console.log(`Total tree nodes: ${tree.length}`)
+      console.log(`Total file nodes: ${flatSequence.length}`)
+      console.log(`Total unique folder paths: ${folderPaths.size}`)
+      console.log(`Duplicate folders: ${duplicates}`)
+      console.log(`Sequence breaks: ${sequenceBreaks}`)
+      
+      if (duplicates === 0 && sequenceBreaks === 0) {
+        console.log('🏆 ✅ TREE BUILDING SUCCESS: All issues resolved!')
+        console.log('🎯 The global folder registry fix eliminated duplicate folders!')
+        console.log('🎯 True flattened sorting maintains perfect sortOrder sequence!')
+      } else {
+        console.log('🚨 ❌ TREE BUILDING FAILED: Issues still exist!')
+      }
+      
+    }).catch(err => {
+      console.log('❌ Could not import buildPageTree:', err.message)
+    })
+  } catch (err) {
+    console.log('❌ buildPageTree not available for testing')
+  }
+}
