@@ -37,11 +37,10 @@ import { useGlobalState, globalState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
 import { fetchAdminSettings } from './adminSettings'
-import apiClient from './apiClient'
+import { createSemanticApi } from './semanticApiFactory'
+import type { ISemanticApi } from './semanticApiInterface'
 import './themeService'
 import './App.css'
-import { testPageMetadata, testPageContent } from './testData'
-import './treeUnitTests'  // Import unit tests for browser console access
 
 const FadePanelContent = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (
   <div className={`fade-panel${visible ? '' : ' hidden'}`}>
@@ -69,7 +68,10 @@ const EnhancedTooltip = ({ children, title, ...props }: {
 )
 
 export default function App() {
-  const { settings, userInfo, isLoaded, updateSetting } = useUserSettings()
+  // API client instance
+  const [semanticApi, setSemanticApi] = React.useState<ISemanticApi | null>(null)
+  
+  const { settings, userInfo, isLoaded, updateSetting } = useUserSettings(semanticApi)
   
   // Use global state with new structure
   const adminSettings = useGlobalState('adminSettings')
@@ -84,7 +86,6 @@ export default function App() {
   const pageTree = React.useMemo(() => buildPageTree(pageMetadata), [pageMetadata])
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
-  const [errorMessage, setErrorMessage] = React.useState<string>('')
   const [showError, setShowError] = React.useState<boolean>(false)
   const isNarrowScreen = useMediaQuery('(max-width: 900px)')
   
@@ -92,68 +93,67 @@ export default function App() {
   const [isMetadataCollapsed, setIsMetadataCollapsed] = React.useState(false)
   const [hasInitialized, setHasInitialized] = React.useState(false)
 
+  // Initialize Semantic API
+  useEffect(() => {
+    const api = createSemanticApi()
+    setSemanticApi(api)
+  }, [])
+
   // Load admin settings and pages on startup
   useEffect(() => {
+    if (!semanticApi) return
+    
     async function loadInitialData() {
+      // At this point we know semanticApi is not null due to the guard above
+      const api = semanticApi!
+      
       try {
         // Load admin settings
         globalState.set('isLoadingAdminSettings', true)
-        const settings = await fetchAdminSettings()
+        const settings = await fetchAdminSettings(api)
         if (settings) {
           globalState.set('adminSettings', settings)
         }
         
         // Load page metadata from API
         globalState.set('isLoadingPages', true)
-        try {
-          const response = await apiClient.get<PageMetadata[]>('/api/pages')
-          if (response.success && response.data && response.data.length > 0) {
-            // Use real API data
-            globalState.set('pageMetadata', response.data)
-            
-            // Set first page as current
-            const firstPage = response.data[0]
-            if (firstPage) {
-              globalState.set('currentPageMetadata', firstPage)
-              // Load content for first page
-              const contentResponse = await apiClient.get(`/api/pages/${firstPage.pageId}`)
-              if (contentResponse.success && contentResponse.data && typeof contentResponse.data === 'object' && 'content' in contentResponse.data) {
-                globalState.set('currentPageContent', {
-                  pageId: firstPage.pageId,
-                  content: (contentResponse.data as { content: string }).content || ''
-                })
-              }
+        const pages = await api.listAllPages()
+        if (pages.length > 0) {
+          globalState.set('pageMetadata', pages)
+          
+          // Set first page as current
+          const firstPage = pages[0]
+          if (firstPage) {
+            globalState.set('currentPageMetadata', firstPage)
+            // Load content for first page
+            const pageWithContent = await api.getSinglePage(firstPage.pageId)
+            if (pageWithContent) {
+              globalState.set('currentPageContent', {
+                pageId: firstPage.pageId,
+                content: pageWithContent.content
+              })
             }
-          } else {
-            // Fallback to test data
-            globalState.set('pageMetadata', testPageMetadata)
-            globalState.set('currentPageMetadata', testPageMetadata[0])
-            globalState.set('currentPageContent', {
-              pageId: testPageMetadata[0].pageId,
-              content: testPageContent[testPageMetadata[0].pageId] || ''
-            })
           }
-        } catch (error) {
-          console.warn('Failed to load pages from API, using test data:', error)
-          // Fallback to test data
-          globalState.set('pageMetadata', testPageMetadata)
-          globalState.set('currentPageMetadata', testPageMetadata[0])
-          globalState.set('currentPageContent', {
-            pageId: testPageMetadata[0].pageId,
-            content: testPageContent[testPageMetadata[0].pageId] || ''
-          })
-        } finally {
-          globalState.set('isLoadingPages', false)
+        } else {
+          // No pages available
+          globalState.set('pageMetadata', [])
+          globalState.set('currentPageMetadata', null)
+          globalState.set('currentPageContent', null)
         }
       } catch (error) {
-        console.error('Failed to load admin settings:', error)
+        console.error('Failed to load initial data:', error)
+        // Set empty state on error
+        globalState.set('pageMetadata', [])
+        globalState.set('currentPageMetadata', null)
+        globalState.set('currentPageContent', null)
       } finally {
         globalState.set('isLoadingAdminSettings', false)
+        globalState.set('isLoadingPages', false)
       }
     }
     
     loadInitialData()
-  }, [])
+  }, [semanticApi])
 
   // Sync theme changes between user settings and global state
   useEffect(() => {
@@ -185,14 +185,6 @@ export default function App() {
     globalState.set('searchQuery', tag)
     performSearch(tag)
   }
-
-  // Set up error handler for API client
-  useEffect(() => {
-    apiClient.setErrorHandler((message: string) => {
-      setErrorMessage(message)
-      setShowError(true)
-    })
-  }, [])
 
   // Initialize collapsed state based on screen size
   useEffect(() => {
@@ -269,8 +261,8 @@ export default function App() {
     return 'Switch to Light Mode'
   }
 
-  // Wait for settings to load
-  if (!isLoaded) {
+  // Wait for settings and semantic API to load
+  if (!isLoaded || !semanticApi) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <Typography>Loading...</Typography>
@@ -283,31 +275,32 @@ export default function App() {
   }
   
   const handlePageSelect = async (metadata: PageMetadata) => {
+    if (!semanticApi) return
+    
     globalState.set('currentPageMetadata', metadata)
     globalState.set('isEditing', false)
     
     // Load content for selected page
     globalState.set('isLoadingPageContent', true)
     try {
-      const response = await apiClient.get(`/api/pages/${metadata.pageId}`)
-      if (response.success && response.data && typeof response.data === 'object' && 'content' in response.data) {
+      const pageWithContent = await semanticApi.getSinglePage(metadata.pageId)
+      if (pageWithContent) {
         globalState.set('currentPageContent', {
           pageId: metadata.pageId,
-          content: (response.data as { content: string }).content || ''
+          content: pageWithContent.content
         })
       } else {
-        // Fallback to test content
+        console.warn('Failed to load page content for:', metadata.pageId)
         globalState.set('currentPageContent', {
           pageId: metadata.pageId,
-          content: testPageContent[metadata.pageId] || '# ' + metadata.title + '\n\nContent not found.'
+          content: `# ${metadata.title}\n\nContent could not be loaded.`
         })
       }
     } catch (error) {
-      console.warn('Failed to load page content:', error)
-      // Fallback to test content
+      console.error('Failed to load page content:', error)
       globalState.set('currentPageContent', {
         pageId: metadata.pageId,
-        content: testPageContent[metadata.pageId] || '# ' + metadata.title + '\n\nContent not found.'
+        content: `# ${metadata.title}\n\nContent could not be loaded.`
       })
     } finally {
       globalState.set('isLoadingPageContent', false)
@@ -319,24 +312,26 @@ export default function App() {
   }
 
   const handleSave = async (content: string) => {
-    if (!currentPageMetadata) return
+    if (!currentPageMetadata || !semanticApi) return
     
     try {
-      const response = await apiClient.put(`/api/pages/${currentPageMetadata.pageId}?title=${encodeURIComponent(currentPageMetadata.title)}&tags=${encodeURIComponent(currentPageMetadata.tags.join(','))}&filepath=${encodeURIComponent(currentPageMetadata.path)}&sortOrder=${currentPageMetadata.sortOrder}`, content)
+      const updatedMetadata = await semanticApi.updatePage({
+        pageId: currentPageMetadata.pageId,
+        title: currentPageMetadata.title,
+        content: content,
+        filepath: currentPageMetadata.path,
+        tags: currentPageMetadata.tags,
+        sortOrder: currentPageMetadata.sortOrder
+      })
       
-      if (response.success) {
+      if (updatedMetadata) {
         // Update content in state
         globalState.set('currentPageContent', {
           pageId: currentPageMetadata.pageId,
           content: content
         })
         
-        // Update metadata version
-        const updatedMetadata = {
-          ...currentPageMetadata,
-          version: currentPageMetadata.version + 1,
-          lastModified: Date.now() / 1000
-        }
+        // Update metadata in state
         globalState.set('currentPageMetadata', updatedMetadata)
         
         // Update in pageMetadata list
@@ -346,6 +341,8 @@ export default function App() {
         globalState.set('pageMetadata', updatedPageMetadata)
         
         globalState.set('isEditing', false)
+      } else {
+        console.error('Failed to save page: no response from server')
       }
     } catch (error) {
       console.error('Failed to save page:', error)
@@ -357,16 +354,24 @@ export default function App() {
   }
 
   const handleNewPage = async () => {
+    if (!semanticApi) return
+    
     try {
-      const response = await apiClient.post('/api/pages?title=New%20Page&tags=&filepath=new-page.md&sortOrder=0', '# New Page\n\nStart writing your content here...')
+      const newMetadata = await semanticApi.createPage({
+        title: 'New Page',
+        content: '# New Page\n\nStart writing your content here...',
+        filepath: 'new-page.md',
+        tags: [],
+        sortOrder: 0
+      })
 
-      if (response.success) {
-        console.log('Page created successfully:', response.data)
+      if (newMetadata) {
+        console.log('Page created successfully:', newMetadata)
         // Reload page metadata to include new page
-        const metadataResponse = await apiClient.get<PageMetadata[]>('/api/pages')
-        if (metadataResponse.success && metadataResponse.data) {
-          globalState.set('pageMetadata', metadataResponse.data)
-        }
+        const pages = await semanticApi.listAllPages()
+        globalState.set('pageMetadata', pages)
+      } else {
+        console.error('Failed to create page: no response from server')
       }
     } catch (error) {
       console.error('Failed to create page:', error)
@@ -374,12 +379,12 @@ export default function App() {
   }
 
   const handleDelete = async () => {
-    if (!currentPageMetadata) return
+    if (!currentPageMetadata || !semanticApi) return
     
     try {
-      const response = await apiClient.delete(`/api/pages/${currentPageMetadata.pageId}`)
+      const success = await semanticApi.deletePage(currentPageMetadata.pageId)
       
-      if (response.success) {
+      if (success) {
         // Remove from pageMetadata
         const updatedPageMetadata = pageMetadata.filter(p => p.pageId !== currentPageMetadata.pageId)
         globalState.set('pageMetadata', updatedPageMetadata)
@@ -391,6 +396,8 @@ export default function App() {
           globalState.set('currentPageMetadata', null)
           globalState.set('currentPageContent', null)
         }
+      } else {
+        console.error('Failed to delete page: server returned false')
       }
     } catch (error) {
       console.error('Failed to delete page:', error)
@@ -484,7 +491,7 @@ export default function App() {
         role="alert"
       >
         <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
-          {errorMessage}
+          An error occurred. Please try again.
         </Alert>
       </Snackbar>
 
@@ -862,5 +869,3 @@ export default function App() {
     </Box>
   )
 }
-
-export { apiClient }

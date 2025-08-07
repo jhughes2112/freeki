@@ -1,23 +1,25 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import {
   Box,
-  List,
-  ListItem,
-  ListItemIcon,
-  Collapse,
   Typography,
   TextField,
+  Collapse,
   IconButton,
-  Tooltip
+  Tooltip,
+  List,
+  ListItem,
+  ListItemIcon
 } from '@mui/material'
 import {
+  Clear,
   Folder,
   FolderOpen,
-  Description,
-  Clear
+  Description
 } from '@mui/icons-material'
-import type { TreeNode } from './pageTreeUtils'
+import { buildPageTree } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
+import type { TreeNode } from './pageTreeUtils'
+import { createSemanticApi } from './semanticApiFactory'
 import { useUserSettings } from './useUserSettings'
 
 // Search modes for the filter
@@ -107,6 +109,11 @@ interface FolderTreeProps {
   onPageSelect: (metadata: PageMetadata) => void
   onSearch?: (query: string, mode: SearchMode) => void
   searchQuery?: string
+  onDragDrop?: (
+    dragData: import('./pageTreeUtils').DragData, 
+    dropTarget: import('./pageTreeUtils').DropTarget,
+    pageTree: TreeNode[]
+  ) => Promise<void>
 }
 
 interface TreeNodeComponentProps {
@@ -117,6 +124,7 @@ interface TreeNodeComponentProps {
   expandedNodes: Set<string>
   onToggleExpanded: (pageId: string) => void
   selectedItemRef?: React.RefObject<HTMLLIElement | null>
+  onDragDrop?: (dragData: import('./pageTreeUtils').DragData, dropTarget: import('./pageTreeUtils').DropTarget) => Promise<void>
 }
 
 function TreeNodeComponent({ 
@@ -126,13 +134,19 @@ function TreeNodeComponent({
   onPageSelect, 
   expandedNodes, 
   onToggleExpanded,
-  selectedItemRef
+  selectedItemRef,
+  onDragDrop
 }: TreeNodeComponentProps) {
   const isExpanded = expandedNodes.has(node.metadata.pageId)
   const isSelected = selectedPageMetadata?.pageId === node.metadata.pageId
   const hasChildren = node.children && node.children.length > 0
   const textRef = useRef<HTMLDivElement>(null)
   const folderIconRef = useRef<HTMLDivElement>(null)
+
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOver, setDragOver] = useState<'none' | 'before' | 'inside' | 'after'>('none')
+  const dragCounter = useRef(0)
 
   const handleClick = () => {
     // Always select the page when clicked (only if it's not a folder)
@@ -147,6 +161,120 @@ function TreeNodeComponent({
 
     // DISABLED: Position text optimally to prevent unwanted scrolling on folder toggle
     // positionTextOptimally()
+  }
+
+  // Drag event handlers
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation()
+    setIsDragging(true)
+    
+    const dragData = {
+      pageId: node.metadata.pageId,
+      isFolder: node.isFolder,
+      path: node.metadata.path,
+      sortOrder: node.metadata.sortOrder
+    }
+    
+    e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+    e.dataTransfer.effectAllowed = 'move'
+    
+    // Add visual feedback to drag image
+    if (e.currentTarget instanceof HTMLElement) {
+      e.dataTransfer.setDragImage(e.currentTarget, 0, 0)
+    }
+  }
+
+  const handleDragEnd = () => {
+    setIsDragging(false)
+    setDragOver('none')
+    dragCounter.current = 0
+  }
+
+  const calculateDropPosition = (e: React.DragEvent): 'before' | 'inside' | 'after' => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const height = rect.height
+    
+    // Divide into three zones
+    if (y < height * 0.25) {
+      return 'before'
+    } else if (y > height * 0.75 || !node.isFolder) {
+      return 'after'
+    } else {
+      return 'inside' // Only for folders
+    }
+  }
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current++
+    
+    if (dragCounter.current === 1) {
+      const position = calculateDropPosition(e)
+      setDragOver(position)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current--
+    
+    if (dragCounter.current === 0) {
+      setDragOver('none')
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const position = calculateDropPosition(e)
+    setDragOver(position)
+    
+    // Set the appropriate drop effect
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    try {
+      const dragDataString = e.dataTransfer.getData('application/json')
+      if (!dragDataString) return
+      
+      const dragData = JSON.parse(dragDataString)
+      
+      // Don't allow dropping on self
+      if (dragData.pageId === node.metadata.pageId) {
+        return
+      }
+      
+      // Don't proceed if dragOver is 'none'
+      if (dragOver === 'none') {
+        return
+      }
+      
+      const dropTarget = {
+        targetPageId: node.metadata.pageId,
+        targetPath: node.metadata.path,
+        position: dragOver as 'before' | 'after' | 'inside',
+        targetSortOrder: node.metadata.sortOrder
+      }
+      
+      // Call the drag drop handler if provided  
+      if (onDragDrop) {
+        await onDragDrop(dragData, dropTarget)
+      }
+      
+    } catch (error) {
+      console.error('Error handling drop:', error)
+    } finally {
+      setDragOver('none')
+      dragCounter.current = 0
+    }
   }
 
   const positionTextOptimally = () => {
@@ -188,12 +316,62 @@ function TreeNodeComponent({
     // positionTextOptimally()
   }
 
+  // Calculate visual styles for drag states
+  const getDropIndicatorStyles = () => {
+    const baseStyles = {}
+    
+    if (dragOver === 'before') {
+      return {
+        ...baseStyles,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          backgroundColor: 'var(--freeki-primary)',
+          zIndex: 1000
+        }
+      }
+    } else if (dragOver === 'after') {
+      return {
+        ...baseStyles,
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: '2px',
+          backgroundColor: 'var(--freeki-primary)',
+          zIndex: 1000
+        }
+      }
+    } else if (dragOver === 'inside') {
+      return {
+        ...baseStyles,
+        backgroundColor: 'var(--freeki-primary)',
+        opacity: 0.2
+      }
+    }
+    
+    return baseStyles
+  }
+
   return (
     <>
       <ListItem
         ref={isSelected ? selectedItemRef : null}
+        draggable={true}
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
         sx={{
           pl: 1 + level * 1.5,
           pr: 1,
@@ -210,12 +388,16 @@ function TreeNodeComponent({
           borderRadius: 'var(--freeki-border-radius)',
           mx: 0.5,
           mb: 0.25,
-          cursor: 'pointer',
+          cursor: isDragging ? 'grabbing' : 'pointer',
           color: 'var(--freeki-folders-font-color)',
           fontSize: 'var(--freeki-folders-font-size)',
           minHeight: 32,
           alignItems: 'center',
-          transition: 'all 0.2s ease-in-out'
+          transition: 'all 0.2s ease-in-out',
+          opacity: isDragging ? 0.5 : 1,
+          transform: isDragging ? 'rotate(2deg)' : 'none',
+          position: 'relative',
+          ...getDropIndicatorStyles()
         }}
       >
         {/* File/folder icon */}
@@ -287,6 +469,7 @@ function TreeNodeComponent({
                 expandedNodes={expandedNodes}
                 onToggleExpanded={onToggleExpanded}
                 selectedItemRef={selectedItemRef}
+                onDragDrop={onDragDrop}
               />
             ))}
           </List>
@@ -296,7 +479,7 @@ function TreeNodeComponent({
   )
 }
 
-export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelect, onSearch, searchQuery: externalSearchQuery }: FolderTreeProps) {
+export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelect, onSearch, searchQuery: externalSearchQuery, onDragDrop }: FolderTreeProps) {
   const { settings, toggleExpandedNode } = useUserSettings()
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
@@ -305,6 +488,66 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
   
   // Convert user settings expandedNodes array to Set for efficient lookups
   const expandedNodes = useMemo(() => new Set(settings.expandedNodes), [settings.expandedNodes])
+
+  // Handle drag and drop operation at the FolderTree level (where it belongs!)
+  const handleDragDropInTree = async (
+    dragData: import('./pageTreeUtils').DragData, 
+    dropTarget: import('./pageTreeUtils').DropTarget
+  ) => {
+    try {
+      // Get current pages for calculation
+      const semanticApi = createSemanticApi()
+      const allPages = await semanticApi.listAllPages()
+      
+      // Calculate the drag operation using proper tree walking
+      const { calculateDragOperation } = await import('./pageTreeUtils')
+      const result = calculateDragOperation(dragData, dropTarget, allPages, pageTree)
+      
+      console.log('✅ FolderTree: Drag operation calculated:', result)
+      
+      if (result.updatedPages.length === 0) {
+        console.warn('No pages to update')
+        return
+      }
+      
+      // Update each affected page using the semantic API
+      const updatePromises = result.updatedPages.map(async (updatedPage) => {
+        // Get current page content to preserve it
+        const currentPage = await semanticApi.getSinglePage(updatedPage.pageId)
+        if (!currentPage) {
+          console.error(`Could not find page content for ${updatedPage.pageId}`)
+          return null
+        }
+        
+        // Update the page with new metadata but preserve content
+        return await semanticApi.updatePage({
+          pageId: updatedPage.pageId,
+          title: updatedPage.title,
+          content: currentPage.content, // Preserve existing content
+          filepath: updatedPage.path,
+          tags: updatedPage.tags,
+          sortOrder: updatedPage.sortOrder
+        })
+      })
+      
+      const results = await Promise.all(updatePromises)
+      const successfulUpdates = results.filter(result => result !== null)
+      
+      if (successfulUpdates.length === result.updatedPages.length) {
+        console.log(`✅ FolderTree: Successfully updated ${successfulUpdates.length} pages via drag and drop`)
+        
+        // Call the parent's onDragDrop handler if provided (for state updates)
+        if (onDragDrop) {
+          await onDragDrop(dragData, dropTarget, pageTree)
+        }
+      } else {
+        console.error(`❌ FolderTree: Only ${successfulUpdates.length}/${result.updatedPages.length} pages were successfully updated`)
+      }
+      
+    } catch (error) {
+      console.error('❌ FolderTree: Error handling drag and drop:', error)
+    }
+  }
 
   // Filter tree nodes based on search text
   const filteredPageTree = useMemo(() => {
@@ -613,6 +856,7 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
                 expandedNodes={filterText.trim() ? expandedNodesForFiltering : expandedNodes}
                 onToggleExpanded={handleToggleExpanded}
                 selectedItemRef={selectedItemRef}
+                onDragDrop={handleDragDropInTree}
               />
             ))}
           </List>

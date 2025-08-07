@@ -23,6 +23,7 @@ import {
 } from '@mui/icons-material'
 import type { ColorScheme } from './adminSettings'
 import { DEFAULT_ADMIN_SETTINGS, saveAdminSettings } from './adminSettings'
+import { createSemanticApi } from './semanticApiFactory'
 import { useGlobalState, globalState } from './globalState'
 import AdvancedColorPicker from './AdvancedColorPicker'
 
@@ -215,7 +216,8 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
     setError(null)
     setSuccess(false)
     try {
-      const result = await saveAdminSettings(adminSettings)
+      const semanticApi = createSemanticApi()
+      const result = await saveAdminSettings(adminSettings, semanticApi)
       if (result) {
         setSuccess(true)
         setTimeout(() => {

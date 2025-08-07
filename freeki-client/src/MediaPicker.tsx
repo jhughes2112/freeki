@@ -1,105 +1,110 @@
-import React, { useState } from 'react'
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  List,
-  ListItem,
-  ListItemText,
+import React, { useState, useCallback, useEffect, useRef } from 'react'
+import { 
+  Dialog, 
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  Button, 
+  Box, 
+  Typography, 
+  Divider, 
+  List, 
+  ListItem, 
+  ListItemText, 
+  ListItemButton,
   ListItemIcon,
+  Alert,
+  Tabs,
+  Tab,
   TextField,
   IconButton,
-  Typography,
-  CircularProgress
+  CircularProgress,
+  useTheme
 } from '@mui/material'
-import {
-  Image,
-  Upload,
-  Close,
-  Description
-} from '@mui/icons-material'
-import apiService from './apiService'
-import type { MediaFile } from './apiService'
+import { CloudUpload, Folder, InsertDriveFile, Image, VideoFile, AudioFile, PictureAsPdf, Article, Close, Upload, Description } from '@mui/icons-material'
+import { createSemanticApi } from './semanticApiFactory'
+import type { MediaFile } from './semanticApiInterface'
 
 interface MediaPickerProps {
-  value: string
-  onChange: (filePath: string) => void
+  open: boolean
+  onClose: () => void
+  onSelectMedia: (filePath: string) => void
   accept?: string
   label?: string
 }
 
 // Media picker component that uses centralized API service
-function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Media' }: MediaPickerProps) {
-  const [open, setOpen] = useState(false)
+export default function MediaPicker({ open, onClose, onSelectMedia, accept = 'image/*', label = 'Select Media' }: MediaPickerProps) {
+  const theme = useTheme()
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
-  const [loading, setLoading] = useState(false)
-  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [tabValue, setTabValue] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedFile, setSelectedFile] = useState<MediaFile | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const handleOpen = async () => {
-    setOpen(true)
-    setLoading(true)
+  const semanticApi = createSemanticApi()
+
+  const loadMediaFiles = useCallback(async () => {
+    setIsLoading(true)
     setError(null)
     
     try {
-      // Use centralized API service to fetch media files
-      const files = await apiService.getMediaFiles()
+      const files = await semanticApi.listAllMedia()
       setMediaFiles(files)
-    } catch (error) {
-      console.warn('Failed to load media files:', error)
+    } catch (err) {
+      console.error('Failed to load media files:', err)
       setError('Failed to load media files')
       setMediaFiles([])
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
-  }
+  }, [])
 
-  const handleClose = () => {
-    setOpen(false)
-    setUploadFile(null)
-    setError(null)
-  }
-
-  const handleSelect = (filePath: string) => {
-    onChange(filePath)
-    handleClose()
-  }
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setUploadFile(file)
-      setError(null)
+  useEffect(() => {
+    if (open) {
+      loadMediaFiles()
     }
-  }
+  }, [open, loadMediaFiles])
 
-  const handleUploadSubmit = async () => {
-    if (!uploadFile) return
-
-    setLoading(true)
-    setError(null)
+  const handleFileUpload = useCallback(async (files: FileList) => {
+    setIsUploading(true)
+    setUploadError(null)
     
     try {
-      // Use centralized API service to upload file
-      const result = await apiService.uploadMediaFile(uploadFile)
+      const uploadedFiles: MediaFile[] = []
       
-      if (result) {
-        onChange(result.filepath)
-        // Refresh the media files list
-        const updatedFiles = await apiService.getMediaFiles()
-        setMediaFiles(updatedFiles)
-        setUploadFile(null)
-      } else {
-        setError('Failed to upload file')
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        const result = await semanticApi.createMediaFile(file.name, file)
+        
+        if (result) {
+          uploadedFiles.push(result)
+        }
       }
-    } catch (error) {
-      console.warn('Failed to upload file:', error)
-      setError('Failed to upload file')
+      
+      if (uploadedFiles.length > 0) {
+        setMediaFiles(prev => [...prev, ...uploadedFiles])
+      }
+      
+      if (uploadedFiles.length < files.length) {
+        setUploadError(`${files.length - uploadedFiles.length} files failed to upload`)
+      }
+    } catch (err) {
+      console.error('Upload failed:', err)
+      setUploadError('Upload failed')
     } finally {
-      setLoading(false)
+      setIsUploading(false)
+    }
+  }, [])
+
+  const handleUploadSubmit = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files && files.length > 0) {
+      handleFileUpload(files)
     }
   }
 
@@ -107,19 +112,27 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
     return contentType.startsWith('image/')
   }
 
+  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(newValue)
+  }
+
+  const filteredMediaFiles = mediaFiles.filter(file => {
+    return file.filepath.toLowerCase().includes(searchQuery.toLowerCase())
+  })
+
   return (
     <>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
         <TextField
           label={label}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={open ? mediaFiles.find(file => file.filepath === label)?.filepath : ''}
+          onChange={(e) => onSelectMedia(e.target.value)}
           fullWidth
           size="small"
         />
         <Button
           variant="outlined"
-          onClick={handleOpen}
+          onClick={onClose}
           startIcon={<Image />}
           sx={{ minWidth: 120 }}
         >
@@ -127,11 +140,11 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
         </Button>
       </Box>
 
-      <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
         <DialogTitle>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">Select Media File</Typography>
-            <IconButton onClick={handleClose}>
+            <IconButton onClick={onClose}>
               <Close />
             </IconButton>
           </Box>
@@ -139,91 +152,102 @@ function MediaPicker({ value, onChange, accept = 'image/*', label = 'Select Medi
         
         <DialogContent>
           {error && (
-            <Box sx={{ mb: 2, p: 2, backgroundColor: 'error.light', borderRadius: 1 }}>
-              <Typography color="error">{error}</Typography>
-            </Box>
+            <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+              {error}
+            </Alert>
           )}
           
-          {loading ? (
+          {isLoading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress />
             </Box>
           ) : (
             <>
-              {/* Upload Section */}
-              <Box sx={{ mb: 3, p: 2, border: '1px dashed #ccc', borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 2 }}>Upload New File</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <input
-                    type="file"
-                    accept={accept}
-                    onChange={handleFileUpload}
-                    style={{ display: 'none' }}
-                    id="media-upload-input"
-                  />
-                  <label htmlFor="media-upload-input">
-                    <Button variant="outlined" component="span" startIcon={<Upload />}>
-                      Choose File
-                    </Button>
-                  </label>
-                  {uploadFile && (
-                    <>
-                      <Typography variant="body2">{uploadFile.name}</Typography>
-                      <Button
-                        variant="contained"
-                        onClick={handleUploadSubmit}
-                        disabled={loading}
-                      >
-                        Upload
-                      </Button>
-                    </>
-                  )}
-                </Box>
-              </Box>
+              <Tabs value={tabValue} onChange={handleTabChange} sx={{ mb: 2 }}>
+                <Tab label="Upload" />
+                <Tab label="Library" />
+              </Tabs>
 
-              {/* Media Files List */}
-              <Typography variant="subtitle2" sx={{ mb: 2 }}>Existing Files</Typography>
-              <List sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {mediaFiles.length === 0 ? (
-                  <ListItem>
-                    <ListItemText primary="No media files found" />
-                  </ListItem>
-                ) : (
-                  mediaFiles.map((file) => (
-                    <ListItem
-                      key={file.filepath}
-                      onClick={() => handleSelect(file.filepath)}
-                      sx={{
-                        border: '1px solid #e0e0e0',
-                        borderRadius: 1,
-                        mb: 1,
-                        cursor: 'pointer',
-                        '&:hover': {
-                          backgroundColor: 'action.hover'
-                        }
-                      }}
+              {tabValue === 0 && (
+                // Upload Tab
+                <Box sx={{ mb: 3, p: 2, border: '1px dashed #ccc', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Upload New File</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <input
+                      type="file"
+                      multiple
+                      style={{ display: 'none' }}
+                      onChange={handleUploadSubmit}
+                      accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                    />
+                    <Button
+                      variant="contained"
+                      component="span"
+                      startIcon={<Upload />}
+                      disabled={isUploading}
                     >
-                      <ListItemIcon>
-                        {isImageFile(file.contentType) ? <Image /> : <Description />}
-                      </ListItemIcon>
-                      <ListItemText
-                        primary={file.filepath}
-                        secondary={`${file.contentType} • ${(file.size / 1024).toFixed(1)} KB${file.lastModified ? ` • ${new Date(file.lastModified).toLocaleDateString()}` : ''}`}
-                      />
-                    </ListItem>
-                  )))
-                }
-              </List>
+                      {isUploading ? 'Uploading...' : 'Upload Files'}
+                    </Button>
+                  </Box>
+                </Box>
+              )}
+
+              {tabValue === 1 && (
+                // Library Tab
+                <>
+                  <Typography variant="subtitle2" sx={{ mb: 2 }}>Existing Files</Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <TextField
+                    label="Search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    variant="outlined"
+                    size="small"
+                    sx={{ mb: 2 }}
+                  />
+                  <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+                    {filteredMediaFiles.length === 0 ? (
+                      <ListItem>
+                        <ListItemText primary="No media files found" />
+                      </ListItem>
+                    ) : (
+                      filteredMediaFiles.map((file) => (
+                        <ListItem
+                          key={file.filepath}
+                          onClick={() => onSelectMedia(file.filepath)}
+                          sx={{
+                            border: '1px solid #e0e0e0',
+                            borderRadius: 1,
+                            mb: 1,
+                            cursor: 'pointer',
+                            '&:hover': {
+                              backgroundColor: 'action.hover'
+                            }
+                          }}
+                        >
+                          <ListItemButton>
+                            <ListItemIcon>
+                              {isImageFile(file.contentType) ? <Image /> : <Description />}
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={file.filepath}
+                              secondary={`${file.contentType} • ${(file.size / 1024).toFixed(1)} KB${file.lastModified ? ` • ${new Date(file.lastModified).toLocaleDateString()}` : ''}`}
+                            />
+                          </ListItemButton>
+                        </ListItem>
+                      )))
+                    }
+                  </List>
+                </>
+              )}
             </>
           )}
         </DialogContent>
 
         <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>
+          <Button onClick={onClose}>Cancel</Button>
         </DialogActions>
       </Dialog>
     </>
   )
 }
-
-export default MediaPicker

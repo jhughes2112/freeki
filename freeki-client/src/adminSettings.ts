@@ -1,4 +1,4 @@
-import apiClient from './apiClient'
+import type { ISemanticApi } from './semanticApiInterface'
 
 export interface AdminSettings {
   companyName: string
@@ -138,7 +138,12 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
 }
 
 function deepMergeDefaults<T>(defaults: T, source: Partial<T>, path: string = ''): T {
-  const result: any = Array.isArray(defaults) ? [...defaults] : { ...defaults };
+  if (typeof defaults !== 'object' || defaults === null) {
+    return defaults;
+  }
+
+  const result = Array.isArray(defaults) ? [...defaults] as T : { ...defaults };
+  
   for (const key in defaults) {
     const fullPath = path ? `${path}.${key}` : key;
     if (Object.prototype.hasOwnProperty.call(source, key)) {
@@ -146,56 +151,42 @@ function deepMergeDefaults<T>(defaults: T, source: Partial<T>, path: string = ''
         typeof defaults[key] === 'object' && defaults[key] !== null &&
         typeof source[key] === 'object' && source[key] !== null
       ) {
-        result[key] = deepMergeDefaults(defaults[key], source[key], fullPath);
+        (result as Record<string, unknown>)[key] = deepMergeDefaults(defaults[key], source[key], fullPath);
       } else {
-        result[key] = source[key];
+        (result as Record<string, unknown>)[key] = source[key];
       }
     } else {
-      result[key] = defaults[key];
+      (result as Record<string, unknown>)[key] = defaults[key];
       console.info(`[AdminSettings] Filled missing field from defaults: ${fullPath} =`, defaults[key]);
     }
   }
   return result;
 }
 
-export async function fetchAdminSettings(): Promise<AdminSettings | null> {
-  const response = await apiClient.get<AdminSettings>('/api/admin/settings')
-  
-  if (response.success && response.data) {
-    // Merge server data with defaults to fill missing fields
-    console.info('[AdminSettings] Merging server settings with defaults...');
-    return deepMergeDefaults(DEFAULT_ADMIN_SETTINGS, response.data)
-  }
-  
-  // If error is 401 or 403, return null without showing error UI
-  if (response.error && (response.error.status === 401 || response.error.status === 403)) {
-    console.info('Admin settings not available - insufficient permissions')
-    return null
-  }
-  
-  // If error is 404, no settings file exists yet - use defaults without error
-  if (response.error && response.error.status === 404) {
-    console.info('No admin settings file found - using defaults')
+export async function fetchAdminSettings(semanticApi: ISemanticApi): Promise<AdminSettings | null> {
+  try {
+    const settings = await semanticApi.getAdminSettings()
+    
+    if (settings) {
+      // Merge server data with defaults to fill missing fields
+      console.info('[AdminSettings] Merging server settings with defaults...');
+      return deepMergeDefaults(DEFAULT_ADMIN_SETTINGS, settings)
+    }
+    
+    // Use defaults if no settings found
+    console.info('No admin settings found - using defaults')
+    return DEFAULT_ADMIN_SETTINGS
+  } catch (error) {
+    console.warn('Failed to fetch admin settings:', error)
     return DEFAULT_ADMIN_SETTINGS
   }
-  
-  // For other errors, return defaults (error UI already shown by apiClient)
-  return DEFAULT_ADMIN_SETTINGS
 }
 
-export async function saveAdminSettings(settings: AdminSettings): Promise<boolean> {
-  const response = await apiClient.post<{ success: boolean }>('/api/admin/settings', settings)
-  
-  if (response.success) {
-    return true
-  }
-  
-  // For 401/403, don't show error UI since these are expected permission errors
-  if (response.error && (response.error.status === 401 || response.error.status === 403)) {
-    console.warn('Admin role required to save settings')
+export async function saveAdminSettings(settings: AdminSettings, semanticApi: ISemanticApi): Promise<boolean> {
+  try {
+    return await semanticApi.saveAdminSettings(settings)
+  } catch (error) {
+    console.warn('Failed to save admin settings:', error)
     return false
   }
-  
-  // Other errors are already handled by apiClient error handler
-  return false
 }

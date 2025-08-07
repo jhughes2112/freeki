@@ -1,5 +1,8 @@
 # COPILOT EDITS OPERATIONAL GUIDELINES
 
+If you have not read it in this session, read the apiSummary.ts so you know the overview of the client architecture.
+It is a terrible habit to have optional or default parameters.  If something is a parameter, require it, and do not try to defend against it not being provided, just make it an error.  DEMAND correct parameters.
+
 ## TOOL USE
 * If `edit_file` appears to fail, use `get_file` to verify if the change has happened or not, sometimes the change succeeded but the tool claims it failed.
 * Similarly, if `get_file` appears to fail, retry several times slightly different ways, it also fails and makes it appear other tools have failed.

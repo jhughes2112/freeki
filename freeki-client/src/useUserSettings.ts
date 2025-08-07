@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import apiClient from './apiClient'
+import type { ISemanticApi } from './semanticApiInterface'
 
 export interface UserInfo {
   accountId: string
@@ -12,8 +12,8 @@ export interface UserInfo {
 
 export interface UserSettings {
   theme: 'light' | 'dark' | 'auto'
-  companyName: string
-  wikiTitle: string
+  companyName: 'Your Company'
+  wikiTitle: 'FreeKi Wiki'
   expandedNodes: string[]
   lastSelectedPageId?: string
   showMetadataPanel: boolean
@@ -76,26 +76,7 @@ function getDeviceKey(): string {
   return `freeki-settings-${deviceType}-${screen}-${Math.abs(hash).toString(36)}`
 }
 
-async function fetchCurrentUser(): Promise<UserInfo | null> {
-  // Use centralized API client instead of direct fetch
-  const response = await apiClient.get<UserInfo>('/api/user/me')
-  
-  if (response.success && response.data) {
-    return response.data
-  }
-  
-  // If error is 401 or 403, return null (expected when not authenticated)
-  if (response.error && (response.error.status === 401 || response.error.status === 403)) {
-    console.info('User authentication not available - running in admin mode or auth not configured')
-    return null
-  }
-  
-  // For other errors, still return null but error UI already shown by apiClient
-  console.warn('Failed to fetch current user:', response.error?.message)
-  return null
-}
-
-export function useUserSettings() {
+export function useUserSettings(semanticApi?: ISemanticApi | null) {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
@@ -113,9 +94,16 @@ export function useUserSettings() {
           setSettings({ ...DEFAULT_SETTINGS, ...parsed })
         }
         
-        // Try to fetch current user info (will be null if not authenticated)
-        const user = await fetchCurrentUser()
-        setUserInfo(user)
+        // Try to fetch current user info if semantic API is provided
+        if (semanticApi) {
+          try {
+            const user = await semanticApi.getCurrentUser()
+            setUserInfo(user)
+          } catch (error) {
+            console.warn('Failed to fetch current user:', error)
+            setUserInfo(null)
+          }
+        }
         
       } catch (error) {
         console.warn('Failed to load user data:', error)
@@ -125,7 +113,7 @@ export function useUserSettings() {
     }
     
     loadData()
-  }, [deviceKey])
+  }, [deviceKey, semanticApi])
   
   const saveSettings = useCallback((newSettings: Partial<UserSettings>) => {
     try {

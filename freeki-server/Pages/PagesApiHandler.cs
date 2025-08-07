@@ -64,15 +64,38 @@ namespace FreeKi
 			// Route to appropriate handler based on HTTP method and URL structure
 			if (httpMethod == "GET")
 			{
-				if (segments.Count == 2)
+				if (segments.Count == 3)  // '/', 'api/', 'pages' == 3
 				{
-					// GET /api/pages - List all pages
-					return HandleListAllPages();
+					if (httpListenerContext.Request.QueryString["q"] != null) // '/', 'api/', 'pages' with a query string -> 'q=term'
+					{
+						string searchTerm = httpListenerContext.Request.QueryString["q"]!;
+						if (string.IsNullOrEmpty(searchTerm))
+						{
+							_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} missing query");
+							return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
+						}
+
+						if (httpListenerContext.Request.QueryString["content"] == "1")
+						{
+							// GET /api/pages?q=term&content=1 - Search page titles/contents with content
+							return await HandleSearchPagesWithContent(searchTerm).ConfigureAwait(false);
+						}
+						else
+						{
+							// GET /api/pages?q=term - Search page metadata only
+							return await HandleSearchPages(searchTerm).ConfigureAwait(false);
+						}
+					}
+					else
+					{
+						// GET /api/pages - List all pages
+						return HandleListAllPages();
+					}
 				}
-				else if (segments.Count == 3)
+				else if (segments.Count == 4)  // '/', 'api/', 'pages/', '{pageid}'
 				{
 					// GET /api/pages/{id} - Fetch page content
-					string pageId = segments[2].TrimEnd('/');
+					string pageId = segments[3];
 					if (string.IsNullOrEmpty(pageId))
 					{
 						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} missing pageId");
@@ -80,36 +103,16 @@ namespace FreeKi
 					}
 					return await HandleGetSinglePage(pageId).ConfigureAwait(false);
 				}
-				else if (segments.Count == 4 && segments[3].TrimEnd('/') == "history")
+				else if (segments.Count == 5 && segments[4] == "history") // '/', 'api/', 'pages/', '{pageid}/', 'history'
 				{
 					// GET /api/pages/{id}/history - Get git commit history
-					string pageId = segments[2].TrimEnd('/');
+					string pageId = segments[3].TrimEnd('/');
 					if (string.IsNullOrEmpty(pageId))
 					{
 						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} missing pageId");
 						return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
 					}
 					return HandleGetPageHistory(pageId);
-				}
-				else if (httpListenerContext.Request.QueryString["q"] != null)
-				{
-					string searchTerm = httpListenerContext.Request.QueryString["q"]!;
-					if (string.IsNullOrEmpty(searchTerm))
-					{
-						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} missing query");
-						return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
-					}
-
-					if (httpListenerContext.Request.QueryString["content"] == "1")
-					{
-						// GET /api/pages?q=term&content=1 - Search page titles/contents with content
-						return await HandleSearchPagesWithContent(searchTerm).ConfigureAwait(false);
-					}
-					else
-					{
-						// GET /api/pages?q=term - Search page metadata only
-						return await HandleSearchPages(searchTerm).ConfigureAwait(false);
-					}
 				}
 				else
 				{
@@ -118,7 +121,7 @@ namespace FreeKi
 			}
 			else if (httpMethod == "POST")
 			{
-				if (segments.Count == 2)
+				if (segments.Count == 3)  // '/', 'api/', 'pages'
 				{
 					// POST /api/pages - Create a new page - all metadata fields are required
 					string? title = httpListenerContext.Request.QueryString["title"];
@@ -139,10 +142,10 @@ namespace FreeKi
 					List<string> tagsList = ParseTags(tags);
 					return await HandleCreatePage(title, tagsList, filepath, sortOrder, content, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 				}
-				else if (segments.Count == 4 && segments[3].TrimEnd('/') == "retrieve")
+				else if (segments.Count == 5 && segments[4] == "retrieve") // '/', 'api/', 'pages/', '{pageid}/', 'retrieve'
 				{
 					// POST /api/pages/{id}/retrieve - Retrieve old version from git
-					string pageId = segments[2].TrimEnd('/');
+					string pageId = segments[3].TrimEnd('/');
 					string? versionStr = httpListenerContext.Request.QueryString["version"];
 
 					if (string.IsNullOrEmpty(pageId) || string.IsNullOrEmpty(versionStr) || long.TryParse(versionStr, out long version) == false)
@@ -159,10 +162,10 @@ namespace FreeKi
 			}
 			else if (httpMethod == "PUT")
 			{
-				if (segments.Count == 3)
+				if (segments.Count == 4)  // '/', 'api/', 'pages/', '{pageid}'
 				{
 					// PUT /api/pages/{id} - Update existing page
-					string pageId = segments[2].TrimEnd('/');
+					string pageId = segments[3];
 					string? title = httpListenerContext.Request.QueryString["title"];
 					string? tags = httpListenerContext.Request.QueryString["tags"];
 					string? filepath = httpListenerContext.Request.QueryString["filepath"];
@@ -187,10 +190,10 @@ namespace FreeKi
 			}
 			else if (httpMethod == "DELETE")
 			{
-				if (segments.Count == 3)
+				if (segments.Count == 4)  // '/', 'api/', 'pages/', '{pageid}'
 				{
 					// DELETE /api/pages/{id} - Delete a page
-					string pageId = segments[2].TrimEnd('/');
+					string pageId = segments[3];
 					if (string.IsNullOrEmpty(pageId))
 					{
 						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} missing pageId");
