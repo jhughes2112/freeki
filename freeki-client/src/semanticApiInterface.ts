@@ -26,14 +26,6 @@ export interface PageWithContent {
   content: string
 }
 
-export interface SearchResult {
-  id: string
-  title: string
-  path: string
-  excerpt: string
-  score: number
-}
-
 // Media-related types
 export interface MediaFile {
   filepath: string
@@ -50,7 +42,7 @@ export interface ISemanticApi {
   createPage(request: PageCreateRequest): Promise<PageMetadata | null>
   updatePage(request: PageUpdateRequest): Promise<PageMetadata | null>
   deletePage(pageId: string): Promise<boolean>
-  searchPagesWithContent(searchTerm: string): Promise<SearchResult[]>
+  searchPagesWithContent(searchTerm: string): Promise<string[]>
   getPageHistory(pageId: string): Promise<PageMetadata[]>
   retrievePageVersion(pageId: string, version: number): Promise<PageWithContent | null>
 

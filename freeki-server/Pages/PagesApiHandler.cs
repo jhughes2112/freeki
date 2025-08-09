@@ -17,7 +17,7 @@ namespace FreeKi
 	| POST   | `/api/pages`                  | Create a new page           | title, tags, filepath in query, content in body
 	| PUT    | `/api/pages/{id}`             | Update existing page        | title, tags, filepath in query, content in body
 	| DELETE | `/api/pages/{id}`             | Delete a page               |
-	| GET    | `/api/pages?q=term`           | Search page metadata and content |
+	| GET    | `/api/pages?q=term`           | Search page content (only)  | search term in query string
 	| GET    | `/api/pages/{id}/history`     | Get git commit history      |
 	| POST   | `/api/pages/{id}/retrieve`    | Retrieve old version from git | versionId is 0-based index of metadata version, not commit hash
 	*/
@@ -74,8 +74,8 @@ namespace FreeKi
 							return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
 						}
 
-						// GET /api/pages?q=term - Search page titles/contents with content
-						return await HandleSearchPagesWithContent(searchTerm).ConfigureAwait(false);
+						// GET /api/pages?q=term - Search page contents
+						return await HandleSearchPageContent(searchTerm).ConfigureAwait(false);
 					}
 					else
 					{
@@ -256,7 +256,7 @@ namespace FreeKi
 			string pageId = Guid.NewGuid().ToString();
 
 			// Create new page using the full constructor with sortOrder
-			PageMetadata metadata = new PageMetadata(pageId, tagsList, title, PageMetadata.Now, 0, filepath);
+			PageMetadata metadata = new PageMetadata(pageId, tagsList, title, gitAuthorName, PageMetadata.Now, 0, filepath);
 			Page newPage = new Page(metadata, content);
 			bool success = await _pageManager.WritePage(newPage, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 
@@ -279,7 +279,7 @@ namespace FreeKi
 			if (existingPage != null)
 			{
 				// Determine if we need to update metadata (title, tags, and/or filepath)
-				PageMetadata updatedMetadata = new PageMetadata(pageId, tagsList, title, PageMetadata.Now, existingPage.Metadata.Version + 1, filepath);
+				PageMetadata updatedMetadata = new PageMetadata(pageId, tagsList, title, gitAuthorName, PageMetadata.Now, existingPage.Metadata.Version + 1, filepath);
 
 				// Create updated page
 				Page updatedPage = new Page(updatedMetadata, content);
@@ -321,10 +321,10 @@ namespace FreeKi
 			}
 		}
 
-		// GET /api/pages?q=term&content=1 - Search page metadata and content
-		private async Task<(int, string, byte[])> HandleSearchPagesWithContent(string searchTerm)
+		// GET /api/pages?q=term - Search page content (only)
+		private async Task<(int, string, byte[])> HandleSearchPageContent(string searchTerm)
 		{
-			List<SearchResult> searchResults = await _pageManager.SearchPagesWithContent(searchTerm).ConfigureAwait(false);
+			List<string> searchResults = await _pageManager.SearchPageContent(searchTerm).ConfigureAwait(false);
 			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(searchResults);
 			return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 		}

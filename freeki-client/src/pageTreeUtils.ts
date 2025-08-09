@@ -189,6 +189,7 @@ export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
             pageId: `folder_${currentPath}`,
             tags: [],
             title: folderName,
+            author: 'System',
             lastModified: Date.now() / 1000,
             version: 0,
             path: currentPath

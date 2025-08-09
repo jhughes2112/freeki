@@ -6,7 +6,6 @@ import type {
   PageCreateRequest, 
   PageUpdateRequest, 
   PageWithContent, 
-  SearchResult, 
   MediaFile 
 } from './semanticApiInterface'
 import type { PageMetadata } from './globalState'
@@ -193,12 +192,12 @@ export class RealSemanticApi implements ISemanticApi {
     }
   }
 
-  async searchPagesWithContent(searchTerm: string): Promise<SearchResult[]> {
+  async searchPagesWithContent(searchTerm: string): Promise<string[]> {
     const startTime = performance.now()
     this.logRequest('searchPagesWithContent', { searchTerm })
     
     try {
-      const result = await this.makeRequest<SearchResult[]>(`/api/pages?q=${encodeURIComponent(searchTerm)}`)
+      const result = await this.makeRequest<string[]>(`/api/pages?q=${encodeURIComponent(searchTerm)}`)
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('searchPagesWithContent', result, duration)
       return result || []

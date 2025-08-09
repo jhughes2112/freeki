@@ -32,13 +32,13 @@ import PageViewer from './PageViewer'
 import PageEditor from './PageEditor'
 import PageMetadataPanel from './PageMetadata'
 import AdminSettingsDialog from './AdminSettingsDialog'
+import ConfirmDialog from './ConfirmDialog'
 import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
 import { sortPagesByDisplayOrder } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
 import type { DragData, DropTarget } from './pageTreeUtils'
-import type { SearchMode } from './FolderTree'
 import { fetchAdminSettings } from './adminSettings'
 import { createSemanticApi } from './semanticApiFactory'
 import type { ISemanticApi } from './semanticApiInterface'
@@ -102,6 +102,7 @@ export default function App() {
   const pageTree = React.useMemo(() => buildPageTree(effectivePageMetadata), [effectivePageMetadata])
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<boolean>(false)
   const [showError, setShowError] = React.useState<boolean>(false)
   const isNarrowScreen = useMediaQuery('(max-width: 900px)')
   
@@ -150,10 +151,10 @@ export default function App() {
           
           // Debug: Test with some example data to ensure Home comes first
           const testPages: PageMetadata[] = [
-            { pageId: 'doc', title: 'Documentation', path: 'documentation/intro.md', tags: [], lastModified: 1000, version: 1 },
-            { pageId: 'advanced', title: 'Advanced', path: 'documentation/advanced.md', tags: [], lastModified: 1000, version: 1 },
-            { pageId: 'home', title: 'Home', path: 'home.md', tags: [], lastModified: 1000, version: 1 },
-            { pageId: 'welcome', title: 'Welcome', path: 'welcome.md', tags: [], lastModified: 1000, version: 1 }
+            { pageId: 'doc', title: 'Documentation', author: 'Test User', path: 'documentation/intro.md', tags: [], lastModified: 1000, version: 1 },
+            { pageId: 'advanced', title: 'Advanced', author: 'Test User', path: 'documentation/advanced.md', tags: [], lastModified: 1000, version: 1 },
+            { pageId: 'home', title: 'Home', author: 'Test User', path: 'home.md', tags: [], lastModified: 1000, version: 1 },
+            { pageId: 'welcome', title: 'Welcome', author: 'Test User', path: 'welcome.md', tags: [], lastModified: 1000, version: 1 }
           ]
           const testSorted = sortPagesByDisplayOrder(testPages)
           console.log('?? Test sorting (should show Home and Welcome first):')
@@ -198,9 +199,9 @@ export default function App() {
     }
   }, [settings.theme, isLoaded])
 
-  // Enhanced search function with client-side metadata search
-  const performSearch = async (query: string, mode: SearchMode = 'titles') => {
-    console.log(`?? App.performSearch: query="${query}", mode="${mode}"`)
+  // Enhanced search function with configurable search types
+  const performSearch = async (query: string, searchConfig: { titles: boolean; tags: boolean; author: boolean; content: boolean }) => {
+    console.log(`?? App.performSearch: query="${query}", config=`, searchConfig)
     globalState.set('searchQuery', query)
     
     if (!query.trim()) {
@@ -209,20 +210,34 @@ export default function App() {
       return
     }
     
+    // Check if no search types are enabled
+    if (!searchConfig.titles && !searchConfig.tags && !searchConfig.author && !searchConfig.content) {
+      console.log('?? App: No search types enabled, clearing results')
+      globalState.set('searchResults', [])
+      return
+    }
+    
     try {
-      let results: import('./semanticApiInterface').SearchResult[] = []
+      let results: string[] = []
       
-      if (mode === 'fullContent') {
-        // Use server-side full content search API
+      if (searchConfig.content) {
+        // Use server-side content search API
         if (!semanticApi) {
-          console.warn('No semantic API available for full content search')
+          console.warn('No semantic API available for content search')
           return
         }
-        console.log(`?? App: Using server-side search for fullContent mode`)
+        console.log(`?? App: Using server-side search for content`)
         results = await semanticApi.searchPagesWithContent(query)
-      } else {
-        // Perform client-side metadata search using already-loaded pageMetadata
-        console.log(`?? App: Using client-side search for ${mode} mode, searching ${pageMetadata.length} pages`)
+      }
+      
+      // Perform client-side metadata search for selected types
+      const clientSearchTypes = []
+      if (searchConfig.titles) clientSearchTypes.push('titles')
+      if (searchConfig.tags) clientSearchTypes.push('tags')
+      if (searchConfig.author) clientSearchTypes.push('author')
+      
+      if (clientSearchTypes.length > 0) {
+        console.log(`?? App: Using client-side search for ${clientSearchTypes.join(', ')}, searching ${pageMetadata.length} pages`)
         const searchTerm = query.toLowerCase()
         const matchedPages: Array<{ page: PageMetadata; score: number }> = []
         
@@ -230,44 +245,51 @@ export default function App() {
           let isMatch = false
           let score = 0
           
-          // Search in title
-          const titleMatch = page.title.toLowerCase().includes(searchTerm)
-          if (titleMatch) {
-            isMatch = true
-            // Count occurrences in title (weighted heavily)
-            let titleIndex = 0
-            const lowerTitle = page.title.toLowerCase()
-            while ((titleIndex = lowerTitle.indexOf(searchTerm, titleIndex)) !== -1) {
-              score += 3
-              titleIndex += searchTerm.length
+          // Search in title if enabled
+          if (searchConfig.titles) {
+            const titleMatch = page.title.toLowerCase().includes(searchTerm)
+            if (titleMatch) {
+              isMatch = true
+              // Count occurrences in title (weighted heavily)
+              let titleIndex = 0
+              const lowerTitle = page.title.toLowerCase()
+              while ((titleIndex = lowerTitle.indexOf(searchTerm, titleIndex)) !== -1) {
+                score += 3
+                titleIndex += searchTerm.length
+              }
             }
           }
           
-          // Search in tags (for both titles and metadata modes)
-          const tagMatch = page.tags.some(tag => tag.toLowerCase().includes(searchTerm))
-          if (tagMatch) {
-            isMatch = true
-            // Count tag matches
-            page.tags.forEach(tag => {
-              if (tag.toLowerCase().includes(searchTerm)) {
+          // Search in tags if enabled
+          if (searchConfig.tags) {
+            const tagMatch = page.tags.some(tag => tag.toLowerCase().includes(searchTerm))
+            if (tagMatch) {
+              isMatch = true
+              // Count tag matches
+              page.tags.forEach(tag => {
+                if (tag.toLowerCase().includes(searchTerm)) {
+                  score += 2
+                }
+              })
+            }
+          }
+          
+          // Search in author if enabled
+          if (searchConfig.author) {
+            const authorMatch = page.author.toLowerCase().includes(searchTerm)
+            if (authorMatch) {
+              isMatch = true
+              // Count occurrences in author (weighted moderately)
+              let authorIndex = 0
+              const lowerAuthor = page.author.toLowerCase()
+              while ((authorIndex = lowerAuthor.indexOf(searchTerm, authorIndex)) !== -1) {
                 score += 2
+                authorIndex += searchTerm.length
               }
-            })
+            }
           }
           
-          // For titles mode, only include title matches
-          if (mode === 'titles' && !titleMatch) {
-            isMatch = false
-            score = 0
-          }
-          
-          // For metadata mode, include both title and tag matches
-          if (mode === 'metadata' && !titleMatch && !tagMatch) {
-            isMatch = false  
-            score = 0
-          }
-          
-          // Search in path for additional scoring
+          // Search in path for additional scoring (always enabled for enabled types)
           if (isMatch && page.path.toLowerCase().includes(searchTerm)) {
             let pathIndex = 0
             const lowerPath = page.path.toLowerCase()
@@ -286,29 +308,31 @@ export default function App() {
         // Sort by score descending
         matchedPages.sort((a, b) => b.score - a.score)
         
-        // Convert to SearchResult format
-        results = matchedPages.map(({ page, score }) => ({
-          id: page.pageId,
-          title: page.title,
-          path: page.path,
-          excerpt: `Found in: ${page.title}${page.tags.length > 0 ? ` (tags: ${page.tags.join(', ')})` : ''}`,
-          score
-        }))
+        // Convert to page IDs and combine with server results
+        const clientResultIds = matchedPages.map(({ page }) => page.pageId)
         
-        console.log(`?? App: Client-side search found ${results.length} results`)
+        // Combine server and client results
+        if (searchConfig.content) {
+          // Merge results, avoiding duplicates
+          const serverPageIds = new Set(results)
+          const uniqueClientResults = clientResultIds.filter(id => !serverPageIds.has(id))
+          results = [...results, ...uniqueClientResults]
+        } else {
+          // Only client results
+          results = clientResultIds
+        }
+        
+        console.log(`?? App: Combined search found ${results.length} results`)
       }
       
       // Convert search results to PageMetadata format and sort by display order
-      const searchResultsAsMetadata = results.map(result => {
-        const originalPage = pageMetadata.find(p => p.pageId === result.id)
-        return originalPage || {
-          pageId: result.id,
-          title: result.title,
-          path: result.path,
-          tags: [],
-          lastModified: 0,
-          version: 1
+      const searchResultsAsMetadata = results.map(resultId => {
+        const originalPage = pageMetadata.find(p => p.pageId === resultId)
+        if (!originalPage) {
+          console.error(`Search result references page ID ${resultId} that doesn't exist in pageMetadata. This should never happen.`)
+          throw new Error(`Search integrity error: page ${resultId} not found in metadata`)
         }
+        return originalPage
       })
       
       // Sort search results using the same criteria as normal page display
@@ -324,7 +348,71 @@ export default function App() {
 
   const handleTagClick = (tag: string) => {
     globalState.set('searchQuery', tag)
-    performSearch(tag, 'metadata')
+    // When clicking a tag, search only in tags
+    performSearch(tag, { titles: false, tags: true, author: false, content: false })
+  }
+
+  const handleTagAdd = async (tagToAdd: string) => {
+    if (!currentPageMetadata || !currentPageContent || !semanticApi) return
+    
+    // Don't add if tag already exists
+    if (currentPageMetadata.tags.includes(tagToAdd)) return
+    
+    try {
+      const newTags = [...currentPageMetadata.tags, tagToAdd]
+      const updatedMetadata = await semanticApi.updatePage({
+        pageId: currentPageMetadata.pageId,
+        title: currentPageMetadata.title,
+        content: currentPageContent.content,
+        filepath: currentPageMetadata.path,
+        tags: newTags
+      })
+      
+      if (updatedMetadata) {
+        // Update metadata in state
+        globalState.set('currentPageMetadata', updatedMetadata)
+        
+        // Update in pageMetadata list
+        const updatedPageMetadata = pageMetadata.map(p => 
+          p.pageId === updatedMetadata.pageId ? updatedMetadata : p
+        )
+        globalState.set('pageMetadata', updatedPageMetadata)
+      } else {
+        console.error('Failed to add tag: no response from server')
+      }
+    } catch (error) {
+      console.error('Failed to add tag:', error)
+    }
+  }
+
+  const handleTagRemove = async (tagToRemove: string) => {
+    if (!currentPageMetadata || !currentPageContent || !semanticApi) return
+    
+    try {
+      const newTags = currentPageMetadata.tags.filter(tag => tag !== tagToRemove)
+      const updatedMetadata = await semanticApi.updatePage({
+        pageId: currentPageMetadata.pageId,
+        title: currentPageMetadata.title,
+        content: currentPageContent.content,
+        filepath: currentPageMetadata.path,
+        tags: newTags
+      })
+      
+      if (updatedMetadata) {
+        // Update metadata in state
+        globalState.set('currentPageMetadata', updatedMetadata)
+        
+        // Update in pageMetadata list
+        const updatedPageMetadata = pageMetadata.map(p => 
+          p.pageId === updatedMetadata.pageId ? updatedMetadata : p
+        )
+        globalState.set('pageMetadata', updatedPageMetadata)
+      } else {
+        console.error('Failed to remove tag: no response from server')
+      }
+    } catch (error) {
+      console.error('Failed to remove tag:', error)
+    }
   }
 
   // Initialize collapsed state based on screen size
@@ -523,7 +611,12 @@ export default function App() {
     }
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    if (!currentPageMetadata) return
+    setShowDeleteConfirm(true)
+  }
+
+  const handleConfirmDelete = async () => {
     if (!currentPageMetadata || !semanticApi) return
     
     try {
@@ -842,36 +935,24 @@ export default function App() {
   const currentYear = new Date().getFullYear()
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Error Snackbar */}
-      <Snackbar
-        open={showError}
-        autoHideDuration={6000}
-        onClose={handleCloseError}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-        role="alert"
-      >
-        <Alert onClose={handleCloseError} severity="error" sx={{ width: '100%' }}>
-          An error occurred. Please try again.
-        </Alert>
-      </Snackbar>
-
-      {/* Top Banner/AppBar */}
-      <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)', color: 'var(--freeki-app-bar-text-color)', zIndex: 1300 }}>
-        <Toolbar sx={{ justifyContent: 'space-between' }}>
-          {/* Left side - Logo and Title */}
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <EnhancedTooltip title="Return to home page">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {/* Top App Bar */}
+      <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)' }}>
+        <Toolbar>
+          {/* Left side - Company Icon and Title */}
+          <Box>
+            <EnhancedTooltip title={`Return to home page (${adminSettings.companyName})`}>
               <Button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  if (pageMetadata.length > 0) {
+                    const sortedPages = sortPagesByDisplayOrder(pageMetadata)
+                    const homePage = sortedPages[0]
+                    handlePageSelect(homePage)
+                  }
+                }}
                 sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  textTransform: 'none',
                   color: 'var(--freeki-app-bar-text-color)',
-                  minHeight: 'auto',
-                  p: 0,
-                  mr: 4,
+                  textTransform: 'none',
                   '&:hover': {
                     backgroundColor: 'rgba(255, 255, 255, 0.1)'
                   }
@@ -893,8 +974,25 @@ export default function App() {
             </EnhancedTooltip>
           </Box>
 
-          {/* Center - Empty space */}
-          <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2 }} />
+          {/* Center - Page Title (if page is selected) */}
+          <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            {currentPageMetadata && (
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  color: 'var(--freeki-app-bar-text-color)',
+                  textAlign: 'center',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  maxWidth: '100%'
+                }}
+                title={currentPageMetadata.title}
+              >
+                {currentPageMetadata.title}
+              </Typography>
+            )}
+          </Box>
 
           {/* Right side - Action buttons */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -1183,6 +1281,8 @@ export default function App() {
                 metadata={currentPageMetadata}
                 content={currentPageContent}
                 onTagClick={handleTagClick}
+                onTagAdd={handleTagAdd}
+                onTagRemove={handleTagRemove}
               />
             </FadePanelContent>
             
@@ -1232,6 +1332,19 @@ export default function App() {
         open={showAdminSettings}
         onClose={() => setShowAdminSettings(false)}
         themeMode={settings.theme}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Page"
+        message={`Are you sure you want to delete "${currentPageMetadata?.title}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        confirmColor="error"
+        dangerous={true}
       />
     </Box>
   )

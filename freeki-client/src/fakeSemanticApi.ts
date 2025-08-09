@@ -6,7 +6,6 @@ import type {
   PageCreateRequest, 
   PageUpdateRequest, 
   PageWithContent, 
-  SearchResult, 
   MediaFile 
 } from './semanticApiInterface'
 import type { PageMetadata } from './globalState'
@@ -106,6 +105,7 @@ export class FakeSemanticApi implements ISemanticApi {
       const newPage: PageMetadata = {
         pageId,
         title: request.title,
+        author: 'Test User',
         path: request.filepath,
         tags: [...request.tags],
         lastModified: Date.now() / 1000,
@@ -145,6 +145,7 @@ export class FakeSemanticApi implements ISemanticApi {
       const updatedPage: PageMetadata = {
         ...this.fakePages[index],
         title: request.title,
+        author: 'Test User',
         path: request.filepath,
         tags: [...request.tags],
         lastModified: Date.now() / 1000,
@@ -187,79 +188,29 @@ export class FakeSemanticApi implements ISemanticApi {
     }
   }
 
-  async searchPagesWithContent(searchTerm: string): Promise<SearchResult[]> {
+  async searchPagesWithContent(searchTerm: string): Promise<string[]> {
     const startTime = performance.now()
     this.logRequest('searchPagesWithContent', { searchTerm })
     
     try {
-      const results: SearchResult[] = []
+      const results: string[] = []
       const term = searchTerm.toLowerCase()
 
-      console.log(`?? FakeSemanticApi: Searching for "${term}" in ${this.fakePages.length} pages`)
+      console.log(`?? FakeSemanticApi: Searching for "${term}" in page content only (not metadata)`)
 
       this.fakePages.forEach(page => {
         const content = this.fakeContent[page.pageId] || ''
-        const titleMatch = page.title.toLowerCase().includes(term)
-        const tagMatch = page.tags.some(tag => tag.toLowerCase().includes(term))
+        
+        // ONLY search in content - do not search titles, tags, or other metadata
         const contentMatch = content.toLowerCase().includes(term)
         
-        if (titleMatch || tagMatch || contentMatch) {
-          console.log(`? Found match in page "${page.title}": title=${titleMatch}, tags=${tagMatch}, content=${contentMatch}`)
-          
-          // Calculate a more realistic score based on content matches
-          let score = 0
-          const lowerTitle = page.title.toLowerCase()
-          const lowerContent = content.toLowerCase()
-          
-          // Count occurrences in title (weighted more heavily)
-          let titleIndex = 0
-          while ((titleIndex = lowerTitle.indexOf(term, titleIndex)) !== -1) {
-            score += 3
-            titleIndex += term.length
-          }
-          
-          // Count occurrences in content
-          let contentIndex = 0
-          while ((contentIndex = lowerContent.indexOf(term, contentIndex)) !== -1) {
-            score += 1
-            contentIndex += term.length
-          }
-          
-          // Count tag matches
-          page.tags.forEach(tag => {
-            if (tag.toLowerCase().includes(term)) {
-              score += 2
-            }
-          })
-          
-          // Create excerpt around first match
-          let excerpt = content.substring(0, 100) + '...'
-          const firstMatch = lowerContent.indexOf(term)
-          if (firstMatch >= 0) {
-            const start = Math.max(0, firstMatch - 25)
-            const end = Math.min(content.length, firstMatch + term.length + 45)
-            excerpt = content.substring(start, end)
-            if (start > 0) excerpt = '...' + excerpt
-            if (end < content.length) excerpt = excerpt + '...'
-          }
-          
-          results.push({
-            id: page.pageId,
-            title: page.title,
-            path: page.path,
-            excerpt,
-            score
-          })
+        if (contentMatch) {
+          console.log(`? Found content match in page "${page.title}"`)
+          results.push(page.pageId)
         }
       })
 
-      // Sort by score descending
-      results.sort((a, b) => b.score - a.score)
-
-      console.log(`?? FakeSemanticApi: Found ${results.length} results for "${term}"`)
-      results.forEach((result, index) => {
-        console.log(`  ${index + 1}. ${result.title} (score: ${result.score})`)
-      })
+      console.log(`?? FakeSemanticApi: Found ${results.length} content-only results for "${term}"`)
 
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('searchPagesWithContent', results, duration)

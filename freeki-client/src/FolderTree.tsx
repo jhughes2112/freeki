@@ -8,7 +8,12 @@ import {
   Tooltip,
   List,
   ListItem,
-  ListItemIcon
+  ListItemIcon,
+  Menu,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+  Divider
 } from '@mui/material'
 import {
   Clear,
@@ -21,12 +26,20 @@ import type { TreeNode } from './pageTreeUtils'
 import type { ISemanticApi } from './semanticApiInterface'
 import { useUserSettings } from './useUserSettings'
 
-// Search modes for the filter
-export type SearchMode = 'titles' | 'metadata' | 'fullContent'
+// Search modes - now supports multiple simultaneous modes
+export type SearchType = 'titles' | 'tags' | 'author' | 'content'
 
-interface SearchDepthIndicatorProps {
-  mode: SearchMode
-  onClick: () => void
+interface SearchConfiguration {
+  titles: boolean
+  tags: boolean
+  author: boolean
+  content: boolean
+}
+
+interface SearchDropdownProps {
+  searchConfig: SearchConfiguration
+  onConfigChange: (config: SearchConfiguration) => void
+  onConfigClick: () => void
   title: string
 }
 
@@ -50,55 +63,210 @@ const EnhancedTooltip = ({ children, title, ...props }: {
   </Tooltip>
 )
 
-// Custom component for search depth indicator with vertical pips
-function SearchDepthIndicator({ mode, onClick, title }: SearchDepthIndicatorProps) {
-  const getPipCount = () => {
-    switch (mode) {
-      case 'titles': return 1
-      case 'metadata': return 2
-      case 'fullContent': return 3
-      default: return 1
-    }
+// Custom component for search configuration dropdown with four vertical pips
+function SearchDropdown({ searchConfig, onConfigChange, onConfigClick, title }: SearchDropdownProps) {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const isMenuOpen = Boolean(anchorEl)
+
+  const getActivePipCount = () => {
+    let count = 0
+    if (searchConfig.titles) count++
+    if (searchConfig.tags) count++
+    if (searchConfig.author) count++
+    if (searchConfig.content) count++
+    return count
   }
 
-  const pipCount = getPipCount()
+  const activePipCount = getActivePipCount()
+
+  const handleMenuClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget)
+    onConfigClick()
+  }
+
+  const handleMenuClose = () => {
+    setAnchorEl(null)
+  }
+
+  const handleConfigToggle = (type: SearchType) => {
+    const newConfig = { ...searchConfig, [type]: !searchConfig[type] }
+    onConfigChange(newConfig)
+  }
 
   return (
-    <EnhancedTooltip title={title}>
-      <IconButton
-        size="small"
-        onClick={onClick}
-        sx={{ p: 0.5 }}
-        aria-label={title}
+    <>
+      <EnhancedTooltip title={title}>
+        <IconButton
+          size="small"
+          onClick={handleMenuClick}
+          sx={{ p: 0.5 }}
+          aria-label={title}
+        >
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            gap: 0.25,
+            width: 16,
+            height: 16
+          }}>
+            {/* Create 4 pips, fill based on active search types */}
+            {[4, 3, 2, 1].map((level) => (
+              <Box
+                key={level}
+                sx={{
+                  width: 8,
+                  height: 2.5,
+                  borderRadius: 0.5,
+                  backgroundColor: level <= activePipCount 
+                    ? 'var(--freeki-folders-font-color)' 
+                    : 'transparent',
+                  border: `1px solid var(--freeki-folders-font-color)`,
+                  opacity: level <= activePipCount ? 1 : 0.4,
+                  transition: 'all 0.2s ease-in-out'
+                }}
+              />
+            ))}
+          </Box>
+        </IconButton>
+      </EnhancedTooltip>
+
+      <Menu
+        anchorEl={anchorEl}
+        open={isMenuOpen}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+        PaperProps={{
+          sx: {
+            backgroundColor: 'var(--freeki-view-background)',
+            border: '1px solid var(--freeki-border-color)',
+            borderRadius: 'var(--freeki-border-radius)',
+            minWidth: 160
+          }
+        }}
       >
-        <Box sx={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center', 
-          gap: 0.25,
-          width: 16,
-          height: 16
-        }}>
-          {/* Create 3 pips, fill based on mode */}
-          {[3, 2, 1].map((level) => (
-            <Box
-              key={level}
-              sx={{
-                width: 8,
-                height: 3,
-                borderRadius: 0.5,
-                backgroundColor: level <= pipCount 
-                  ? 'var(--freeki-folders-font-color)' 
-                  : 'transparent',
-                border: `1px solid var(--freeki-folders-font-color)`,
-                opacity: level <= pipCount ? 1 : 0.4,
-                transition: 'all 0.2s ease-in-out'
-              }}
-            />
-          ))}
-        </Box>
-      </IconButton>
-    </EnhancedTooltip>
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            px: 2, 
+            py: 1, 
+            display: 'block',
+            color: 'var(--freeki-folders-font-color)',
+            fontWeight: 600
+          }}
+        >
+          Search in:
+        </Typography>
+        <Divider />
+        
+        <MenuItem onClick={() => handleConfigToggle('titles')}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={searchConfig.titles}
+                size="small"
+                sx={{
+                  color: 'var(--freeki-folders-font-color)',
+                  '&.Mui-checked': {
+                    color: 'var(--freeki-primary)',
+                  },
+                }}
+              />
+            }
+            label="Titles"
+            sx={{
+              margin: 0,
+              '& .MuiFormControlLabel-label': {
+                color: 'var(--freeki-folders-font-color)',
+                fontSize: 'var(--freeki-folders-font-size)'
+              }
+            }}
+          />
+        </MenuItem>
+
+        <MenuItem onClick={() => handleConfigToggle('tags')}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={searchConfig.tags}
+                size="small"
+                sx={{
+                  color: 'var(--freeki-folders-font-color)',
+                  '&.Mui-checked': {
+                    color: 'var(--freeki-primary)',
+                  },
+                }}
+              />
+            }
+            label="Tags"
+            sx={{
+              margin: 0,
+              '& .MuiFormControlLabel-label': {
+                color: 'var(--freeki-folders-font-color)',
+                fontSize: 'var(--freeki-folders-font-size)'
+              }
+            }}
+          />
+        </MenuItem>
+
+        <MenuItem onClick={() => handleConfigToggle('author')}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={searchConfig.author}
+                size="small"
+                sx={{
+                  color: 'var(--freeki-folders-font-color)',
+                  '&.Mui-checked': {
+                    color: 'var(--freeki-primary)',
+                  },
+                }}
+              />
+            }
+            label="Author"
+            sx={{
+              margin: 0,
+              '& .MuiFormControlLabel-label': {
+                color: 'var(--freeki-folders-font-color)',
+                fontSize: 'var(--freeki-folders-font-size)'
+              }
+            }}
+          />
+        </MenuItem>
+
+        <MenuItem onClick={() => handleConfigToggle('content')}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={searchConfig.content}
+                size="small"
+                sx={{
+                  color: 'var(--freeki-folders-font-color)',
+                  '&.Mui-checked': {
+                    color: 'var(--freeki-primary)',
+                  },
+                }}
+              />
+            }
+            label="Content"
+            sx={{
+              margin: 0,
+              '& .MuiFormControlLabel-label': {
+                color: 'var(--freeki-folders-font-color)',
+                fontSize: 'var(--freeki-folders-font-size)'
+              }
+            }}
+          />
+        </MenuItem>
+      </Menu>
+    </>
   )
 }
 
@@ -106,7 +274,7 @@ interface FolderTreeProps {
   pageTree: TreeNode[]
   selectedPageMetadata: PageMetadata | null
   onPageSelect: (metadata: PageMetadata) => void
-  onSearch?: (query: string, mode: SearchMode) => Promise<void>
+  onSearch?: (query: string, searchConfig: SearchConfiguration) => Promise<void>
   searchQuery?: string
   pageMetadata: PageMetadata[]
   semanticApi: ISemanticApi | null
@@ -449,7 +617,7 @@ function TreeNodeComponent({
           effectAllowed: 'move'
         },
         currentTarget: e.currentTarget
-      } as any)
+      } as unknown as React.DragEvent)
     }, 500) // 500ms long press
   }
 
@@ -505,7 +673,8 @@ function TreeNodeComponent({
         const listItem = elementBelow.closest('[role="button"]')
         if (listItem && listItem !== e.currentTarget) {
           // Simulate drop event
-          const syntheticEvent = new DragEvent('drop', {
+          const syntheticEvent = {
+            type: 'drop',
             bubbles: true,
             cancelable: true,
             clientX: touch.clientX,
@@ -516,8 +685,8 @@ function TreeNodeComponent({
                 isFolder: node.isFolder,
                 path: node.metadata.path
               })
-            }
-          } as any)
+            } as unknown as DataTransfer
+          } as unknown as DragEvent
           listItem.dispatchEvent(syntheticEvent)
         }
       }
@@ -789,18 +958,21 @@ export default function FolderTree({
     toggleFolderExpansion, 
     ensurePageVisible,
     updateSetting,
-    saveSettings,
     isFolderExpanded
   } = useUserSettings(semanticApi)
   
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
   const [filterText, setFilterText] = useState(externalSearchQuery || '')
-  const [searchMode, setSearchMode] = useState<SearchMode>('titles')
+  const [searchConfig, setSearchConfig] = useState<SearchConfiguration>({
+    titles: true,
+    tags: false,
+    author: false,
+    content: false
+  })
   
-  // Debouncing for full content search
+  // Debouncing for content search
   const searchTimeoutRef = useRef<number | null>(null)
-  
   // Convert expanded folder paths to visible page IDs (computed, not stored)
   const visiblePageIds = useMemo(() => {
     const visible = new Set<string>()
@@ -1092,64 +1264,61 @@ export default function FolderTree({
     
     // Call the parent's search handler if provided
     if (onSearch) {
-      // For full content search: debounce by 1 second
-      if (searchMode === 'fullContent') {
+      // For content search: debounce by 1 second
+      if (searchConfig.content) {
         // Empty search - search immediately
         if (newValue.trim().length === 0) {
-          onSearch(newValue, searchMode).catch(error => {
+          onSearch(newValue, searchConfig).catch(error => {
             console.error('Search failed:', error)
           })
           return
         }
         
-        // Debounce full content search by 1 second
+        // Debounce content search by 1 second
         searchTimeoutRef.current = setTimeout(() => {
-          onSearch!(newValue, searchMode).catch(error => {
+          onSearch!(newValue, searchConfig).catch(error => {
             console.error('Search failed:', error)
           })
         }, 1000)
       } else {
-        // For titles and metadata modes: search immediately
-        onSearch(newValue, searchMode).catch(error => {
+        // For other search types: search immediately
+        onSearch(newValue, searchConfig).catch(error => {
           console.error('Search failed:', error)
         })
       }
     }
   }
 
-  const handleSearchModeToggle = () => {
-    // Clear any pending search timeout when switching modes
+  const handleSearchConfigChange = (newConfig: SearchConfiguration) => {
+    // Clear any pending search timeout when switching configuration
     if (searchTimeoutRef.current !== null) {
       clearTimeout(searchTimeoutRef.current)
       searchTimeoutRef.current = null
     }
     
-    // Cycle through search modes: titles -> metadata -> fullContent -> titles
-    const nextMode = searchMode === 'titles' ? 'metadata' 
-                   : searchMode === 'metadata' ? 'fullContent' 
-                   : 'titles'
-    setSearchMode(nextMode)
+    setSearchConfig(newConfig)
     
-    // If switching to fullContent mode, start the timer if there's text
-    if (nextMode === 'fullContent') {
-      if (filterText.trim()) {
-        const timerId = setTimeout(() => {
-          if (onSearch) {
-            onSearch(filterText, nextMode).catch(error => {
-              console.error('Search failed:', error)
-            })
-          }
-        }, 1000)
-        searchTimeoutRef.current = timerId
-      }
-    } else {
-      // For other modes, search immediately if there's text
-      if (filterText.trim() && onSearch) {
-        onSearch(filterText, nextMode).catch(error => {
-          console.error('Search failed:', error)
-        })
-      }
+    // If switching to include content search, start the timer if there's text
+    if (newConfig.content && filterText.trim()) {
+      const timerId = setTimeout(() => {
+        if (onSearch) {
+          onSearch(filterText, newConfig).catch(error => {
+            console.error('Search failed:', error)
+          })
+        }
+      }, 1000)
+      searchTimeoutRef.current = timerId
+    } else if (filterText.trim() && onSearch) {
+      // For non-content searches, search immediately if there's text
+      onSearch(filterText, newConfig).catch(error => {
+        console.error('Search failed:', error)
+      })
     }
+  }
+
+  const handleSearchConfigClick = () => {
+    // This is called when the search dropdown is opened
+    // We can use this for any setup if needed
   }
 
   // Update filter text when external search query changes (from tag clicks)
@@ -1167,21 +1336,35 @@ export default function FolderTree({
     }
   }, [externalSearchQuery])
 
-  const getSearchModeTitle = () => {
-    switch (searchMode) {
-      case 'titles': return 'Search Titles Only'
-      case 'metadata': return 'Search Titles & Tags'
-      case 'fullContent': return 'Search Everything (3+ chars, 1s delay)'
-      default: return 'Search mode'
+  const getSearchConfigTitle = () => {
+    const activeTypes = []
+    if (searchConfig.titles) activeTypes.push('Titles')
+    if (searchConfig.tags) activeTypes.push('Tags')
+    if (searchConfig.author) activeTypes.push('Author')
+    if (searchConfig.content) activeTypes.push('Content')
+    
+    if (activeTypes.length === 0) {
+      return 'No search types selected'
+    } else if (activeTypes.length === 1) {
+      return `Search ${activeTypes[0]}`
+    } else {
+      return `Search ${activeTypes.join(', ')}`
     }
   }
 
   const getSearchPlaceholder = () => {
-    switch (searchMode) {
-      case 'titles': return 'Search page titles...'
-      case 'metadata': return 'Search titles & tags...'
-      case 'fullContent': return 'Search everything (3+ chars)...'
-      default: return 'Search pages...'
+    const activeTypes = []
+    if (searchConfig.titles) activeTypes.push('titles')
+    if (searchConfig.tags) activeTypes.push('tags')
+    if (searchConfig.author) activeTypes.push('author')
+    if (searchConfig.content) activeTypes.push('content')
+    
+    if (activeTypes.length === 0) {
+      return 'Select search types first...'
+    } else if (activeTypes.length === 1) {
+      return `Search ${activeTypes[0]}...`
+    } else {
+      return `Search ${activeTypes.join(', ')}...`
     }
   }
 
@@ -1203,6 +1386,7 @@ export default function FolderTree({
           placeholder={getSearchPlaceholder()}
           value={filterText}
           onChange={handleFilterChange}
+          disabled={!searchConfig.titles && !searchConfig.tags && !searchConfig.author && !searchConfig.content}
           fullWidth
           InputProps={{
             endAdornment: (
@@ -1215,7 +1399,7 @@ export default function FolderTree({
                         setFilterText('')
 
                         if (onSearch) {
-                          onSearch('', searchMode).catch(error => {
+                          onSearch('', searchConfig).catch(error => {
                             console.error('Search failed:', error)
                           })
                         }
@@ -1228,10 +1412,11 @@ export default function FolderTree({
                   </EnhancedTooltip>
                 )}
                 
-                <SearchDepthIndicator
-                  mode={searchMode}
-                  onClick={handleSearchModeToggle}
-                  title={getSearchModeTitle()}
+                <SearchDropdown
+                  searchConfig={searchConfig}
+                  onConfigChange={handleSearchConfigChange}
+                  onConfigClick={handleSearchConfigClick}
+                  title={getSearchConfigTitle()}
                 />
               </Box>
             )
@@ -1255,6 +1440,10 @@ export default function FolderTree({
                 borderColor: 'var(--freeki-primary)',
                 backgroundColor: 'transparent',
               },
+              '&.Mui-disabled fieldset': {
+                borderColor: 'var(--freeki-border-color)',
+                opacity: 0.5,
+              },
             },
             '& .MuiInputBase-input': {
               py: 1.5,
@@ -1262,6 +1451,10 @@ export default function FolderTree({
               height: 'auto',
               color: 'var(--freeki-folders-font-color)',
               fontSize: 'var(--freeki-folders-font-size)',
+              '&.Mui-disabled': {
+                opacity: 0.5,
+                WebkitTextFillColor: 'var(--freeki-folders-font-color)',
+              },
             },
             '& .MuiSvgIcon-root': {
               color: 'var(--freeki-folders-font-color)',

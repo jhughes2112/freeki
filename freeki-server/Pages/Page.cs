@@ -9,17 +9,19 @@ namespace Storage
 		public string       PageId       { get; }
 		public List<string> Tags         { get; }
 		public string       Title        { get; }
+		public string       Author       { get; }
 		public long         LastModified { get; }
 		public long         Version      { get; }
 		public string       Path         { get; } // Relative path and filename of the file
 
 		static public long  Now          { get { return DateTimeOffset.UtcNow.ToUnixTimeSeconds(); } }
 
-		public PageMetadata(string pageId, List<string> tags, string title, long lastModified, long version, string path)
+		public PageMetadata(string pageId, List<string> tags, string title, string author, long lastModified, long version, string path)
 		{
 			PageId       = pageId;
 			Tags         = tags;
 			Title        = title;
+			Author       = author;
 			LastModified = lastModified;
 			Version      = version;
 			Path         = path;

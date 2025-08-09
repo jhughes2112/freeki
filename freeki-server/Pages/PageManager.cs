@@ -6,16 +6,6 @@ using System.Threading.Tasks;
 
 namespace Storage
 {
-	// Search result with excerpt and score
-	public class SearchResult
-	{
-		public string Id { get; set; } = "";
-		public string Title { get; set; } = "";
-		public string Path { get; set; } = "";
-		public string Excerpt { get; set; } = "";
-		public int Score { get; set; } = 0;
-	}
-
 	// High-level storage service for Page objects using generic IStorage and PageSerializer
 	public class PageManager
 	{
@@ -73,7 +63,7 @@ namespace Storage
 									if (fullPage != null)
 									{
 										// Create corrected metadata with the actual filename
-										PageMetadata correctedMetadata = new PageMetadata(metadata.PageId, metadata.Tags, metadata.Title, metadata.LastModified, metadata.Version, filename);
+										PageMetadata correctedMetadata = new PageMetadata(metadata.PageId, metadata.Tags, metadata.Title, metadata.Author, metadata.LastModified, metadata.Version, filename);
 										Page correctedPage = new Page(correctedMetadata, fullPage.Content);
 										
 										// Write back the corrected page
@@ -427,10 +417,10 @@ namespace Storage
 			return success;
 		}
 
-		// Search pages including content (slower operation that reads full pages)
-		public async Task<List<SearchResult>> SearchPagesWithContent(string searchTerm)
+		// Search ONLY content part of pages (slower operation that reads full pages), respond with pageIds only
+		public async Task<List<string>> SearchPageContent(string searchTerm)
 		{
-			List<SearchResult> searchResults = new List<SearchResult>();
+			List<string> searchResults = new List<string>();
 			
 			// Return empty list for null or empty search terms
 			if (!string.IsNullOrWhiteSpace(searchTerm))
@@ -449,25 +439,10 @@ namespace Storage
 						{
 							// Note: Cache is already updated in ReadPageFromPath, no need to duplicate here
 							
-							// Search in metadata fields (case-insensitive)
-							bool isMatch = page.Metadata.PageId.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-							isMatch = isMatch || page.Metadata.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-							isMatch = isMatch || page.Metadata.Path.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-
-							// Search in tags (case-insensitive)
-							foreach (string tag in page.Metadata.Tags)
-							{
-								isMatch = isMatch || tag.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-							}
-							
 							// Search in content (case-insensitive)
-							isMatch = isMatch || page.Content.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-								
-							// Add to results if match found
-							if (isMatch)
+							if (page.Content.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
 							{
-								SearchResult result = CreateSearchResult(page.Metadata, page.Content, searchTerm);
-								searchResults.Add(result);
+								searchResults.Add(page.Metadata.PageId);
 							}
 						}
 						else
@@ -483,10 +458,6 @@ namespace Storage
 						errorCount++;
 					}
 				}
-				
-				// Sort by score descending (highest score first)
-				searchResults.Sort((a, b) => b.Score.CompareTo(a.Score));
-				
 				_logger.Log(EVerbosity.Debug, $"PageManager.SearchPagesWithContent: Searched {totalSearched} pages for term='{searchTerm}', found {searchResults.Count} matches, {errorCount} errors");
 			}
 			else
@@ -659,89 +630,6 @@ namespace Storage
 			}
 
 			return result;
-		}
-
-		// Helper method to create search result with excerpt and score
-		private SearchResult CreateSearchResult(PageMetadata metadata, string content, string searchTerm)
-		{
-			// Calculate score (number of times search term appears)
-			int score = 0;
-			string excerpt = "";
-			
-			if (!string.IsNullOrWhiteSpace(searchTerm))
-			{
-				string lowerSearchTerm = searchTerm.ToLowerInvariant();
-				string lowerContent = content.ToLowerInvariant();
-				string lowerTitle = metadata.Title.ToLowerInvariant();
-				string lowerPath = metadata.Path.ToLowerInvariant();
-				
-				// Count occurrences in content
-				int contentIndex = 0;
-				while ((contentIndex = lowerContent.IndexOf(lowerSearchTerm, contentIndex)) != -1)
-				{
-					score++;
-					contentIndex += lowerSearchTerm.Length;
-				}
-				
-				// Count occurrences in title (weighted more heavily)
-				int titleIndex = 0;
-				while ((titleIndex = lowerTitle.IndexOf(lowerSearchTerm, titleIndex)) != -1)
-				{
-					score += 3; // Title matches are worth 3x
-					titleIndex += lowerSearchTerm.Length;
-				}
-				
-				// Count occurrences in path
-				int pathIndex = 0;
-				while ((pathIndex = lowerPath.IndexOf(lowerSearchTerm, pathIndex)) != -1)
-				{
-					score += 2; // Path matches are worth 2x
-					pathIndex += lowerSearchTerm.Length;
-				}
-				
-				// Count occurrences in tags
-				foreach (string tag in metadata.Tags)
-				{
-					string lowerTag = tag.ToLowerInvariant();
-					if (lowerTag.Contains(lowerSearchTerm))
-					{
-						score += 2; // Tag matches are worth 2x
-					}
-				}
-				
-				// Create excerpt: 25 characters before + search term + 45 characters after
-				int firstMatch = lowerContent.IndexOf(lowerSearchTerm);
-				if (firstMatch >= 0)
-				{
-					int startPos = Math.Max(0, firstMatch - 25);
-					int endPos = Math.Min(content.Length, firstMatch + lowerSearchTerm.Length + 45);
-					
-					excerpt = content.Substring(startPos, endPos - startPos);
-					
-					// Add ellipsis if we're not at the beginning/end
-					if (startPos > 0) excerpt = "..." + excerpt;
-					if (endPos < content.Length) excerpt = excerpt + "...";
-				}
-				else
-				{
-					// No match in content, use beginning of content as excerpt
-					excerpt = content.Length > 70 ? content.Substring(0, 70) + "..." : content;
-				}
-			}
-			else
-			{
-				// No search term, use beginning of content as excerpt
-				excerpt = content.Length > 70 ? content.Substring(0, 70) + "..." : content;
-			}
-			
-			return new SearchResult
-			{
-				Id = metadata.PageId,
-				Title = metadata.Title,
-				Path = metadata.Path,
-				Excerpt = excerpt,
-				Score = score
-			};
 		}
 	}
 }

@@ -701,7 +701,7 @@ namespace TestApp
 			_testRunner!.RunTest("PageSerializer", "Basic serialization/deserialization", () =>
 			{
 				List<string> tags = new List<string> { "test", "serialization" };
-				PageMetadata metadata = new PageMetadata("test-page", tags, "Test Page", PageMetadata.Now, 1, "test.txt");
+				PageMetadata metadata = new PageMetadata("test-page", tags, "Test Page", "testauthor",PageMetadata.Now, 1, "test.txt");
 				Page originalPage = new Page(metadata, "# Test Content\n\nThis is test content.");
 				
 				byte[] serializedData = serializer.Serialize(originalPage);
@@ -725,7 +725,7 @@ namespace TestApp
 			_testRunner.RunTest("PageSerializer", "Metadata-only deserialization", () =>
 			{
 				List<string> tags = new List<string> { "test", "serialization" };
-				PageMetadata metadata = new PageMetadata("test-page", tags, "Test Page", PageMetadata.Now, 1, "test.txt");
+				PageMetadata metadata = new PageMetadata("test-page", tags, "Test Page", "testauthor",PageMetadata.Now, 1, "test.txt");
 				Page originalPage = new Page(metadata, "# Test Content\n\nThis is test content.");
 				
 				byte[] serializedData = serializer.Serialize(originalPage);

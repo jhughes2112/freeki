@@ -10,6 +10,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'home',
     title: 'Home Page',
+    author: 'Alice Smith',
     path: 'home.md',
     tags: ['wiki', 'home', 'intro'],
     lastModified: 1705149000,
@@ -18,6 +19,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'overview',
     title: 'System Overview',
+    author: 'Bob Johnson',
     path: 'overview.md',
     tags: ['overview', 'system'],
     lastModified: 1705148000,
@@ -26,6 +28,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'welcome',
     title: 'Welcome Guide',
+    author: 'Carol Davis',
     path: 'welcome.md',
     tags: ['guide', 'intro'],
     lastModified: 1705148500,
@@ -36,6 +39,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'doc-intro',
     title: 'Documentation Introduction',
+    author: 'David Wilson',
     path: 'documentation/intro.md',
     tags: ['documentation', 'intro'],
     lastModified: 1705147000,
@@ -44,6 +48,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'doc-advanced',
     title: 'Advanced Documentation',
+    author: 'Eve Brown',
     path: 'documentation/advanced.md',
     tags: ['documentation', 'advanced'],
     lastModified: 1705146000,
@@ -52,6 +57,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'doc-basic',
     title: 'Basic Documentation',
+    author: 'Frank Miller',
     path: 'documentation/basic.md',
     tags: ['documentation', 'basic'],
     lastModified: 1705145000,
@@ -62,6 +68,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'api-overview',
     title: 'API Overview',
+    author: 'Grace Lee',
     path: 'documentation/api/overview.md',
     tags: ['api', 'documentation'],
     lastModified: 1705144000,
@@ -70,6 +77,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'api-getting-started',
     title: 'API Getting Started',
+    author: 'Henry Taylor',
     path: 'documentation/api/getting-started.md',
     tags: ['api', 'documentation', 'getting-started'],
     lastModified: 1705143000,
@@ -80,6 +88,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'edge-case-1',
     title: 'Empty Content Test',
+    author: 'System',
     path: 'edge-cases/empty.md',
     tags: [],
     lastModified: 1705142000,
@@ -88,6 +97,7 @@ export const testPageMetadata: PageMetadata[] = [
   {
     pageId: 'edge-case-2',
     title: 'Special Characters Test ñáéíóúü',
+    author: 'Isabel García',
     path: 'edge-cases/special-chars.md',
     tags: ['edge-case', 'unicode', 'special-characters'],
     lastModified: 1705141000,

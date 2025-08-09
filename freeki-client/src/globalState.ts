@@ -6,6 +6,7 @@ export interface PageMetadata {
   pageId: string       // Maps to PageId in C#
   tags: string[]       // Maps to Tags in C#
   title: string        // Maps to Title in C#
+  author: string       // Maps to Author in C#
   lastModified: number // Maps to LastModified in C# (Unix timestamp)
   version: number      // Maps to Version in C#
   path: string         // Maps to Path in C#
