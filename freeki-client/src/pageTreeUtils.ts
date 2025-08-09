@@ -19,45 +19,67 @@ export interface TreeNode {
   lastFilePageId: string   // For folders: pageId of the last file in this folder (always set)
 }
 
-// Simple alphabetical sorting function - files before folders at each level
+// Dictionary type for organizing pages by folder path
+export interface FolderToFilesMap {
+  [folderPath: string]: PageMetadata[]
+}
+
+// Create a dictionary of folder paths to their contained files, sorted by title
+export function createFolderToFilesMap(pageMetadata: PageMetadata[]): FolderToFilesMap {
+  const folderMap: FolderToFilesMap = {}
+  
+  // Group pages by their folder path
+  for (const page of pageMetadata) {
+    const pathParts = page.path.split('/').filter(Boolean)
+    const folderPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : ''
+    
+    if (!folderMap[folderPath]) {
+      folderMap[folderPath] = []
+    }
+    folderMap[folderPath].push(page)
+  }
+  
+  // Sort files within each folder by title
+  for (const folderPath in folderMap) {
+    folderMap[folderPath].sort((a, b) => a.title.localeCompare(b.title))
+  }
+  
+  return folderMap
+}
+
+// Enhanced sorting function that sorts by title within folders, not filename
 export function sortPagesByDisplayOrder(pageMetadata: PageMetadata[]): PageMetadata[] {
-  return [...pageMetadata].sort((a, b) => {
-    // Compare paths depth-first: shallower paths (files/folders at root) come before deeper ones
-    const aPathParts = a.path.split('/').filter(Boolean)
-    const bPathParts = b.path.split('/').filter(Boolean)
+  if (pageMetadata.length === 0) {
+    return []
+  }
+  
+  // Create the folder-to-files map with title-based sorting
+  const folderMap = createFolderToFilesMap(pageMetadata)
+  
+  // Get all folder paths and sort them depth-first, then alphabetically
+  const folderPaths = Object.keys(folderMap).sort((a, b) => {
+    const aDepth = a ? a.split('/').length : 0
+    const bDepth = b ? b.split('/').length : 0
     
-    // Compare path segment by segment
-    const minLength = Math.min(aPathParts.length, bPathParts.length)
-    for (let i = 0; i < minLength; i++) {
-      const aSegment = aPathParts[i]
-      const bSegment = bPathParts[i]
-      
-      if (aSegment !== bSegment) {
-        // If we're at the final segment, determine if it's a file or folder
-        const aIsFile = i === aPathParts.length - 1 // Last segment = file
-        const bIsFile = i === bPathParts.length - 1 // Last segment = file
-        
-        // FILES BEFORE FOLDERS: If one is a file and one is a folder, file comes first
-        if (aIsFile && !bIsFile) {
-          return -1  // a (file) comes before b (folder)
-        }
-        if (!aIsFile && bIsFile) {
-          return 1   // b (file) comes before a (folder)
-        }
-        
-        // Both are files or both are folders - sort alphabetically
-        return aSegment.localeCompare(bSegment)
-      }
+    // Sort by depth first (shallower folders come first)
+    if (aDepth !== bDepth) {
+      return aDepth - bDepth
     }
     
-    // If all common segments are equal, shorter path comes first
-    if (aPathParts.length !== bPathParts.length) {
-      return aPathParts.length - bPathParts.length
-    }
-    
-    // Final fallback: alphabetical by title
-    return a.title.localeCompare(b.title)
+    // Same depth, sort alphabetically
+    return a.localeCompare(b)
   })
+  
+  // Build the final sorted array
+  const sortedPages: PageMetadata[] = []
+  
+  for (const folderPath of folderPaths) {
+    const pagesInFolder = folderMap[folderPath]
+    // Pages are already sorted by title within each folder
+    sortedPages.push(...pagesInFolder)
+  }
+  
+  return sortedPages
 }
 
 // Alphabetical flattened list - simple depth-based layout
@@ -87,20 +109,23 @@ export function buildFlattenedList(pageMetadata: PageMetadata[]): FlattenedItem[
   return flattenedItems
 }
 
-// Tree building with alphabetical sorting - files before folders
+// Tree building with title-based sorting within folders
 export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
   if (pageMetadata.length === 0) {
     return []
   }
 
-  // Sort pages alphabetically
+  // Create folder-to-files map with title-based sorting
+  const folderMap = createFolderToFilesMap(pageMetadata)
+  
+  // Get sorted pages using the new sorting approach
   const sortedPages = sortPagesByDisplayOrder(pageMetadata)
 
   // Build folder structure and track first/last files for each folder
   const rootNodes: TreeNode[] = []
   const folderTracker = new Map<string, { firstPageId: string; lastPageId: string }>()
 
-  // First pass: track which files belong to each folder
+  // First pass: track which files belong to each folder (now using sorted order)
   for (const pageMetadata of sortedPages) {
     const pathParts = pageMetadata.path.split('/').filter(Boolean)
     const folderParts = pathParts.slice(0, -1) // all parts except the file
@@ -116,79 +141,86 @@ export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
           lastPageId: pageMetadata.pageId
         })
       } else {
-        // Update last file for this folder (since we're processing in sorted order)
+        // Update last file for this folder (since we're processing in title-sorted order)
         const tracker = folderTracker.get(folderPath)!
         tracker.lastPageId = pageMetadata.pageId
       }
     }
   }
 
-  // Second pass: Build the actual tree structure
-  let previousPath: string[] = []
-  let nodeStack: TreeNode[][] = [rootNodes]  // Stack of current node arrays at each depth level
+  // Second pass: Build the actual tree structure using the folder map for efficiency
   
-  for (const pageMetadata of sortedPages) {
-    const pathParts = pageMetadata.path.split('/').filter(Boolean)
-    const folderParts = pathParts.slice(0, -1) // all parts except the file
+  // Process each folder path in order
+  for (const folderPath in folderMap) {
+    const pagesInFolder = folderMap[folderPath]
     
-    // Find how much of the path is common with the previous file's path
-    let commonDepth = 0
-    while (commonDepth < Math.min(folderParts.length, previousPath.length) && 
-           folderParts[commonDepth] === previousPath[commonDepth]) {
-      commonDepth++
-    }
-    
-    // Truncate the node stack to the common depth + 1 (root is at index 0)
-    nodeStack = nodeStack.slice(0, commonDepth + 1)
-    
-    // Get the current nodes array where we'll add new folders/files
-    let currentNodes = nodeStack[nodeStack.length - 1]
-    
-    // Create new folders from common depth to full depth needed for this file
-    for (let i = commonDepth; i < folderParts.length; i++) {
-      const folderName = folderParts[i]
-      const folderPath = folderParts.slice(0, i + 1).join('/')
-      const tracker = folderTracker.get(folderPath)!
+    if (folderPath === '') {
+      // Root level pages - add directly to rootNodes
+      for (const page of pagesInFolder) {
+        const pageNode: TreeNode = {
+          metadata: page,
+          isFolder: false,
+          children: [],
+          firstFilePageId: page.pageId,
+          lastFilePageId: page.pageId
+        }
+        rootNodes.push(pageNode)
+      }
+    } else {
+      // Nested pages - ensure folder structure exists
+      const folderParts = folderPath.split('/')
+      let currentNodes = rootNodes
+      let currentPath = ''
       
-      // Create unique pageId using full path
-      const virtualMetadata: PageMetadata = {
-        pageId: `folder_${folderPath}`,
-        tags: [],
-        title: folderName,
-        lastModified: Date.now() / 1000,
-        version: 0,
-        path: folderPath
+      // Build folder hierarchy as needed
+      for (let i = 0; i < folderParts.length; i++) {
+        const folderName = folderParts[i]
+        currentPath = i === 0 ? folderName : `${currentPath}/${folderName}`
+        
+        // Check if folder node already exists at this level
+        let folderNode = currentNodes.find(node => 
+          node.isFolder && node.metadata.path === currentPath
+        )
+        
+        if (!folderNode) {
+          // Create folder node
+          const tracker = folderTracker.get(currentPath)!
+          const virtualMetadata: PageMetadata = {
+            pageId: `folder_${currentPath}`,
+            tags: [],
+            title: folderName,
+            lastModified: Date.now() / 1000,
+            version: 0,
+            path: currentPath
+          }
+          
+          folderNode = {
+            metadata: virtualMetadata,
+            isFolder: true,
+            children: [],
+            firstFilePageId: tracker.firstPageId,
+            lastFilePageId: tracker.lastPageId
+          }
+          
+          currentNodes.push(folderNode)
+        }
+        
+        // Move to next level
+        currentNodes = folderNode.children
       }
       
-      const folderNode: TreeNode = {
-        metadata: virtualMetadata,
-        isFolder: true,
-        children: [],
-        firstFilePageId: tracker.firstPageId,  // Always set - first file in this folder
-        lastFilePageId: tracker.lastPageId     // Always set - last file in this folder
+      // Add all pages in this folder
+      for (const page of pagesInFolder) {
+        const pageNode: TreeNode = {
+          metadata: page,
+          isFolder: false,
+          children: [],
+          firstFilePageId: page.pageId,
+          lastFilePageId: page.pageId
+        }
+        currentNodes.push(pageNode)
       }
-      
-      // Add folder to current level
-      currentNodes.push(folderNode)
-      
-      // Move into the new folder and push its children array to the stack
-      currentNodes = folderNode.children
-      nodeStack.push(currentNodes)
     }
-    
-    // Create and add the file node
-    const pageNode: TreeNode = {
-      metadata: pageMetadata,
-      isFolder: false,
-      children: [],
-      firstFilePageId: pageMetadata.pageId,  // For files: references itself
-      lastFilePageId: pageMetadata.pageId    // For files: references itself
-    }
-    
-    currentNodes.push(pageNode)
-    
-    // Update previous path for next iteration
-    previousPath = folderParts
   }
 
   return rootNodes
@@ -241,11 +273,12 @@ export function collectAffectedPagesFromTree(
   return affectedPages
 }
 
-// Function that works with DragData from the UI (for compatibility)
+// Function that works with DragData from the UI - enhanced with folder map support
 export function collectAffectedPages(
   dragData: DragData, 
   allPages: PageMetadata[],
-  pageTree: TreeNode[]
+  pageTree?: TreeNode[],
+  folderMap?: FolderToFilesMap
 ): PageMetadata[] {
   if (!dragData.isFolder) {
     // Dragging a single file - just find it in allPages
@@ -253,88 +286,51 @@ export function collectAffectedPages(
     return draggedFile ? [draggedFile] : []
   }
   
-  // Dragging a folder - find the TreeNode and walk it
-  function findNodeInTree(nodes: TreeNode[], targetPageId: string): TreeNode | null {
-    for (const node of nodes) {
-      if (node.metadata.pageId === targetPageId) {
-        return node
-      }
-      if (node.children && node.children.length > 0) {
-        const found = findNodeInTree(node.children, targetPageId)
-        if (found) return found
+  // Dragging a folder - use folder map if available for efficiency
+  if (folderMap) {
+    const affectedPages: PageMetadata[] = []
+    
+    for (const folderPath in folderMap) {
+      if (folderPath === dragData.path || folderPath.startsWith(dragData.path + '/')) {
+        affectedPages.push(...folderMap[folderPath])
       }
     }
-    return null
+    
+    console.log(`Folder ${dragData.path} contains ${affectedPages.length} pages to move`)
+    return affectedPages
   }
   
-  const draggedNode = findNodeInTree(pageTree, dragData.pageId)
-  if (!draggedNode) {
-    console.warn(`Could not find dragged node with pageId: ${dragData.pageId}`)
-    return []
-  }
+  // Fallback to original approach if no folder map provided
+  const affectedPages: PageMetadata[] = []
   
-  return collectAffectedPagesFromTree(draggedNode, allPages)
-}
-
-// Calculate the complete drag operation result (DISABLED)
-export function calculateDragOperation(): DragOperationResult {
-  // DISABLED: Drag and drop is disabled since we removed sortOrder
-  console.log('🚫 Drag and drop is disabled - using alphabetical sorting only')
-  return { updatedPages: [], affectedPageIds: [] }
-}
-
-// DIAGNOSTIC: Test with simple case to verify alphabetical sorting
-if (typeof window !== 'undefined') {
-  (window as unknown as { testSimpleTreeBuild: () => void }).testSimpleTreeBuild = function() {
-    console.log('🔬 DIAGNOSTIC: Simple Tree Build Test (Alphabetical Sorting)')
-    
-    const testPages: PageMetadata[] = [
-      {
-        pageId: 'api-getting-started',
-        title: 'API Getting Started',
-        path: 'documentation/api/getting-started.md',
-        tags: [],
-        lastModified: 1000,
-        version: 1
-      },
-      {
-        pageId: 'doc-intro',
-        title: 'Documentation Introduction',
-        path: 'documentation/intro.md',
-        tags: [],
-        lastModified: 1000,
-        version: 1
-      },
-      {
-        pageId: 'home',
-        title: 'Home Page',
-        path: 'home.md',
-        tags: [],
-        lastModified: 1000,
-        version: 1
-      }
-    ]
-    
-    console.log('Input pages:', testPages.map(p => `${p.title} (${p.path})`))
-    
-    const tree = buildPageTree(testPages)
-    console.log('Generated tree (alphabetical, files before folders):')
-    
-    function walkTree(nodes: TreeNode[], depth = 0): void {
-      nodes.forEach((node) => {
-        const indent = '  '.repeat(depth)
-        const icon = node.isFolder ? '📁' : '📄'
-        const bookendInfo = node.isFolder 
-          ? ` (first: ${node.firstFilePageId}, last: ${node.lastFilePageId})` 
-          : ''
-        console.log(`${indent}${icon} ${node.metadata.title} (ID: ${node.metadata.pageId})${bookendInfo}`)
-        
-        if (node.children && node.children.length > 0) {
-          walkTree(node.children, depth + 1)
-        }
-      })
+  for (const page of allPages) {
+    if (page.path.startsWith(dragData.path + '/')) {
+      affectedPages.push(page)
     }
-    
-    walkTree(tree)
+  }
+  
+  console.log(`Folder ${dragData.path} contains ${affectedPages.length} pages to move`)
+  return affectedPages
+}
+
+// Calculate the complete drag operation result (RE-ENABLED)
+export function calculateDragOperation(
+  dragData: DragData,
+  dropTarget: DropTarget,
+  allPages: PageMetadata[]
+): DragOperationResult {
+  // Re-enabled: Basic path-based drag and drop
+  console.log('📁 Calculating drag operation for path-based movement')
+  
+  const affectedPages = collectAffectedPages(dragData, allPages, [])
+  const affectedPageIds = affectedPages.map(p => p.pageId)
+  
+  // For now, return the affected pages without modification
+  // The actual path changes will be handled by the semantic API
+  return { 
+    updatedPages: affectedPages, 
+    affectedPageIds 
   }
 }
+
+// Helper function to calculate if a folder should be auto-expand

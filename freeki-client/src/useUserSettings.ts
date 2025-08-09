@@ -14,7 +14,7 @@ export interface UserSettings {
   theme: 'light' | 'dark' | 'auto'
   companyName: 'Your Company'
   wikiTitle: 'FreeKi Wiki'
-  expandedNodes: string[]
+  visiblePageIds: string[]  // Changed from expandedNodes to track which page IDs should be visible
   lastSelectedPageId?: string
   showMetadataPanel: boolean
   defaultEditMode: 'wysiwyg' | 'markdown'
@@ -38,7 +38,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   theme: 'light',
   companyName: 'Your Company',
   wikiTitle: 'FreeKi Wiki',
-  expandedNodes: ['projects'],
+  visiblePageIds: [],  // Start with no pages visible (all folders collapsed)
   showMetadataPanel: true,
   defaultEditMode: 'wysiwyg',
   autoSave: true,
@@ -141,14 +141,84 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
     }
   }, [deviceKey])
   
-  const toggleExpandedNode = useCallback((nodeId: string) => {
-    const currentExpanded = settings.expandedNodes
-    const newExpanded = currentExpanded.includes(nodeId)
-      ? currentExpanded.filter(id => id !== nodeId)
-      : [...currentExpanded, nodeId]
+  // Helper function to collect all page IDs that are inside a folder path
+  const collectPageIdsInFolder = useCallback((folderPath: string, allPageMetadata: import('./globalState').PageMetadata[]): string[] => {
+    const pageIds: string[] = []
+    for (const page of allPageMetadata) {
+      if (page.path.startsWith(folderPath + '/')) {
+        pageIds.push(page.pageId)
+      }
+    }
+    return pageIds
+  }, [])
+
+  // Helper function to check if a folder should be expanded (i.e., has visible children)
+  const isFolderExpanded = useCallback((folderPath: string, allPageMetadata: import('./globalState').PageMetadata[]): boolean => {
+    const pagesInFolder = collectPageIdsInFolder(folderPath, allPageMetadata)
+    return pagesInFolder.some(pageId => settings.visiblePageIds.includes(pageId))
+  }, [settings.visiblePageIds, collectPageIdsInFolder])
+
+  // Toggle folder expansion by adding/removing all contained page IDs from visiblePageIds
+  const toggleFolderExpansion = useCallback((folderPath: string, allPageMetadata: import('./globalState').PageMetadata[]) => {
+    const pagesInFolder = collectPageIdsInFolder(folderPath, allPageMetadata)
+    const isCurrentlyExpanded = isFolderExpanded(folderPath, allPageMetadata)
     
-    updateSetting('expandedNodes', newExpanded)
-  }, [settings.expandedNodes, updateSetting])
+    let newVisiblePageIds: string[]
+    
+    if (isCurrentlyExpanded) {
+      // Collapse: remove all pages in this folder from visible list
+      newVisiblePageIds = settings.visiblePageIds.filter(pageId => !pagesInFolder.includes(pageId))
+    } else {
+      // Expand: add all pages in this folder to visible list
+      newVisiblePageIds = [...new Set([...settings.visiblePageIds, ...pagesInFolder])]
+    }
+    
+    updateSetting('visiblePageIds', newVisiblePageIds)
+  }, [settings.visiblePageIds, updateSetting, collectPageIdsInFolder, isFolderExpanded])
+
+  // Check if a specific page should be visible
+  const isPageVisible = useCallback((pageId: string): boolean => {
+    return settings.visiblePageIds.includes(pageId)
+  }, [settings.visiblePageIds])
+
+  // Ensure a specific page is visible (auto-expand its parent folders)
+  const ensurePageVisible = useCallback((pageId: string, allPageMetadata: import('./globalState').PageMetadata[]) => {
+    if (settings.visiblePageIds.includes(pageId)) {
+      return // Already visible
+    }
+
+    // Find the page and add it to visible list
+    const page = allPageMetadata.find(p => p.pageId === pageId)
+    if (!page) {
+      return // Page not found
+    }
+
+    // Add this page to visible list
+    const newVisiblePageIds = [...settings.visiblePageIds, pageId]
+    updateSetting('visiblePageIds', newVisiblePageIds)
+  }, [settings.visiblePageIds, updateSetting])
+
+  // Legacy compatibility function - maps old expandedNodes concept to new system
+  const toggleExpandedNode = useCallback((nodeId: string, allPageMetadata?: import('./globalState').PageMetadata[]) => {
+    if (!allPageMetadata) {
+      console.warn('toggleExpandedNode requires allPageMetadata parameter with new visibility system')
+      return
+    }
+    
+    // Check if this is a folder ID or page ID
+    if (nodeId.startsWith('folder_')) {
+      // Extract folder path from folder node ID
+      const folderPath = nodeId.substring('folder_'.length)
+      toggleFolderExpansion(folderPath, allPageMetadata)
+    } else {
+      // This is a page ID, just toggle its visibility
+      const newVisiblePageIds = settings.visiblePageIds.includes(nodeId)
+        ? settings.visiblePageIds.filter(id => id !== nodeId)
+        : [...settings.visiblePageIds, nodeId]
+      
+      updateSetting('visiblePageIds', newVisiblePageIds)
+    }
+  }, [settings.visiblePageIds, updateSetting, toggleFolderExpansion])
   
   return {
     settings,
@@ -157,6 +227,12 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
     updateSetting,
     saveSettings,
     resetSettings,
+    // New visibility-based functions
+    toggleFolderExpansion,
+    isFolderExpanded,
+    isPageVisible,
+    ensurePageVisible,
+    // Legacy compatibility
     toggleExpandedNode,
     deviceKey
   }

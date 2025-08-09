@@ -35,6 +35,7 @@ import AdminSettingsDialog from './AdminSettingsDialog'
 import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
+import { sortPagesByDisplayOrder } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
 import type { DragData, DropTarget } from './pageTreeUtils'
 import { fetchAdminSettings } from './adminSettings'
@@ -122,9 +123,30 @@ export default function App() {
         if (pages.length > 0) {
           globalState.set('pageMetadata', pages)
           
-          // Find the first page alphabetically to serve as the default/home page
-          const defaultPage = pages.slice().sort((a, b) => a.path.localeCompare(b.path))[0]
+          // Find the first page using the same sorting logic as the tree
+          const sortedPages = sortPagesByDisplayOrder(pages)
           
+          console.log('?? Page loading order (files before folders):')
+          sortedPages.slice(0, 5).forEach((page, index) => {
+            console.log(`  ${index + 1}. ${page.title} (${page.path})`)
+          })
+          
+          const defaultPage = sortedPages[0]
+          console.log(`?? Selected default page: ${defaultPage.title} (${defaultPage.path})`)
+          
+          // Debug: Test with some example data to ensure Home comes first
+          const testPages: PageMetadata[] = [
+            { pageId: 'doc', title: 'Documentation', path: 'documentation/intro.md', tags: [], lastModified: 1000, version: 1 },
+            { pageId: 'advanced', title: 'Advanced', path: 'documentation/advanced.md', tags: [], lastModified: 1000, version: 1 },
+            { pageId: 'home', title: 'Home', path: 'home.md', tags: [], lastModified: 1000, version: 1 },
+            { pageId: 'welcome', title: 'Welcome', path: 'welcome.md', tags: [], lastModified: 1000, version: 1 }
+          ]
+          const testSorted = sortPagesByDisplayOrder(testPages)
+          console.log('?? Test sorting (should show Home and Welcome first):')
+          testSorted.forEach((page, index) => {
+            console.log(`  ${index + 1}. ${page.title} (${page.path})`)
+          })
+  
           globalState.set('currentPageMetadata', defaultPage)
           // Load content for default page
           const pageWithContent = await api.getSinglePage(defaultPage.pageId)
@@ -393,9 +415,10 @@ export default function App() {
         const updatedPageMetadata = pageMetadata.filter(p => p.pageId !== currentPageMetadata.pageId)
         globalState.set('pageMetadata', updatedPageMetadata)
         
-        // Select first remaining page alphabetically
+        // Select first remaining page using same sorting logic
         if (updatedPageMetadata.length > 0) {
-          const nextDefaultPage = updatedPageMetadata.slice().sort((a, b) => a.path.localeCompare(b.path))[0]
+          const sortedPages = sortPagesByDisplayOrder(updatedPageMetadata)
+          const nextDefaultPage = sortedPages[0]
           handlePageSelect(nextDefaultPage)
         } else {
           globalState.set('currentPageMetadata', null)
@@ -486,35 +509,186 @@ export default function App() {
   const handleDragDrop = async (
     dragData: DragData,
     dropTarget: DropTarget,
-    updatedPages: PageMetadata[]
+    _updatedPages: PageMetadata[]
   ) => {
-    // Simplified: just update the global state with the updated pages from FolderTree
-    console.log('?? App: Updating global state with drag and drop results')
-    
-    // Update the global pageMetadata with the updated pages
-    const currentPages = [...pageMetadata]
-    let hasChanges = false
-    
-    for (const updatedPage of updatedPages) {
-      const index = currentPages.findIndex(p => p.pageId === updatedPage.pageId)
-      if (index >= 0) {
-        currentPages[index] = updatedPage
-        hasChanges = true
-      }
+    if (!semanticApi) {
+      console.warn('?? No semantic API available for drag and drop')
+      return
     }
+
+    console.log('?? App: Processing drag and drop operation:', { 
+      dragData, 
+      dropTarget,
+      isVirtualFolder: dropTarget.targetPageId.startsWith('folder_')
+    })
     
-    if (hasChanges) {
-      globalState.set('pageMetadata', currentPages)
-      
-      // Update current page metadata if it was affected
-      if (currentPageMetadata) {
-        const updatedCurrentPage = updatedPages.find(p => p.pageId === currentPageMetadata.pageId)
-        if (updatedCurrentPage) {
-          globalState.set('currentPageMetadata', updatedCurrentPage)
+    try {
+      if (dragData.isFolder) {
+        // Handle folder drag operations
+        console.log('?? Moving folder:', dragData.path)
+        
+        // Get all pages in the dragged folder
+        const affectedPages = pageMetadata.filter(page => 
+          page.path.startsWith(dragData.path + '/')
+        )
+        
+        if (affectedPages.length === 0) {
+          console.warn('?? No pages found in folder to move:', dragData.path)
+          return
+        }
+        
+        console.log(`?? Found ${affectedPages.length} pages to move in folder`)
+        
+        // Calculate new base path for the folder
+        let newBasePath: string
+        
+        if (dropTarget.position === 'inside') {
+          if (dropTarget.targetPageId.startsWith('folder_')) {
+            // Moving inside another folder
+            newBasePath = dropTarget.targetPath
+          } else {
+            // Moving inside a file's folder (same level as file)
+            const targetPathParts = dropTarget.targetPath.split('/')
+            newBasePath = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
+          }
+        } else {
+          // Moving before/after something - use same level as target
+          const targetPathParts = dropTarget.targetPath.split('/')
+          newBasePath = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
+        }
+        
+        // Calculate the new folder name
+        const folderName = dragData.path.split('/').pop() || dragData.path
+        const newFolderPath = newBasePath ? `${newBasePath}/${folderName}` : folderName
+        
+        // Don't move if the path would be the same
+        if (newFolderPath === dragData.path) {
+          console.log('?? Target folder path is same as current path, no move needed')
+          return
+        }
+        
+        console.log('?? Moving folder from:', dragData.path, 'to:', newFolderPath)
+        
+        // Move each page in the folder
+        for (const page of affectedPages) {
+          // Calculate new path for this page
+          const relativePath = page.path.substring(dragData.path.length + 1) // Remove folder prefix + '/'
+          const newPagePath = `${newFolderPath}/${relativePath}`
+          
+          console.log(`?? Moving page: ${page.path} ? ${newPagePath}`)
+          
+          // Get current content for this page
+          const pageWithContent = await semanticApi.getSinglePage(page.pageId)
+          if (!pageWithContent) {
+            console.error('? Could not load page content for move operation:', page.pageId)
+            continue
+          }
+          
+          // Update page with new path
+          const updatedMetadata = await semanticApi.updatePage({
+            pageId: page.pageId,
+            title: page.title,
+            content: pageWithContent.content,
+            filepath: newPagePath,
+            tags: page.tags
+          })
+          
+          if (updatedMetadata) {
+            console.log('? Page moved successfully:', page.title)
+          } else {
+            console.error('? Failed to move page:', page.title)
+          }
+        }
+        
+        // Reload all page metadata to reflect the changes
+        console.log('?? Reloading page metadata after folder move')
+        const pages = await semanticApi.listAllPages()
+        globalState.set('pageMetadata', pages)
+        
+        console.log('? Folder move operation completed')
+        
+      } else {
+        // Handle single file drag operations
+        const draggedPage = pageMetadata.find(p => p.pageId === dragData.pageId)
+        if (!draggedPage) {
+          console.error('? Could not find dragged page in metadata:', dragData.pageId)
+          return
+        }
+
+        // Calculate the new file path based on drop target and position
+        let newPath: string
+
+        if (dropTarget.position === 'inside') {
+          // Moving inside a folder - handle both real files and virtual folders
+          const fileName = draggedPage.path.split('/').pop() || draggedPage.path
+          
+          if (dropTarget.targetPageId.startsWith('folder_')) {
+            // Target is a virtual folder - use its path directly as the folder path
+            newPath = `${dropTarget.targetPath}/${fileName}`
+          } else {
+            // Target is a regular file - move to same folder level as the target
+            const targetPathParts = dropTarget.targetPath.split('/')
+            const targetFolder = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
+            newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName
+          }
+        } else {
+          // Moving before/after a file - keep same folder level as target
+          const targetPathParts = dropTarget.targetPath.split('/')
+          const targetFolder = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
+          const fileName = draggedPage.path.split('/').pop() || draggedPage.path
+          newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName
+        }
+
+        // Don't move if the path would be the same
+        if (newPath === draggedPage.path) {
+          console.log('?? Target path is same as current path, no move needed')
+          return
+        }
+
+        console.log('?? Moving file:', {
+          from: draggedPage.path,
+          to: newPath,
+          position: dropTarget.position,
+          targetType: dropTarget.targetPageId.startsWith('folder_') ? 'virtual-folder' : 'file'
+        })
+
+        // Get the current content since updatePage requires it
+        const pageWithContent = await semanticApi.getSinglePage(draggedPage.pageId)
+        if (!pageWithContent) {
+          console.error('? Could not load page content for move operation')
+          return
+        }
+
+        const updatedMetadata = await semanticApi.updatePage({
+          pageId: draggedPage.pageId,
+          title: draggedPage.title,
+          content: pageWithContent.content,
+          filepath: newPath,
+          tags: draggedPage.tags
+        })
+
+        if (updatedMetadata) {
+          console.log('? File moved successfully:', updatedMetadata)
+
+          // Update the global pageMetadata with the new path
+          const updatedPageMetadata = pageMetadata.map(p => 
+            p.pageId === draggedPage.pageId ? updatedMetadata : p
+          )
+          globalState.set('pageMetadata', updatedPageMetadata)
+          
+          // Update current page metadata if it was the moved file
+          if (currentPageMetadata?.pageId === draggedPage.pageId) {
+            globalState.set('currentPageMetadata', updatedMetadata)
+          }
+          
+          console.log('?? Successfully updated global state after file move')
+        } else {
+          console.error('? Server returned null when updating page path')
         }
       }
-      
-      console.log('? App: Successfully updated global state')
+
+    } catch (error) {
+      console.error('? Error during drag and drop operation:', error)
     }
   }
 

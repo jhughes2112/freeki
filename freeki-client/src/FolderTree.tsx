@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import {
   Box,
   Typography,
@@ -108,12 +108,12 @@ interface FolderTreeProps {
   onPageSelect: (metadata: PageMetadata) => void
   onSearch?: (query: string, mode: SearchMode) => void
   searchQuery?: string
-  pageMetadata: PageMetadata[]  // Add this to get the actual page data
+  pageMetadata: PageMetadata[]
   semanticApi: ISemanticApi | null
   onDragDrop?: (
     dragData: import('./pageTreeUtils').DragData, 
     dropTarget: import('./pageTreeUtils').DropTarget,
-    updatedPages: PageMetadata[]  // Change signature to pass updated pages
+    updatedPages: PageMetadata[]
   ) => Promise<void>
 }
 
@@ -122,10 +122,18 @@ interface TreeNodeComponentProps {
   level: number
   selectedPageMetadata: PageMetadata | null
   onPageSelect: (metadata: PageMetadata) => void
-  expandedNodes: Set<string>
-  onToggleExpanded: (pageId: string) => void
+  visiblePageIds: Set<string>
+  onToggleFolderExpansion: (folderPath: string) => void
   selectedItemRef?: React.RefObject<HTMLLIElement | null>
   onDragDrop?: (dragData: import('./pageTreeUtils').DragData, dropTarget: import('./pageTreeUtils').DropTarget) => Promise<void>
+  onAutoExpandFolder?: (folderPath: string) => void
+  onTemporaryAutoExpand?: (folderPath: string) => void
+  onDragEnterFolder?: (folderPath: string) => void
+  onDragLeaveFolder?: (folderPath: string) => void
+  onGlobalDragStart?: () => void
+  onGlobalDragEnd?: () => void
+  pageMetadata: PageMetadata[]
+  currentlyHoveredFolders: Set<string>
 }
 
 function TreeNodeComponent({ 
@@ -133,12 +141,28 @@ function TreeNodeComponent({
   level, 
   selectedPageMetadata, 
   onPageSelect, 
-  expandedNodes, 
-  onToggleExpanded,
+  visiblePageIds,
+  onToggleFolderExpansion,
   selectedItemRef,
-  onDragDrop
+  onDragDrop,
+  onAutoExpandFolder,
+  onTemporaryAutoExpand,
+  onDragEnterFolder,
+  onDragLeaveFolder,
+  onGlobalDragStart,
+  onGlobalDragEnd,
+  pageMetadata,
+  currentlyHoveredFolders
 }: TreeNodeComponentProps) {
-  const isExpanded = expandedNodes.has(node.metadata.pageId)
+  // Calculate if this folder should be expanded based on whether any of its children are visible
+  const isExpanded = useMemo(() => {
+    if (!node.isFolder) return false
+    
+    // Check if any child pages are in the visible set
+    const childPages = pageMetadata.filter(page => page.path.startsWith(node.metadata.path + '/'))
+    return childPages.some(page => visiblePageIds.has(page.pageId))
+  }, [node.isFolder, node.metadata.path, pageMetadata, visiblePageIds])
+  
   const isSelected = selectedPageMetadata?.pageId === node.metadata.pageId
   const hasChildren = node.children && node.children.length > 0
   const textRef = useRef<HTMLDivElement>(null)
@@ -148,6 +172,9 @@ function TreeNodeComponent({
   const [isDragging, setIsDragging] = useState(false)
   const [dragOver, setDragOver] = useState<'none' | 'before' | 'inside' | 'after'>('none')
   const dragCounter = useRef(0)
+  
+  // Auto-expand on drag hover
+  const dragHoverTimeoutRef = useRef<number | null>(null)
 
   const handleClick = () => {
     // Always select the page when clicked (only if it's not a folder)
@@ -157,17 +184,19 @@ function TreeNodeComponent({
     
     // If it's a folder with children, toggle expansion
     if (node.isFolder && hasChildren) {
-      onToggleExpanded(node.metadata.pageId)
+      onToggleFolderExpansion(node.metadata.path)
     }
-
-    // DISABLED: Position text optimally to prevent unwanted scrolling on folder toggle
-    // positionTextOptimally()
   }
 
   // Drag event handlers
   const handleDragStart = (e: React.DragEvent) => {
     e.stopPropagation()
     setIsDragging(true)
+    
+    // Notify parent about global drag start
+    if (onGlobalDragStart) {
+      onGlobalDragStart()
+    }
     
     const dragData = {
       pageId: node.metadata.pageId,
@@ -188,6 +217,17 @@ function TreeNodeComponent({
     setIsDragging(false)
     setDragOver('none')
     dragCounter.current = 0
+    
+    // Notify parent about global drag end
+    if (onGlobalDragEnd) {
+      onGlobalDragEnd()
+    }
+    
+    // Clean up auto-expand timer
+    if (dragHoverTimeoutRef.current) {
+      clearTimeout(dragHoverTimeoutRef.current)
+      dragHoverTimeoutRef.current = null
+    }
   }
 
   const calculateDropPosition = (e: React.DragEvent): 'before' | 'inside' | 'after' => {
@@ -195,13 +235,34 @@ function TreeNodeComponent({
     const y = e.clientY - rect.top
     const height = rect.height
     
-    // Divide into three zones
-    if (y < height * 0.25) {
-      return 'before'
-    } else if (y > height * 0.75 || !node.isFolder) {
-      return 'after'
+    // Enhanced logic to prioritize folder drops and handle virtual folders better
+    if (node.isFolder) {
+      // For folders: make 'inside' the dominant drop zone (60% of the height)
+      // This makes it much easier to drop into folders
+      if (y <= height * 0.2) {
+        return 'before'
+      } else if (y >= height * 0.8) {
+        return 'after'
+      } else {
+        return 'inside'
+      }
     } else {
-      return 'inside' // Only for folders
+      // For files: top 40% = before, bottom 40% = after, middle 20% = try parent folder
+      if (y <= height * 0.4) {
+        return 'before'
+      } else if (y >= height * 0.6) {
+        return 'after'
+      } else {
+        // Middle zone - if this file is in a folder, prefer dropping into the parent folder
+        const pathParts = node.metadata.path.split('/').filter(Boolean)
+        if (pathParts.length > 1) {
+          // This file is in a folder, so dropping in middle should go to parent folder
+          return 'inside' // This will be interpreted as "into parent folder" by the drop handler
+        } else {
+          // Root level file - use 'after' as default
+          return 'after'
+        }
+      }
     }
   }
 
@@ -213,6 +274,18 @@ function TreeNodeComponent({
     if (dragCounter.current === 1) {
       const position = calculateDropPosition(e)
       setDragOver(position)
+      
+      // Notify parent that we've entered this folder/file
+      if (onDragEnterFolder) {
+        onDragEnterFolder(node.metadata.path)
+      }
+      
+      // Start temporary auto-expand timer for folders that aren't expanded
+      if (node.isFolder && !isExpanded && onTemporaryAutoExpand) {
+        dragHoverTimeoutRef.current = setTimeout(() => {
+          onTemporaryAutoExpand(node.metadata.path)
+        }, 500) // Faster temporary expand - 500ms vs 1000ms for permanent
+      }
     }
   }
 
@@ -223,6 +296,17 @@ function TreeNodeComponent({
     
     if (dragCounter.current === 0) {
       setDragOver('none')
+      
+      // Notify parent that we've left this folder/file
+      if (onDragLeaveFolder) {
+        onDragLeaveFolder(node.metadata.path)
+      }
+      
+      // Cancel auto-expand timer
+      if (dragHoverTimeoutRef.current) {
+        clearTimeout(dragHoverTimeoutRef.current)
+        dragHoverTimeoutRef.current = null
+      }
     }
   }
 
@@ -231,9 +315,13 @@ function TreeNodeComponent({
     e.stopPropagation()
     
     const position = calculateDropPosition(e)
-    setDragOver(position)
     
-    // Set the appropriate drop effect
+    // Only update state and log if position changes to avoid spam
+    if (dragOver !== position) {
+      setDragOver(position)
+    }
+    
+    // Set the appropriate drop effect - always allow move
     e.dataTransfer.dropEffect = 'move'
   }
 
@@ -252,20 +340,44 @@ function TreeNodeComponent({
         return
       }
       
-      // Don't proceed if dragOver is 'none'
+      // Don't allow dropping a folder into one of its own children
+      if (dragData.isFolder && node.metadata.path && node.metadata.path.startsWith(dragData.path + '/')) {
+        console.warn('Cannot drop folder into its own child folder')
+        return
+      }
+      
+      // Ensure we have a valid drop position
       if (dragOver === 'none') {
         return
       }
       
-      const dropTarget = {
+      // Enhanced drop target calculation to handle parent folder drops
+      let finalDropTarget = {
         targetPageId: node.metadata.pageId,
         targetPath: node.metadata.path,
         position: dragOver as 'before' | 'after' | 'inside'
       }
       
+      // Special handling for files in the middle drop zone - redirect to parent folder
+      if (!node.isFolder && dragOver === 'inside') {
+        const pathParts = node.metadata.path.split('/').filter(Boolean)
+        if (pathParts.length > 1) {
+          // This file is in a folder - redirect drop to parent folder
+          const parentFolderPath = pathParts.slice(0, -1).join('/')
+          finalDropTarget = {
+            targetPageId: `folder_${parentFolderPath}`,
+            targetPath: parentFolderPath,
+            position: 'inside'
+          }
+        } else {
+          // Root level file - treat as 'after'
+          finalDropTarget.position = 'after'
+        }
+      }
+      
       // Call the drag drop handler if provided  
       if (onDragDrop) {
-        await onDragDrop(dragData, dropTarget)
+        await onDragDrop(dragData, finalDropTarget)
       }
       
     } catch (error) {
@@ -276,8 +388,42 @@ function TreeNodeComponent({
     }
   }
 
+	const positionTextOptimally = () => {
+		if (textRef.current && folderIconRef.current) {
+			const textElement = textRef.current
+			const folderIconElement = folderIconRef.current
+
+			requestAnimationFrame(() => {
+				// Find the scrollable container
+				let scrollContainer = textElement.parentElement
+				while (scrollContainer) {
+					const styles = window.getComputedStyle(scrollContainer)
+					if (styles.overflowX === 'auto' || styles.overflow === 'auto') {
+						break
+					}
+					scrollContainer = scrollContainer.parentElement
+				}
+
+				if (scrollContainer) {
+					// Get the exact position of the folder icon using DOM measurement
+					const containerRect = scrollContainer.getBoundingClientRect()
+					const folderIconRect = folderIconElement.getBoundingClientRect()
+
+					// Calculate the folder icon's X position within the scrollable content
+					const folderIconLeftInContainer = folderIconRect.left - containerRect.left + scrollContainer.scrollLeft
+
+					// Always position so folder icon appears at left edge (x=0) with smooth animation
+					scrollContainer.scrollTo({
+						left: Math.max(0, folderIconLeftInContainer),
+						behavior: 'smooth'
+					})
+				}
+			})
+		}
+	}
+
   const handleMouseEnter = () => {
-    // DISABLED: Drag and drop functionality including horizontal scrolling
+	  positionTextOptimally()  // horizontally scroll the view so the name of the file or folder is most visible on narrow screens
   }
 
   // Calculate visual styles for drag states
@@ -290,11 +436,12 @@ function TreeNodeComponent({
         '&::before': {
           content: '""',
           position: 'absolute',
-          top: 0,
+          top: '-1px',
           left: 0,
           right: 0,
-          height: '2px',
+          height: '3px',
           backgroundColor: 'var(--freeki-primary)',
+          borderRadius: '2px',
           zIndex: 1000
         }
       }
@@ -304,19 +451,23 @@ function TreeNodeComponent({
         '&::after': {
           content: '""',
           position: 'absolute',
-          bottom: 0,
+          bottom: '-1px',
           left: 0,
           right: 0,
-          height: '2px',
+          height: '3px',
           backgroundColor: 'var(--freeki-primary)',
+          borderRadius: '2px',
           zIndex: 1000
         }
       }
     } else if (dragOver === 'inside') {
       return {
         ...baseStyles,
-        backgroundColor: 'var(--freeki-primary)',
-        opacity: 0.2
+        backgroundColor: 'var(--freeki-folders-selected-background)',
+        filter: 'brightness(1.1)',
+        borderRadius: 'var(--freeki-border-radius)',
+        boxShadow: '0 0 0 2px var(--freeki-primary)',
+        transition: 'all 0.15s ease-in-out'
       }
     }
     
@@ -336,6 +487,8 @@ function TreeNodeComponent({
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
+        role="button"
+        tabIndex={0}
         sx={{
           pl: 1 + level * 1.5,
           pr: 1,
@@ -351,7 +504,7 @@ function TreeNodeComponent({
           },
           borderRadius: 'var(--freeki-border-radius)',
           mx: 0.5,
-          mb: 0.25,
+          mb: 0.1,  // Reduced from 0.25 to minimize gaps
           cursor: isDragging ? 'grabbing' : 'pointer',
           color: 'var(--freeki-folders-font-color)',
           fontSize: 'var(--freeki-folders-font-size)',
@@ -430,10 +583,18 @@ function TreeNodeComponent({
                 level={level + 1}
                 selectedPageMetadata={selectedPageMetadata}
                 onPageSelect={onPageSelect}
-                expandedNodes={expandedNodes}
-                onToggleExpanded={onToggleExpanded}
+                visiblePageIds={visiblePageIds}
+                onToggleFolderExpansion={onToggleFolderExpansion}
                 selectedItemRef={selectedItemRef}
                 onDragDrop={onDragDrop}
+                onAutoExpandFolder={onAutoExpandFolder}
+                onTemporaryAutoExpand={onTemporaryAutoExpand}
+                onDragEnterFolder={onDragEnterFolder}
+                onDragLeaveFolder={onDragLeaveFolder}
+                onGlobalDragStart={onGlobalDragStart}
+                onGlobalDragEnd={onGlobalDragEnd}
+                pageMetadata={pageMetadata}
+                currentlyHoveredFolders={currentlyHoveredFolders}
               />
             ))}
           </List>
@@ -443,26 +604,181 @@ function TreeNodeComponent({
   )
 }
 
-export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelect, onSearch, searchQuery: externalSearchQuery, pageMetadata, semanticApi, onDragDrop }: FolderTreeProps) {
-  const { settings, toggleExpandedNode } = useUserSettings()
+export default function FolderTree({ 
+  pageTree, 
+  selectedPageMetadata, 
+  onPageSelect, 
+  onSearch, 
+  searchQuery: externalSearchQuery, 
+  pageMetadata, 
+  semanticApi, 
+  onDragDrop 
+}: FolderTreeProps) {
+  const { 
+    settings, 
+    toggleFolderExpansion, 
+    ensurePageVisible,
+    updateSetting
+  } = useUserSettings(semanticApi)
+  
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
   const [filterText, setFilterText] = useState(externalSearchQuery || '')
   const [searchMode, setSearchMode] = useState<SearchMode>('titles')
   
-  // Convert user settings expandedNodes array to Set for efficient lookups
-  const expandedNodes = useMemo(() => new Set(settings.expandedNodes), [settings.expandedNodes])
+  // Convert visiblePageIds to Set for efficient lookups
+  const visiblePageIds = useMemo(() => new Set(settings.visiblePageIds), [settings.visiblePageIds])
 
-  // Handle drag and drop operation at the FolderTree level
-  const handleDragDropInTree = async (
-    dragData: import('./pageTreeUtils').DragData, 
-    dropTarget: import('./pageTreeUtils').DropTarget
-  ) => {
-    // DISABLED: Drag and drop is disabled since we removed sortOrder
-    console.log('🚫 Drag and drop is disabled - using alphabetical sorting only')
-    console.log('Attempted to drag:', dragData)
-    console.log('Attempted to drop on:', dropTarget)
-  }
+  // Temporary drag expansion state - folders that are temporarily expanded during drag
+  const [temporaryExpandedFolders, setTemporaryExpandedFolders] = useState<Set<string>>(new Set())
+  const [isDragging, setIsDragging] = useState(false)
+  
+  // Track which folders are currently being hovered during drag
+  const [currentlyHoveredFolders, setCurrentlyHoveredFolders] = useState<Set<string>>(new Set())
+
+  // Combined visibility: permanent + temporary during drag
+  const effectiveVisiblePageIds = useMemo(() => {
+    if (!isDragging || temporaryExpandedFolders.size === 0) {
+      return visiblePageIds
+    }
+
+    // Create a union of permanent visible pages and temporarily expanded folder contents
+    const combinedSet = new Set(visiblePageIds)
+    
+    for (const folderPath of temporaryExpandedFolders) {
+      // Only include direct children of the temporarily expanded folder
+      const directChildren = pageMetadata.filter(page => {
+        const pagePath = page.path
+        const pageDir = pagePath.substring(0, pagePath.lastIndexOf('/'))
+        return pageDir === folderPath
+      })
+      directChildren.forEach(page => combinedSet.add(page.pageId))
+    }
+    
+    return combinedSet
+  }, [visiblePageIds, temporaryExpandedFolders, isDragging, pageMetadata])
+
+  // Global drag state management
+  const handleGlobalDragStart = useCallback(() => {
+    setIsDragging(true)
+    setTemporaryExpandedFolders(new Set())
+    setCurrentlyHoveredFolders(new Set())
+  }, [])
+
+  const handleGlobalDragEnd = useCallback(() => {
+    if (temporaryExpandedFolders.size > 0) {
+      // Convert temporary expansions to permanent by adding their pages to visiblePageIds
+      const newVisiblePageIds = new Set(settings.visiblePageIds)
+      
+      for (const folderPath of temporaryExpandedFolders) {
+        // Add only direct children to permanent visibility
+        const directChildren = pageMetadata.filter(page => {
+          const pagePath = page.path
+          const pageDir = pagePath.substring(0, pagePath.lastIndexOf('/'))
+          return pageDir === folderPath
+        })
+        directChildren.forEach(page => newVisiblePageIds.add(page.pageId))
+      }
+      
+      // Update settings with new permanent visibility
+      updateSetting('visiblePageIds', Array.from(newVisiblePageIds))
+    }
+    
+    setIsDragging(false)
+    setTemporaryExpandedFolders(new Set())
+    setCurrentlyHoveredFolders(new Set())
+  }, [temporaryExpandedFolders, settings.visiblePageIds, pageMetadata, updateSetting])
+
+  // Enhanced temporary auto-expansion during drag - expand only direct children
+  const handleTemporaryAutoExpand = useCallback((folderPath: string) => {
+    if (!isDragging) {
+      return
+    }
+    
+    setTemporaryExpandedFolders(prev => new Set([...prev, folderPath]))
+  }, [isDragging])
+
+  // Track when drag enters a folder or file
+  const handleDragEnterFolder = useCallback((itemPath: string) => {
+    if (!isDragging) {
+      return
+    }
+    
+    // Find all ancestor folder paths of this item
+    const ancestorFolders = new Set<string>()
+    const pathParts = itemPath.split('/').filter(Boolean)
+    
+    // Add all possible parent folder paths
+    for (let i = 1; i <= pathParts.length; i++) {
+      const folderPath = pathParts.slice(0, i).join('/')
+      if (folderPath) {
+        ancestorFolders.add(folderPath)
+      }
+    }
+    
+    setCurrentlyHoveredFolders(prev => {
+      const newSet = new Set(prev)
+      ancestorFolders.forEach(folder => newSet.add(folder))
+      return newSet
+    })
+  }, [isDragging])
+
+  // Remove folder from hover tracking and potentially from temporary expansion
+  const handleDragLeaveFolder = useCallback((itemPath: string) => {
+    if (!isDragging) {
+      return
+    }
+    
+    // Find all ancestor folder paths of this item
+    const ancestorFolders = new Set<string>()
+    const pathParts = itemPath.split('/').filter(Boolean)
+    
+    // Add all possible parent folder paths
+    for (let i = 1; i <= pathParts.length; i++) {
+      const folderPath = pathParts.slice(0, i).join('/')
+      if (folderPath) {
+        ancestorFolders.add(folderPath)
+      }
+    }
+    
+    setCurrentlyHoveredFolders(prev => {
+      const newSet = new Set(prev)
+      ancestorFolders.forEach(folder => newSet.delete(folder))
+      return newSet
+    })
+    
+    // Use a small delay to check if we should collapse temporarily expanded folders
+    // This prevents immediate collapse when moving between adjacent elements
+    setTimeout(() => {
+      setTemporaryExpandedFolders(prev => {
+        const newSet = new Set(prev)
+        
+        // Only remove folders from temporary expansion if they're no longer being hovered
+        // and none of their descendants are being hovered
+        ancestorFolders.forEach(folderPath => {
+          const isStillHovered = Array.from(currentlyHoveredFolders).some(hoveredPath => 
+            hoveredPath === folderPath || hoveredPath.startsWith(folderPath + '/')
+          )
+          
+          if (!isStillHovered) {
+            newSet.delete(folderPath)
+          }
+        })
+        
+        return newSet
+      })
+    }, 50) // Small delay to allow for rapid hover changes
+  }, [isDragging, currentlyHoveredFolders])
+
+  // Handle manual folder toggle
+  const handleToggleFolderExpansion = useCallback((folderPath: string) => {
+    toggleFolderExpansion(folderPath, pageMetadata)
+  }, [toggleFolderExpansion, pageMetadata])
+
+  // Handle auto-expansion during drag hover (permanent expansion)
+  const handleAutoExpandFolder = useCallback((folderPath: string) => {
+    toggleFolderExpansion(folderPath, pageMetadata)
+  }, [toggleFolderExpansion, pageMetadata])
 
   // Filter tree nodes based on search text
   const filteredPageTree = useMemo(() => {
@@ -504,63 +820,34 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
   }, [pageTree, filterText, searchMode])
 
   // Auto-expand all folders that contain matches when filtering
-  const expandedNodesForFiltering = useMemo(() => {
-    if (!filterText.trim()) return expandedNodes
+  const visiblePageIdsForFiltering = useMemo(() => {
+    if (!filterText.trim()) return effectiveVisiblePageIds
     
-    const allExpandedNodes = new Set(expandedNodes)
+    const allVisiblePageIds = new Set(effectiveVisiblePageIds)
     
-    const collectFolderIds = (nodes: TreeNode[]) => {
+    const collectFolderPages = (nodes: TreeNode[]) => {
       for (const node of nodes) {
         if (node.isFolder && node.children) {
-          allExpandedNodes.add(node.metadata.pageId)
-          collectFolderIds(node.children)
+          // Add all pages in filtered folders to visible set
+          const childPages = pageMetadata.filter(page => page.path.startsWith(node.metadata.path + '/'))
+          childPages.forEach(page => allVisiblePageIds.add(page.pageId))
+          collectFolderPages(node.children)
         }
       }
     }
     
     // Expand all folders in filtered results
-    collectFolderIds(filteredPageTree)
+    collectFolderPages(filteredPageTree)
     
-    return allExpandedNodes
-  }, [filteredPageTree, expandedNodes, filterText])
-
-  // Find path to selected page and auto-expand parents
-  const getPathToPage = useMemo(() => {
-    if (!selectedPageMetadata) return null
-    
-    const findPath = (nodes: TreeNode[], targetId: string, currentPath: string[] = []): string[] | null => {
-      for (const node of nodes) {
-        const newPath = [...currentPath, node.metadata.pageId]
-        
-        if (node.metadata.pageId === targetId) {
-          return newPath
-        }
-        
-        if (node.children) {
-          const childPath = findPath(node.children, targetId, newPath)
-          if (childPath) {
-            return childPath
-          }
-        }
-      }
-      return null
-    }
-    
-    return findPath(pageTree, selectedPageMetadata.pageId)
-  }, [pageTree, selectedPageMetadata])
+    return allVisiblePageIds
+  }, [filteredPageTree, effectiveVisiblePageIds, filterText, pageMetadata])
 
   // Auto-expand path to selected page when it changes
   useEffect(() => {
-    if (getPathToPage) {
-      // Expand all parent folders in the path (except the selected page itself)
-      for (let i = 0; i < getPathToPage.length - 1; i++) {
-        const nodeId = getPathToPage[i]
-        if (!settings.expandedNodes.includes(nodeId)) {
-          toggleExpandedNode(nodeId)
-        }
-      }
+    if (selectedPageMetadata) {
+      ensurePageVisible(selectedPageMetadata.pageId, pageMetadata)
     }
-  }, [getPathToPage, settings.expandedNodes, toggleExpandedNode])
+  }, [selectedPageMetadata?.pageId, ensurePageVisible, pageMetadata])
 
   // Center the selected item in the container only when selection actually changes
   useEffect(() => {
@@ -588,7 +875,7 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
         })
       }, 100)
     }
-  }, [selectedPageMetadata?.pageId]) // Remove expandedNodes dependency to prevent scroll on folder toggle
+  }, [selectedPageMetadata?.pageId])
 
   const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.value
@@ -598,10 +885,6 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
     if (onSearch) {
       onSearch(newValue, searchMode)
     }
-  }
-
-  const handleToggleExpanded = (pageId: string) => {
-    toggleExpandedNode(pageId)
   }
 
   const handleSearchModeToggle = () => {
@@ -669,6 +952,7 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
                       size="small"
                       onClick={() => {
                         setFilterText('')
+
                         if (onSearch) {
                           onSearch('', searchMode)
                         }
@@ -756,11 +1040,102 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
             msOverflowStyle: 'none'
           }}
         >
-          <List component="nav" dense disablePadding sx={{ 
-            pt: 0.5,
-            minWidth: 'fit-content',
-            position: 'relative'
-          }}>
+          <List 
+            component="nav" 
+            dense 
+            disablePadding 
+            onDragOver={(e) => {
+              // Enhanced drag over handling that includes virtual folders
+              e.preventDefault()
+              e.stopPropagation()
+              
+              // Find the nearest list item above the current mouse position
+              const rect = e.currentTarget.getBoundingClientRect()
+              const y = e.clientY - rect.top
+              
+              // Find all TreeNode elements (including folders) within this List
+              const listItems = e.currentTarget.querySelectorAll('[role="button"]')
+              let targetItem: Element | null = null
+              let minDistance = Infinity
+              
+              // Find the closest list item above the mouse position
+              for (let i = 0; i < listItems.length; i++) {
+                const item = listItems[i]
+                const itemRect = item.getBoundingClientRect()
+                const itemBottom = itemRect.bottom - rect.top
+                
+                // Check if this item is above the mouse and closer than previous candidates
+                if (itemBottom <= y) {
+                  const distance = y - itemBottom
+                  if (distance < minDistance) {
+                    minDistance = distance
+                    targetItem = item
+                  }
+                }
+              }
+              
+              // If we found a target item, forward the drag over event to it
+              if (targetItem && targetItem instanceof HTMLElement) {
+                const syntheticEvent = new DragEvent('dragover', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: e.clientX,
+                  clientY: e.clientY,
+                  dataTransfer: e.dataTransfer
+                })
+                targetItem.dispatchEvent(syntheticEvent)
+              }
+              
+              e.dataTransfer.dropEffect = 'move'
+            }}
+            onDrop={(e) => {
+              // Enhanced drop handling that includes virtual folders
+              e.preventDefault()
+              e.stopPropagation()
+              
+              // Find the nearest list item above the current mouse position
+              const rect = e.currentTarget.getBoundingClientRect()
+              const y = e.clientY - rect.top
+              
+              // Find all TreeNode elements (including folders) within this List
+              const listItems = e.currentTarget.querySelectorAll('[role="button"]')
+              let targetItem: Element | null = null
+              let minDistance = Infinity
+              
+              // Find the closest list item above the mouse position
+              for (let i = 0; i < listItems.length; i++) {
+                const item = listItems[i]
+                const itemRect = item.getBoundingClientRect()
+                const itemBottom = itemRect.bottom - rect.top
+                
+                // Check if this item is above the mouse and closer than previous candidates
+                if (itemBottom <= y) {
+                  const distance = y - itemBottom
+                  if (distance < minDistance) {
+                    minDistance = distance
+                    targetItem = item
+                  }
+                }
+              }
+              
+              // If we found a target item, forward the drop event to it
+              if (targetItem && targetItem instanceof HTMLElement) {
+                const syntheticEvent = new DragEvent('drop', {
+                  bubbles: true,
+                  cancelable: true,
+                  clientX: e.clientX,
+                  clientY: e.clientY,
+                  dataTransfer: e.dataTransfer
+                })
+                targetItem.dispatchEvent(syntheticEvent)
+              }
+            }}
+            sx={{ 
+              pt: 0.5,
+              minWidth: 'fit-content',
+              position: 'relative'
+            }}
+          >
             {filteredPageTree.map((node) => (
               <TreeNodeComponent
                 key={node.metadata.pageId}
@@ -768,10 +1143,28 @@ export default function FolderTree({ pageTree, selectedPageMetadata, onPageSelec
                 level={0}
                 selectedPageMetadata={selectedPageMetadata}
                 onPageSelect={onPageSelect}
-                expandedNodes={filterText.trim() ? expandedNodesForFiltering : expandedNodes}
-                onToggleExpanded={handleToggleExpanded}
+                visiblePageIds={filterText.trim() ? visiblePageIdsForFiltering : effectiveVisiblePageIds}
+                onToggleFolderExpansion={handleToggleFolderExpansion}
                 selectedItemRef={selectedItemRef}
-                onDragDrop={handleDragDropInTree}
+                onDragDrop={async (dragData, dropTarget) => {
+                  // For now, just call the parent handler if provided
+                  if (onDragDrop) {
+                    try {
+                      await onDragDrop(dragData, dropTarget, pageMetadata)
+                    } catch (error) {
+                      console.error('Parent onDragDrop handler failed:', error)
+                      throw error
+                    }
+                  }
+                }}
+                onAutoExpandFolder={handleAutoExpandFolder}
+                onTemporaryAutoExpand={handleTemporaryAutoExpand}
+                onDragEnterFolder={handleDragEnterFolder}
+                onDragLeaveFolder={handleDragLeaveFolder}
+                onGlobalDragStart={handleGlobalDragStart}
+                onGlobalDragEnd={handleGlobalDragEnd}
+                pageMetadata={pageMetadata}
+                currentlyHoveredFolders={currentlyHoveredFolders}
               />
             ))}
           </List>
