@@ -50,7 +50,6 @@ export interface ISemanticApi {
   createPage(request: PageCreateRequest): Promise<PageMetadata | null>
   updatePage(request: PageUpdateRequest): Promise<PageMetadata | null>
   deletePage(pageId: string): Promise<boolean>
-  searchPages(searchTerm: string): Promise<SearchResult[]>
   searchPagesWithContent(searchTerm: string): Promise<SearchResult[]>
   getPageHistory(pageId: string): Promise<PageMetadata[]>
   retrievePageVersion(pageId: string, version: number): Promise<PageWithContent | null>

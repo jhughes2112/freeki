@@ -193,28 +193,12 @@ export class RealSemanticApi implements ISemanticApi {
     }
   }
 
-  async searchPages(searchTerm: string): Promise<SearchResult[]> {
-    const startTime = performance.now()
-    this.logRequest('searchPages', { searchTerm })
-    
-    try {
-      const result = await this.makeRequest<SearchResult[]>(`/api/pages?q=${encodeURIComponent(searchTerm)}`)
-      const duration = Math.round(performance.now() - startTime)
-      this.logResponse('searchPages', result, duration)
-      return result || []
-    } catch (error) {
-      const duration = Math.round(performance.now() - startTime)
-      this.logError('searchPages', error, duration)
-      throw error
-    }
-  }
-
   async searchPagesWithContent(searchTerm: string): Promise<SearchResult[]> {
     const startTime = performance.now()
     this.logRequest('searchPagesWithContent', { searchTerm })
     
     try {
-      const result = await this.makeRequest<SearchResult[]>(`/api/pages?q=${encodeURIComponent(searchTerm)}&content=1`)
+      const result = await this.makeRequest<SearchResult[]>(`/api/pages?q=${encodeURIComponent(searchTerm)}`)
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('searchPagesWithContent', result, duration)
       return result || []

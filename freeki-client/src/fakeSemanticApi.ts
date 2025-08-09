@@ -187,37 +187,6 @@ export class FakeSemanticApi implements ISemanticApi {
     }
   }
 
-  async searchPages(searchTerm: string): Promise<SearchResult[]> {
-    const startTime = performance.now()
-    this.logRequest('searchPages', { searchTerm })
-    
-    try {
-      const results: SearchResult[] = []
-      const term = searchTerm.toLowerCase()
-
-      this.fakePages.forEach(page => {
-        if (page.title.toLowerCase().includes(term) || 
-            page.tags.some(tag => tag.toLowerCase().includes(term))) {
-          results.push({
-            id: page.pageId,
-            title: page.title,
-            path: page.path,
-            excerpt: `Found in: ${page.title}`,
-            score: 1.0
-          })
-        }
-      })
-
-      const duration = Math.round(performance.now() - startTime)
-      this.logResponse('searchPages', results, duration)
-      return results
-    } catch (error) {
-      const duration = Math.round(performance.now() - startTime)
-      this.logError('searchPages', error, duration)
-      throw error
-    }
-  }
-
   async searchPagesWithContent(searchTerm: string): Promise<SearchResult[]> {
     const startTime = performance.now()
     this.logRequest('searchPagesWithContent', { searchTerm })
@@ -231,15 +200,56 @@ export class FakeSemanticApi implements ISemanticApi {
         if (page.title.toLowerCase().includes(term) || 
             page.tags.some(tag => tag.toLowerCase().includes(term)) ||
             content.toLowerCase().includes(term)) {
+          
+          // Calculate a more realistic score based on content matches
+          let score = 0
+          const lowerTitle = page.title.toLowerCase()
+          const lowerContent = content.toLowerCase()
+          
+          // Count occurrences in title (weighted more heavily)
+          let titleIndex = 0
+          while ((titleIndex = lowerTitle.indexOf(term, titleIndex)) !== -1) {
+            score += 3
+            titleIndex += term.length
+          }
+          
+          // Count occurrences in content
+          let contentIndex = 0
+          while ((contentIndex = lowerContent.indexOf(term, contentIndex)) !== -1) {
+            score += 1
+            contentIndex += term.length
+          }
+          
+          // Count tag matches
+          page.tags.forEach(tag => {
+            if (tag.toLowerCase().includes(term)) {
+              score += 2
+            }
+          })
+          
+          // Create excerpt around first match
+          let excerpt = content.substring(0, 100) + '...'
+          const firstMatch = lowerContent.indexOf(term)
+          if (firstMatch >= 0) {
+            const start = Math.max(0, firstMatch - 25)
+            const end = Math.min(content.length, firstMatch + term.length + 45)
+            excerpt = content.substring(start, end)
+            if (start > 0) excerpt = '...' + excerpt
+            if (end < content.length) excerpt = excerpt + '...'
+          }
+          
           results.push({
             id: page.pageId,
             title: page.title,
             path: page.path,
-            excerpt: content.substring(0, 100) + '...',
-            score: 1.0
+            excerpt,
+            score
           })
         }
       })
+
+      // Sort by score descending
+      results.sort((a, b) => b.score - a.score)
 
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('searchPagesWithContent', results, duration)

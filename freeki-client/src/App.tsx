@@ -38,6 +38,7 @@ import { buildPageTree } from './pageTreeUtils'
 import { sortPagesByDisplayOrder } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
 import type { DragData, DropTarget } from './pageTreeUtils'
+import type { SearchMode } from './FolderTree'
 import { fetchAdminSettings } from './adminSettings'
 import { createSemanticApi } from './semanticApiFactory'
 import type { ISemanticApi } from './semanticApiInterface'
@@ -184,8 +185,8 @@ export default function App() {
     }
   }, [settings.theme, isLoaded])
 
-  // Enhanced search function
-  const performSearch = (query: string) => {
+  // Enhanced search function with client-side metadata search
+  const performSearch = async (query: string, mode: SearchMode = 'titles') => {
     globalState.set('searchQuery', query)
     
     if (!query.trim()) {
@@ -193,19 +194,107 @@ export default function App() {
       return
     }
     
-    // Search through pageMetadata
-    const results = pageMetadata.filter(metadata => {
-      const titleMatch = metadata.title.toLowerCase().includes(query.toLowerCase())
-      const tagMatch = metadata.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
-      return titleMatch || tagMatch
-    })
-    
-    globalState.set('searchResults', results)
+    try {
+      let results: import('./semanticApiInterface').SearchResult[] = []
+      
+      if (mode === 'fullContent') {
+        // Use server-side full content search API
+        if (!semanticApi) {
+          console.warn('No semantic API available for full content search')
+          return
+        }
+        results = await semanticApi.searchPagesWithContent(query)
+      } else {
+        // Perform client-side metadata search using already-loaded pageMetadata
+        const searchTerm = query.toLowerCase()
+        const matchedPages: Array<{ page: PageMetadata; score: number }> = []
+        
+        pageMetadata.forEach(page => {
+          let isMatch = false
+          let score = 0
+          
+          // Search in title
+          const titleMatch = page.title.toLowerCase().includes(searchTerm)
+          if (titleMatch) {
+            isMatch = true
+            // Count occurrences in title (weighted heavily)
+            let titleIndex = 0
+            const lowerTitle = page.title.toLowerCase()
+            while ((titleIndex = lowerTitle.indexOf(searchTerm, titleIndex)) !== -1) {
+              score += 3
+              titleIndex += searchTerm.length
+            }
+          }
+          
+          // Search in tags (for both titles and metadata modes)
+          const tagMatch = page.tags.some(tag => tag.toLowerCase().includes(searchTerm))
+          if (tagMatch) {
+            isMatch = true
+            // Count tag matches
+            page.tags.forEach(tag => {
+              if (tag.toLowerCase().includes(searchTerm)) {
+                score += 2
+              }
+            })
+          }
+          
+          // For titles mode, only include title matches
+          if (mode === 'titles' && !titleMatch) {
+            isMatch = false
+            score = 0
+          }
+          
+          // Search in path for additional scoring
+          if (isMatch && page.path.toLowerCase().includes(searchTerm)) {
+            let pathIndex = 0
+            const lowerPath = page.path.toLowerCase()
+            while ((pathIndex = lowerPath.indexOf(searchTerm, pathIndex)) !== -1) {
+              score += 1
+              pathIndex += searchTerm.length
+            }
+          }
+          
+          if (isMatch) {
+            matchedPages.push({ page, score })
+          }
+        })
+        
+        // Sort by score descending
+        matchedPages.sort((a, b) => b.score - a.score)
+        
+        // Convert to SearchResult format
+        results = matchedPages.map(({ page, score }) => ({
+          id: page.pageId,
+          title: page.title,
+          path: page.path,
+          excerpt: `Found in: ${page.title}${page.tags.length > 0 ? ` (tags: ${page.tags.join(', ')})` : ''}`,
+          score
+        }))
+      }
+      
+      // Convert search results to PageMetadata format for display
+      const searchResultsAsMetadata = results.map(result => {
+        const originalPage = pageMetadata.find(p => p.pageId === result.id)
+        return originalPage || {
+          pageId: result.id,
+          title: result.title,
+          path: result.path,
+          tags: [],
+          lastModified: 0,
+          version: 1
+        }
+      })
+      
+      globalState.set('searchResults', searchResultsAsMetadata)
+    } catch (error) {
+      console.error('Search failed:', error)
+      globalState.set('searchResults', [])
+    }
   }
 
   const handleTagClick = (tag: string) => {
     globalState.set('searchQuery', tag)
-    performSearch(tag)
+    performSearch(tag, 'metadata')
   }
 
   // Initialize collapsed state based on screen size
@@ -603,9 +692,12 @@ export default function App() {
         // Reload all page metadata to reflect the changes
         console.log('?? Reloading page metadata after folder move')
         const pages = await semanticApi.listAllPages()
-        globalState.set('pageMetadata', pages)
         
-        console.log('? Folder move operation completed')
+        // Re-sort to maintain alphabetical order
+        const sortedPages = sortPagesByDisplayOrder(pages)
+        globalState.set('pageMetadata', sortedPages)
+        
+        console.log('? Folder move operation completed with proper sorting')
         
       } else {
         // Handle single file drag operations
@@ -670,18 +762,21 @@ export default function App() {
         if (updatedMetadata) {
           console.log('? File moved successfully:', updatedMetadata)
 
-          // Update the global pageMetadata with the new path
+          // Update the global pageMetadata with the new path - maintain sort order
           const updatedPageMetadata = pageMetadata.map(p => 
             p.pageId === draggedPage.pageId ? updatedMetadata : p
           )
-          globalState.set('pageMetadata', updatedPageMetadata)
+          
+          // Re-sort the pages to maintain alphabetical order after the move
+          const resortedPageMetadata = sortPagesByDisplayOrder(updatedPageMetadata)
+          globalState.set('pageMetadata', resortedPageMetadata)
           
           // Update current page metadata if it was the moved file
           if (currentPageMetadata?.pageId === draggedPage.pageId) {
             globalState.set('currentPageMetadata', updatedMetadata)
           }
           
-          console.log('?? Successfully updated global state after file move')
+          console.log('?? Successfully updated and re-sorted global state after file move')
         } else {
           console.error('? Server returned null when updating page path')
         }
@@ -911,6 +1006,7 @@ export default function App() {
                 pageTree={pageTree}
                 selectedPageMetadata={currentPageMetadata}
                 onPageSelect={handlePageSelect}
+                onSearch={performSearch}
                 searchQuery={searchQuery}
                 pageMetadata={pageMetadata}
                 onDragDrop={handleDragDrop}

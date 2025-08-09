@@ -17,8 +17,7 @@ namespace FreeKi
 	| POST   | `/api/pages`                  | Create a new page           | title, tags, filepath in query, content in body
 	| PUT    | `/api/pages/{id}`             | Update existing page        | title, tags, filepath in query, content in body
 	| DELETE | `/api/pages/{id}`             | Delete a page               |
-	| GET    | `/api/pages?q=term`           | Search page metadata        |
-	| GET    | `/api/pages?q=term&content=1` | Search page metadata and content |
+	| GET    | `/api/pages?q=term`           | Search page metadata and content |
 	| GET    | `/api/pages/{id}/history`     | Get git commit history      |
 	| POST   | `/api/pages/{id}/retrieve`    | Retrieve old version from git | versionId is 0-based index of metadata version, not commit hash
 	*/
@@ -75,16 +74,8 @@ namespace FreeKi
 							return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
 						}
 
-						if (httpListenerContext.Request.QueryString["content"] == "1")
-						{
-							// GET /api/pages?q=term&content=1 - Search page titles/contents with content
-							return await HandleSearchPagesWithContent(searchTerm).ConfigureAwait(false);
-						}
-						else
-						{
-							// GET /api/pages?q=term - Search page metadata only
-							return await HandleSearchPages(searchTerm).ConfigureAwait(false);
-						}
+						// GET /api/pages?q=term - Search page titles/contents with content
+						return await HandleSearchPagesWithContent(searchTerm).ConfigureAwait(false);
 					}
 					else
 					{
@@ -132,7 +123,7 @@ namespace FreeKi
 						: null;
 
 					// Validate that all required fields are present
-					if (string.IsNullOrEmpty(title) || tags == null || string.IsNullOrEmpty(filepath) || string.IsNullOrEmpty(content)==false)
+					if (string.IsNullOrEmpty(title) || tags == null || string.IsNullOrEmpty(filepath) || string.IsNullOrEmpty(content))
 					{
 						_logger.Log(EVerbosity.Error, $"{httpMethod} {httpListenerContext.Request.Url} bad parameters");
 						return (400, "text/plain", System.Text.Encoding.UTF8.GetBytes("Parameter error"));
@@ -328,14 +319,6 @@ namespace FreeKi
 			{
 				return (404, "text/plain", System.Text.Encoding.UTF8.GetBytes("Page not found."));
 			}
-		}
-
-		// GET /api/pages?q=term - Search page metadata
-		private Task<(int, string, byte[])> HandleSearchPages(string searchTerm)
-		{
-			List<SearchResult> searchResults = _pageManager.SearchPages(searchTerm);
-			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(searchResults);
-			return Task.FromResult((200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse)));
 		}
 
 		// GET /api/pages?q=term&content=1 - Search page metadata and content

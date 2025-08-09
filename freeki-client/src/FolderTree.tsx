@@ -22,7 +22,7 @@ import type { ISemanticApi } from './semanticApiInterface'
 import { useUserSettings } from './useUserSettings'
 
 // Search modes for the filter
-type SearchMode = 'titles' | 'metadata' | 'fullContent'
+export type SearchMode = 'titles' | 'metadata' | 'fullContent'
 
 interface SearchDepthIndicatorProps {
   mode: SearchMode
@@ -106,7 +106,7 @@ interface FolderTreeProps {
   pageTree: TreeNode[]
   selectedPageMetadata: PageMetadata | null
   onPageSelect: (metadata: PageMetadata) => void
-  onSearch?: (query: string, mode: SearchMode) => void
+  onSearch?: (query: string, mode: SearchMode) => Promise<void>
   searchQuery?: string
   pageMetadata: PageMetadata[]
   semanticApi: ISemanticApi | null
@@ -175,8 +175,24 @@ function TreeNodeComponent({
   
   // Auto-expand on drag hover
   const dragHoverTimeoutRef = useRef<number | null>(null)
+  
+  // Mobile touch handling
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [longPressActive, setLongPressActive] = useState(false)
+  const longPressTimeoutRef = useRef<number | null>(null)
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+
+  // Detect touch device on mount
+  useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0)
+  }, [])
 
   const handleClick = () => {
+    // On touch devices, only allow click if not in long press mode
+    if (isTouchDevice && longPressActive) {
+      return
+    }
+    
     // Always select the page when clicked (only if it's not a folder)
     if (!node.isFolder) {
       onPageSelect(node.metadata)
@@ -283,7 +299,9 @@ function TreeNodeComponent({
       // Start temporary auto-expand timer for folders that aren't expanded
       if (node.isFolder && !isExpanded && onTemporaryAutoExpand) {
         dragHoverTimeoutRef.current = setTimeout(() => {
-          onTemporaryAutoExpand(node.metadata.path)
+          if (onTemporaryAutoExpand) {
+            onTemporaryAutoExpand(node.metadata.path)
+          }
         }, 500) // Faster temporary expand - 500ms vs 1000ms for permanent
       }
     }
@@ -316,7 +334,7 @@ function TreeNodeComponent({
     
     const position = calculateDropPosition(e)
     
-    // Only update state and log if position changes to avoid spam
+    // Only update state if position changes to avoid spam
     if (dragOver !== position) {
       setDragOver(position)
     }
@@ -388,42 +406,146 @@ function TreeNodeComponent({
     }
   }
 
-	const positionTextOptimally = () => {
-		if (textRef.current && folderIconRef.current) {
-			const textElement = textRef.current
-			const folderIconElement = folderIconRef.current
+  // Touch event handlers for mobile long-press drag
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isTouchDevice) return
+    
+    const touch = e.touches[0]
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY }
+    
+    // Start long press timer
+    longPressTimeoutRef.current = setTimeout(() => {
+      setLongPressActive(true)
+      // Provide haptic feedback if available
+      if ('vibrate' in navigator) {
+        navigator.vibrate(50)
+      }
+      // Start drag operation
+      handleDragStart({
+        stopPropagation: () => {},
+        dataTransfer: {
+          setData: () => {},
+          setDragImage: () => {},
+          effectAllowed: 'move'
+        },
+        currentTarget: e.currentTarget
+      } as any)
+    }, 500) // 500ms long press
+  }
 
-			requestAnimationFrame(() => {
-				// Find the scrollable container
-				let scrollContainer = textElement.parentElement
-				while (scrollContainer) {
-					const styles = window.getComputedStyle(scrollContainer)
-					if (styles.overflowX === 'auto' || styles.overflow === 'auto') {
-						break
-					}
-					scrollContainer = scrollContainer.parentElement
-				}
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isTouchDevice || !touchStartRef.current) return
+    
+    const touch = e.touches[0]
+    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x)
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y)
+    
+    // If user moves finger significantly, cancel long press
+    if (deltaX > 10 || deltaY > 10) {
+      if (longPressTimeoutRef.current) {
+        clearTimeout(longPressTimeoutRef.current)
+        longPressTimeoutRef.current = null
+      }
+      
+      // If already in long press mode, handle as drag
+      if (longPressActive) {
+        // Find element under touch point for drop targeting
+        const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY)
+        if (elementBelow) {
+          const listItem = elementBelow.closest('[role="button"]')
+          if (listItem && listItem !== e.currentTarget) {
+            // Simulate drag over event
+            const syntheticEvent = new DragEvent('dragover', {
+              bubbles: true,
+              cancelable: true,
+              clientX: touch.clientX,
+              clientY: touch.clientY
+            })
+            listItem.dispatchEvent(syntheticEvent)
+          }
+        }
+      }
+    }
+  }
 
-				if (scrollContainer) {
-					// Get the exact position of the folder icon using DOM measurement
-					const containerRect = scrollContainer.getBoundingClientRect()
-					const folderIconRect = folderIconElement.getBoundingClientRect()
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isTouchDevice) return
+    
+    // Clear long press timer
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current)
+      longPressTimeoutRef.current = null
+    }
+    
+    // If we were in long press mode, handle as drop
+    if (longPressActive) {
+      const touch = e.changedTouches[0]
+      const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY)
+      if (elementBelow) {
+        const listItem = elementBelow.closest('[role="button"]')
+        if (listItem && listItem !== e.currentTarget) {
+          // Simulate drop event
+          const syntheticEvent = new DragEvent('drop', {
+            bubbles: true,
+            cancelable: true,
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            dataTransfer: {
+              getData: () => JSON.stringify({
+                pageId: node.metadata.pageId,
+                isFolder: node.isFolder,
+                path: node.metadata.path
+              })
+            }
+          } as any)
+          listItem.dispatchEvent(syntheticEvent)
+        }
+      }
+      
+      handleDragEnd()
+      setLongPressActive(false)
+      e.preventDefault() // Prevent click event
+    }
+    
+    touchStartRef.current = null
+  }
 
-					// Calculate the folder icon's X position within the scrollable content
-					const folderIconLeftInContainer = folderIconRect.left - containerRect.left + scrollContainer.scrollLeft
+  const positionTextOptimally = () => {
+    if (textRef.current && folderIconRef.current) {
+      const textElement = textRef.current
+      const folderIconElement = folderIconRef.current
 
-					// Always position so folder icon appears at left edge (x=0) with smooth animation
-					scrollContainer.scrollTo({
-						left: Math.max(0, folderIconLeftInContainer),
-						behavior: 'smooth'
-					})
-				}
-			})
-		}
-	}
+      requestAnimationFrame(() => {
+        // Find the scrollable container
+        let scrollContainer = textElement.parentElement
+        while (scrollContainer) {
+          const styles = window.getComputedStyle(scrollContainer)
+          if (styles.overflowX === 'auto' || styles.overflow === 'auto') {
+            break
+          }
+          scrollContainer = scrollContainer.parentElement
+        }
+
+        if (scrollContainer) {
+          // Get the exact position of the folder icon using DOM measurement
+          const containerRect = scrollContainer.getBoundingClientRect()
+          const folderIconRect = folderIconElement.getBoundingClientRect()
+
+          // Calculate the folder icon's X position within the scrollable content
+          const folderIconLeftInContainer = folderIconRect.left - containerRect.left + scrollContainer.scrollLeft
+
+          // Always position so folder icon appears at left edge (x=0) with smooth animation
+          scrollContainer.scrollTo({
+            left: Math.max(0, folderIconLeftInContainer),
+            behavior: 'smooth'
+          })
+        }
+      })
+    }
+  }
 
   const handleMouseEnter = () => {
-	  positionTextOptimally()  // horizontally scroll the view so the name of the file or folder is most visible on narrow screens
+    positionTextOptimally()  // horizontally scroll the view so the name of the file or folder is most visible on narrow screens
   }
 
   // Calculate visual styles for drag states
@@ -478,7 +600,7 @@ function TreeNodeComponent({
     <>
       <ListItem
         ref={isSelected ? selectedItemRef : null}
-        draggable={true}
+        draggable={!isTouchDevice} // Only enable native drag on non-touch devices
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onDragStart={handleDragStart}
@@ -487,8 +609,13 @@ function TreeNodeComponent({
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         role="button"
         tabIndex={0}
+        data-is-folder={node.isFolder}
+        data-folder-path={node.isFolder ? node.metadata.path : undefined}
         sx={{
           pl: 1 + level * 1.5,
           pr: 1,
@@ -626,8 +753,20 @@ export default function FolderTree({
   const [filterText, setFilterText] = useState(externalSearchQuery || '')
   const [searchMode, setSearchMode] = useState<SearchMode>('titles')
   
+  // Debouncing for full content search
+  const searchTimeoutRef = useRef<number | null>(null)
+  
   // Convert visiblePageIds to Set for efficient lookups
   const visiblePageIds = useMemo(() => new Set(settings.visiblePageIds), [settings.visiblePageIds])
+
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Temporary drag expansion state - folders that are temporarily expanded during drag
   const [temporaryExpandedFolders, setTemporaryExpandedFolders] = useState<Set<string>>(new Set())
@@ -666,28 +805,30 @@ export default function FolderTree({
   }, [])
 
   const handleGlobalDragEnd = useCallback(() => {
-    if (temporaryExpandedFolders.size > 0) {
-      // Convert temporary expansions to permanent by adding their pages to visiblePageIds
-      const newVisiblePageIds = new Set(settings.visiblePageIds)
-      
-      for (const folderPath of temporaryExpandedFolders) {
-        // Add only direct children to permanent visibility
-        const directChildren = pageMetadata.filter(page => {
-          const pagePath = page.path
-          const pageDir = pagePath.substring(0, pagePath.lastIndexOf('/'))
-          return pageDir === folderPath
-        })
-        directChildren.forEach(page => newVisiblePageIds.add(page.pageId))
-      }
-      
-      // Update settings with new permanent visibility
-      updateSetting('visiblePageIds', Array.from(newVisiblePageIds))
+    // Capture ALL currently visible page IDs to permanent storage
+    // This ensures that any folder expansions during drag become permanent
+    const allCurrentlyVisible = new Set(settings.visiblePageIds)
+    
+    // Add all pages that are currently visible (including temporary expansions)
+    for (const folderPath of temporaryExpandedFolders) {
+      const directChildren = pageMetadata.filter(page => {
+        const pagePath = page.path
+        const pageDir = pagePath.substring(0, pagePath.lastIndexOf('/'))
+        return pageDir === folderPath
+      })
+      directChildren.forEach(page => allCurrentlyVisible.add(page.pageId))
     }
+    
+    // Also capture any pages that were visible due to filtering or other expansions
+    effectiveVisiblePageIds.forEach(pageId => allCurrentlyVisible.add(pageId))
+    
+    // Update settings with comprehensive permanent visibility
+    updateSetting('visiblePageIds', Array.from(allCurrentlyVisible))
     
     setIsDragging(false)
     setTemporaryExpandedFolders(new Set())
     setCurrentlyHoveredFolders(new Set())
-  }, [temporaryExpandedFolders, settings.visiblePageIds, pageMetadata, updateSetting])
+  }, [temporaryExpandedFolders, settings.visiblePageIds, pageMetadata, updateSetting, effectiveVisiblePageIds])
 
   // Enhanced temporary auto-expansion during drag - expand only direct children
   const handleTemporaryAutoExpand = useCallback((folderPath: string) => {
@@ -747,40 +888,38 @@ export default function FolderTree({
       return newSet
     })
     
-    // Use a small delay to check if we should collapse temporarily expanded folders
-    // This prevents immediate collapse when moving between adjacent elements
-    setTimeout(() => {
-      setTemporaryExpandedFolders(prev => {
-        const newSet = new Set(prev)
-        
-        // Only remove folders from temporary expansion if they're no longer being hovered
-        // and none of their descendants are being hovered
-        ancestorFolders.forEach(folderPath => {
-          const isStillHovered = Array.from(currentlyHoveredFolders).some(hoveredPath => 
-            hoveredPath === folderPath || hoveredPath.startsWith(folderPath + '/')
-          )
-          
-          if (!isStillHovered) {
-            newSet.delete(folderPath)
-          }
-        })
-        
-        return newSet
-      })
-    }, 50) // Small delay to allow for rapid hover changes
-  }, [isDragging, currentlyHoveredFolders])
+    // NEVER collapse folders while dragging - wait until drag ends
+    // This prevents the drag targets from shifting unexpectedly during drag operations
+    // The temporary folders will be handled in handleGlobalDragEnd
+  }, [isDragging])
 
   // Handle manual folder toggle
   const handleToggleFolderExpansion = useCallback((folderPath: string) => {
     toggleFolderExpansion(folderPath, pageMetadata)
-  }, [toggleFolderExpansion, pageMetadata])
+    
+    // After any folder expansion, capture all currently visible page IDs
+    // This ensures the folder state is permanently remembered
+    setTimeout(() => {
+      const allCurrentlyVisible = new Set(settings.visiblePageIds)
+      
+      // Add any pages that become visible due to the toggle
+      pageMetadata.forEach(page => {
+        const isVisible = visiblePageIds.has(page.pageId)
+        if (isVisible) {
+          allCurrentlyVisible.add(page.pageId)
+        }
+      })
+      
+      updateSetting('visiblePageIds', Array.from(allCurrentlyVisible))
+    }, 50) // Small delay to allow state updates to propagate
+  }, [toggleFolderExpansion, pageMetadata, settings.visiblePageIds, visiblePageIds, updateSetting])
 
   // Handle auto-expansion during drag hover (permanent expansion)
   const handleAutoExpandFolder = useCallback((folderPath: string) => {
     toggleFolderExpansion(folderPath, pageMetadata)
   }, [toggleFolderExpansion, pageMetadata])
 
-  // Filter tree nodes based on search text
+  // Filter tree nodes based on search text - simplified since server/App handles search logic
   const filteredPageTree = useMemo(() => {
     if (!filterText.trim()) return pageTree
     
@@ -790,18 +929,11 @@ export default function FolderTree({
       return nodes.reduce((filtered: TreeNode[], node) => {
         let matches = false
         
-        if (searchMode === 'titles') {
-          matches = node.metadata.title.toLowerCase().includes(filterLower)
-        } else if (searchMode === 'metadata') {
-          const titleMatch = node.metadata.title.toLowerCase().includes(filterLower)
-          const tagMatch = node.metadata.tags.some(tag => tag.toLowerCase().includes(filterLower))
-          matches = titleMatch || tagMatch
-        } else if (searchMode === 'fullContent') {
-          // For full content search, fall back to metadata search locally
-          const titleMatch = node.metadata.title.toLowerCase().includes(filterLower)
-          const tagMatch = node.metadata.tags.some(tag => tag.toLowerCase().includes(filterLower))
-          matches = titleMatch || tagMatch
-        }
+        // All search modes now use the same client-side logic 
+        // since App.tsx handles the actual search differentiation
+        const titleMatch = node.metadata.title.toLowerCase().includes(filterLower)
+        const tagMatch = node.metadata.tags.some(tag => tag.toLowerCase().includes(filterLower))
+        matches = titleMatch || tagMatch
         
         const childMatches = node.children ? filterTree(node.children) : []
         
@@ -817,7 +949,7 @@ export default function FolderTree({
     }
     
     return filterTree(pageTree)
-  }, [pageTree, filterText, searchMode])
+  }, [pageTree, filterText])
 
   // Auto-expand all folders that contain matches when filtering
   const visiblePageIdsForFiltering = useMemo(() => {
@@ -839,8 +971,13 @@ export default function FolderTree({
     // Expand all folders in filtered results
     collectFolderPages(filteredPageTree)
     
+    // Capture these expanded folders to permanent storage after a delay
+    setTimeout(() => {
+      updateSetting('visiblePageIds', Array.from(allVisiblePageIds))
+    }, 100)
+    
     return allVisiblePageIds
-  }, [filteredPageTree, effectiveVisiblePageIds, filterText, pageMetadata])
+  }, [filteredPageTree, effectiveVisiblePageIds, filterText, pageMetadata, updateSetting])
 
   // Auto-expand path to selected page when it changes
   useEffect(() => {
@@ -881,45 +1018,104 @@ export default function FolderTree({
     const newValue = event.target.value
     setFilterText(newValue)
     
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = null
+    }
+    
     // Call the parent's search handler if provided
     if (onSearch) {
-      onSearch(newValue, searchMode)
+      // For full content search: debounce and enforce minimum 3 characters
+      if (searchMode === 'fullContent') {
+        // Don't search for less than 3 characters
+        if (newValue.trim().length > 0 && newValue.trim().length < 3) {
+          // Do nothing - too short for full content search
+          return
+        }
+        
+        // Empty search - search immediately
+        if (newValue.trim().length === 0) {
+          onSearch(newValue, searchMode).catch(error => {
+            console.error('Search failed:', error)
+          })
+          return
+        }
+        
+        // Debounce full content search by 1 second
+        searchTimeoutRef.current = setTimeout(() => {
+          onSearch!(newValue, searchMode).catch(error => {
+            console.error('Search failed:', error)
+          })
+        }, 1000)
+      } else {
+        // For titles and metadata modes: search immediately
+        onSearch(newValue, searchMode).catch(error => {
+          console.error('Search failed:', error)
+        })
+      }
     }
   }
 
   const handleSearchModeToggle = () => {
+    // Clear any pending search timeout when switching modes
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = null
+    }
+    
     // Cycle through search modes: titles -> metadata -> fullContent -> titles
     const nextMode = searchMode === 'titles' ? 'metadata' 
                    : searchMode === 'metadata' ? 'fullContent' 
                    : 'titles'
     setSearchMode(nextMode)
     
-    // If switching from titles to metadata and there's a search query, 
-    // auto-upgrade to metadata mode for tag searching
-    if (searchMode === 'titles' && filterText.trim()) {
-      // Call the parent's search handler with new mode
-      if (onSearch) {
-        onSearch(filterText, nextMode)
+    // Call the parent's search handler with new mode if there's a search query
+    if (filterText.trim() && onSearch) {
+      // Apply same rules for the new mode
+      if (nextMode === 'fullContent') {
+        // For full content: check minimum length and debounce
+        if (filterText.trim().length >= 3) {
+          searchTimeoutRef.current = setTimeout(() => {
+            onSearch!(filterText, nextMode).catch(error => {
+              console.error('Search failed:', error)
+            })
+          }, 1000)
+        }
+        // If less than 3 characters, don't search
+      } else {
+        // For titles and metadata: search immediately
+        onSearch(filterText, nextMode).catch(error => {
+          console.error('Search failed:', error)
+        })
       }
     }
   }
 
   // Update filter text when external search query changes (from tag clicks)
   useEffect(() => {
-    if (externalSearchQuery !== undefined && externalSearchQuery !== filterText) {
+    // Clear any pending search timeout when external query changes
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = null
+    }
+    
+    // Always update when external query changes, even if it's the same as current
+    // This ensures tag clicks work even when clicking the same tag twice
+    if (externalSearchQuery !== undefined) {
       setFilterText(externalSearchQuery)
       // Auto-switch to metadata mode if currently in titles mode for tag searches
       if (searchMode === 'titles' && externalSearchQuery.trim()) {
         setSearchMode('metadata')
       }
     }
-  }, [externalSearchQuery])
+  }, [externalSearchQuery, searchMode])
 
   const getSearchModeTitle = () => {
     switch (searchMode) {
       case 'titles': return 'Search Titles'
       case 'metadata': return 'Search Titles & Tags'
-      case 'fullContent': return 'Search Everything'
+      case 'fullContent': return 'Search Everything (3+ chars, 1s delay)'
       default: return 'Search mode'
     }
   }
@@ -939,7 +1135,11 @@ export default function FolderTree({
         <TextField
           variant="outlined"
           size="small"
-          placeholder="Search pages"
+          placeholder={
+            searchMode === 'fullContent' 
+              ? "Search everything (3+ chars)" 
+              : "Search pages"
+          }
           value={filterText}
           onChange={handleFilterChange}
           fullWidth
@@ -954,7 +1154,9 @@ export default function FolderTree({
                         setFilterText('')
 
                         if (onSearch) {
-                          onSearch('', searchMode)
+                          onSearch('', searchMode).catch(error => {
+                            console.error('Search failed:', error)
+                          })
                         }
                       }}
                       sx={{ p: 0.5 }}
@@ -1045,11 +1247,10 @@ export default function FolderTree({
             dense 
             disablePadding 
             onDragOver={(e) => {
-              // Enhanced drag over handling that includes virtual folders
+              // Enhanced drag over handling that includes virtual folders and gaps
               e.preventDefault()
               e.stopPropagation()
               
-              // Find the nearest list item above the current mouse position
               const rect = e.currentTarget.getBoundingClientRect()
               const y = e.clientY - rect.top
               
@@ -1058,19 +1259,47 @@ export default function FolderTree({
               let targetItem: Element | null = null
               let minDistance = Infinity
               
-              // Find the closest list item above the mouse position
+              // Special handling for gaps between folder and first child
               for (let i = 0; i < listItems.length; i++) {
                 const item = listItems[i]
                 const itemRect = item.getBoundingClientRect()
+                const itemTop = itemRect.top - rect.top
                 const itemBottom = itemRect.bottom - rect.top
                 
-                // Check if this item is above the mouse and closer than previous candidates
-                if (itemBottom <= y) {
-                  const distance = y - itemBottom
-                  if (distance < minDistance) {
-                    minDistance = distance
-                    targetItem = item
+                // Check if mouse is directly over this item
+                if (y >= itemTop && y <= itemBottom) {
+                  targetItem = item
+                  break
+                }
+                
+                // Check if mouse is in the gap just below this item (for folder children)
+                // Look ahead to see if next item is a child of current folder
+                if (i < listItems.length - 1) {
+                  const nextItem = listItems[i + 1]
+                  const nextItemRect = nextItem.getBoundingClientRect()
+                  const nextItemTop = nextItemRect.top - rect.top
+                  const gapSize = nextItemTop - itemBottom
+                  
+                  // If mouse is in the gap and gap is reasonable (< 20px), 
+                  // and if this looks like a folder-to-child gap, target the folder
+                  if (y > itemBottom && y < nextItemTop && gapSize < 20) {
+                    // Check if current item is a folder using data attribute
+                    const isFolder = item.getAttribute('data-is-folder') === 'true'
+                    if (isFolder) {
+                      targetItem = item
+                      break
+                    }
                   }
+                }
+                
+                // Fallback: find closest item
+                const distanceToTop = Math.abs(y - itemTop)
+                const distanceToBottom = Math.abs(y - itemBottom)
+                const minItemDistance = Math.min(distanceToTop, distanceToBottom)
+                
+                if (minItemDistance < minDistance) {
+                  minDistance = minItemDistance
+                  targetItem = item
                 }
               }
               
@@ -1089,11 +1318,10 @@ export default function FolderTree({
               e.dataTransfer.dropEffect = 'move'
             }}
             onDrop={(e) => {
-              // Enhanced drop handling that includes virtual folders
+              // Enhanced drop handling that includes virtual folders and gaps
               e.preventDefault()
               e.stopPropagation()
               
-              // Find the nearest list item above the current mouse position
               const rect = e.currentTarget.getBoundingClientRect()
               const y = e.clientY - rect.top
               
@@ -1102,19 +1330,46 @@ export default function FolderTree({
               let targetItem: Element | null = null
               let minDistance = Infinity
               
-              // Find the closest list item above the mouse position
+              // Use same logic as dragOver for consistency
               for (let i = 0; i < listItems.length; i++) {
                 const item = listItems[i]
                 const itemRect = item.getBoundingClientRect()
+                const itemTop = itemRect.top - rect.top
                 const itemBottom = itemRect.bottom - rect.top
                 
-                // Check if this item is above the mouse and closer than previous candidates
-                if (itemBottom <= y) {
-                  const distance = y - itemBottom
-                  if (distance < minDistance) {
-                    minDistance = distance
-                    targetItem = item
+                // Check if mouse is directly over this item
+                if (y >= itemTop && y <= itemBottom) {
+                  targetItem = item
+                  break
+                }
+                
+                // Check if mouse is in the gap just below this item (for folder children)
+                if (i < listItems.length - 1) {
+                  const nextItem = listItems[i + 1]
+                  const nextItemRect = nextItem.getBoundingClientRect()
+                  const nextItemTop = nextItemRect.top - rect.top
+                  const gapSize = nextItemTop - itemBottom
+                  
+                  // If mouse is in the gap and gap is reasonable (< 20px), 
+                  // and if this looks like a folder-to-child gap, target the folder
+                  if (y > itemBottom && y < nextItemTop && gapSize < 20) {
+                    // Check if current item is a folder using data attribute
+                    const isFolder = item.getAttribute('data-is-folder') === 'true'
+                    if (isFolder) {
+                      targetItem = item
+                      break
+                    }
                   }
+                }
+                
+                // Fallback: find closest item
+                const distanceToTop = Math.abs(y - itemTop)
+                const distanceToBottom = Math.abs(y - itemBottom)
+                const minItemDistance = Math.min(distanceToTop, distanceToBottom)
+                
+                if (minItemDistance < minDistance) {
+                  minDistance = minItemDistance
+                  targetItem = item
                 }
               }
               

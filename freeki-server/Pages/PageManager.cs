@@ -427,50 +427,6 @@ namespace Storage
 			return success;
 		}
 
-		public List<SearchResult> SearchPages(string searchTerm)
-		{
-			List<SearchResult> searchResults = new List<SearchResult>();
-			
-			// Return empty list for null or empty search terms
-			if (!string.IsNullOrWhiteSpace(searchTerm))
-			{
-				int totalSearched = 0;
-				// Search through cached metadata first for quick title/tag matching
-				foreach (PageMetadata metadata in _metadataCache.Values)
-				{
-					totalSearched++;
-					// Search in metadata fields (case-insensitive)
-					bool isMatch = metadata.PageId.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-					isMatch = isMatch || metadata.Title.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-					isMatch = isMatch || metadata.Path.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-
-					// Search in tags (case-insensitive)
-					foreach (string tag in metadata.Tags)
-					{
-					 isMatch = isMatch || tag.Contains(searchTerm, StringComparison.OrdinalIgnoreCase);
-					}
-					
-					if (isMatch)
-					{
-						// For metadata-only search, use empty content for excerpt generation
-						SearchResult result = CreateSearchResult(metadata, "", searchTerm);
-						searchResults.Add(result);
-					}
-				}
-				
-				// Sort by score descending (highest score first)
-				searchResults.Sort((a, b) => b.Score.CompareTo(a.Score));
-				
-				_logger.Log(EVerbosity.Debug, $"PageManager.SearchPages: Searched {totalSearched} pages for term='{searchTerm}', found {searchResults.Count} matches");
-			}
-			else
-			{
-				_logger.Log(EVerbosity.Debug, "PageManager.SearchPages: Empty search term, returning empty results");
-			}
-			
-			return searchResults;
-		}
-
 		// Search pages including content (slower operation that reads full pages)
 		public async Task<List<SearchResult>> SearchPagesWithContent(string searchTerm)
 		{
