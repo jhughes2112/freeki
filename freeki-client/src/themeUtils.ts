@@ -165,6 +165,21 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   root.style.setProperty('--freeki-footer-text-color', colorScheme.footerTextColor || '#666666');
   root.style.setProperty('--freeki-border-color', colorScheme.borderColor || '#e0e0e0');
   root.style.setProperty('--freeki-shadow-color', colorScheme.shadowColor || '#22222233');
+
+  // DRAG AND DROP: Set primary color for drag indicators
+  const primaryColor = colorScheme.appBarBackground || '#1976d2';
+  root.style.setProperty('--freeki-primary', primaryColor);
+  
+  // Extract RGB values from hex color for use with rgba()
+  const hexToRgb = (hex: string): string => {
+    const clean = hex.replace('#', '');
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    return `${r}, ${g}, ${b}`;
+  };
+  
+  root.style.setProperty('--freeki-primary-rgb', hexToRgb(primaryColor));
   
   // Add the new color properties
   root.style.setProperty('--freeki-style-row-font-color', colorScheme.styleRowFontColor || '#222c36');

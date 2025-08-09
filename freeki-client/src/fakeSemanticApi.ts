@@ -195,11 +195,16 @@ export class FakeSemanticApi implements ISemanticApi {
       const results: SearchResult[] = []
       const term = searchTerm.toLowerCase()
 
+      console.log(`?? FakeSemanticApi: Searching for "${term}" in ${this.fakePages.length} pages`)
+
       this.fakePages.forEach(page => {
         const content = this.fakeContent[page.pageId] || ''
-        if (page.title.toLowerCase().includes(term) || 
-            page.tags.some(tag => tag.toLowerCase().includes(term)) ||
-            content.toLowerCase().includes(term)) {
+        const titleMatch = page.title.toLowerCase().includes(term)
+        const tagMatch = page.tags.some(tag => tag.toLowerCase().includes(term))
+        const contentMatch = content.toLowerCase().includes(term)
+        
+        if (titleMatch || tagMatch || contentMatch) {
+          console.log(`? Found match in page "${page.title}": title=${titleMatch}, tags=${tagMatch}, content=${contentMatch}`)
           
           // Calculate a more realistic score based on content matches
           let score = 0
@@ -250,6 +255,11 @@ export class FakeSemanticApi implements ISemanticApi {
 
       // Sort by score descending
       results.sort((a, b) => b.score - a.score)
+
+      console.log(`?? FakeSemanticApi: Found ${results.length} results for "${term}"`)
+      results.forEach((result, index) => {
+        console.log(`  ${index + 1}. ${result.title} (score: ${result.score})`)
+      })
 
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('searchPagesWithContent', results, duration)

@@ -14,7 +14,8 @@ export interface UserSettings {
   theme: 'light' | 'dark' | 'auto'
   companyName: 'Your Company'
   wikiTitle: 'FreeKi Wiki'
-  visiblePageIds: string[]  // Changed from expandedNodes to track which page IDs should be visible
+  visiblePageIds: string[]  // Track which page IDs should be visible
+  expandedFolderPaths: string[]  // Track which folder paths are expanded (independent of content)
   lastSelectedPageId?: string
   showMetadataPanel: boolean
   defaultEditMode: 'wysiwyg' | 'markdown'
@@ -39,6 +40,7 @@ const DEFAULT_SETTINGS: UserSettings = {
   companyName: 'Your Company',
   wikiTitle: 'FreeKi Wiki',
   visiblePageIds: [],  // Start with no pages visible (all folders collapsed)
+  expandedFolderPaths: [],  // Start with no folders expanded
   showMetadataPanel: true,
   defaultEditMode: 'wysiwyg',
   autoSave: true,
@@ -152,29 +154,49 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
     return pageIds
   }, [])
 
-  // Helper function to check if a folder should be expanded (i.e., has visible children)
-  const isFolderExpanded = useCallback((folderPath: string, allPageMetadata: import('./globalState').PageMetadata[]): boolean => {
-    const pagesInFolder = collectPageIdsInFolder(folderPath, allPageMetadata)
-    return pagesInFolder.some(pageId => settings.visiblePageIds.includes(pageId))
-  }, [settings.visiblePageIds, collectPageIdsInFolder])
+  // Helper function to check if a folder should be expanded
+  const isFolderExpanded = useCallback((folderPath: string): boolean => {
+    return settings.expandedFolderPaths.includes(folderPath)
+  }, [settings.expandedFolderPaths])
 
-  // Toggle folder expansion by adding/removing all contained page IDs from visiblePageIds
+  // Toggle folder expansion by adding/removing folder path from expandedFolderPaths
+  // Also manage visibility of contained pages
   const toggleFolderExpansion = useCallback((folderPath: string, allPageMetadata: import('./globalState').PageMetadata[]) => {
+    const isCurrentlyExpanded = settings.expandedFolderPaths.includes(folderPath)
     const pagesInFolder = collectPageIdsInFolder(folderPath, allPageMetadata)
-    const isCurrentlyExpanded = isFolderExpanded(folderPath, allPageMetadata)
     
+    let newExpandedFolderPaths: string[]
     let newVisiblePageIds: string[]
     
     if (isCurrentlyExpanded) {
-      // Collapse: remove all pages in this folder from visible list
+      // ?? FIXED THE BUG: When collapsing, recursively remove ALL nested folder paths too!
+      // Don't just remove the direct folder path - remove ALL subfolders within this path
+      newExpandedFolderPaths = settings.expandedFolderPaths.filter(path => {
+        // Remove the folder itself and any folders that are children of this folder
+        return path !== folderPath && !path.startsWith(folderPath + '/')
+      })
+      
+      // Remove all pages inside this folder (this was already working correctly)
       newVisiblePageIds = settings.visiblePageIds.filter(pageId => !pagesInFolder.includes(pageId))
+      
+      console.log(`??? Recursively closing folder "${folderPath}" and ${pagesInFolder.length} nested pages`)
+      console.log(`?? Removed expanded folders:`, settings.expandedFolderPaths.filter(path => 
+        path === folderPath || path.startsWith(folderPath + '/')
+      ))
     } else {
-      // Expand: add all pages in this folder to visible list
+      // Expand: add folder to expanded list and show its pages  
+      newExpandedFolderPaths = [...settings.expandedFolderPaths, folderPath]
       newVisiblePageIds = [...new Set([...settings.visiblePageIds, ...pagesInFolder])]
+      
+      console.log(`?? Expanding folder "${folderPath}" with ${pagesInFolder.length} pages`)
     }
     
-    updateSetting('visiblePageIds', newVisiblePageIds)
-  }, [settings.visiblePageIds, updateSetting, collectPageIdsInFolder, isFolderExpanded])
+    // Update both settings at once
+    saveSettings({
+      expandedFolderPaths: newExpandedFolderPaths,
+      visiblePageIds: newVisiblePageIds
+    })
+  }, [settings.expandedFolderPaths, settings.visiblePageIds, saveSettings, collectPageIdsInFolder])
 
   // Check if a specific page should be visible
   const isPageVisible = useCallback((pageId: string): boolean => {
@@ -187,16 +209,31 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
       return // Already visible
     }
 
-    // Find the page and add it to visible list
+    // Find the page and determine all parent folder paths that need to be expanded
     const page = allPageMetadata.find(p => p.pageId === pageId)
     if (!page) {
       return // Page not found
     }
 
-    // Add this page to visible list
+    // Calculate all parent folder paths that need to be expanded
+    const pathParts = page.path.split('/').filter(Boolean)
+    const parentFolderPaths: string[] = []
+    
+    // Build all parent folder paths (e.g., for 'docs/api/guide.md' -> ['docs', 'docs/api'])
+    for (let i = 1; i < pathParts.length; i++) {
+      const folderPath = pathParts.slice(0, i).join('/')
+      parentFolderPaths.push(folderPath)
+    }
+    
+    // Add all parent folders to expanded list and this page to visible list
+    const newExpandedFolderPaths = [...new Set([...settings.expandedFolderPaths, ...parentFolderPaths])]
     const newVisiblePageIds = [...settings.visiblePageIds, pageId]
-    updateSetting('visiblePageIds', newVisiblePageIds)
-  }, [settings.visiblePageIds, updateSetting])
+    
+    saveSettings({
+      expandedFolderPaths: newExpandedFolderPaths,
+      visiblePageIds: newVisiblePageIds
+    })
+  }, [settings.expandedFolderPaths, settings.visiblePageIds, saveSettings])
 
   // Legacy compatibility function - maps old expandedNodes concept to new system
   const toggleExpandedNode = useCallback((nodeId: string, allPageMetadata?: import('./globalState').PageMetadata[]) => {
@@ -218,7 +255,7 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
       
       updateSetting('visiblePageIds', newVisiblePageIds)
     }
-  }, [settings.visiblePageIds, updateSetting, toggleFolderExpansion])
+  }, [toggleFolderExpansion, settings.visiblePageIds, updateSetting])
   
   return {
     settings,

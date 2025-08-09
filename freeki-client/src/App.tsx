@@ -83,10 +83,23 @@ export default function App() {
   const currentPageContent = useGlobalState('currentPageContent')
   const isEditing = useGlobalState('isEditing')
   const searchQuery = useGlobalState('searchQuery')
+  const searchResults = useGlobalState('searchResults')
   const isLoadingPages = useGlobalState('isLoadingPages')
   
-  // Compute page tree from metadata - using fixed flattened approach
-  const pageTree = React.useMemo(() => buildPageTree(pageMetadata), [pageMetadata])
+  // Use search results if search is active and we have a query, otherwise use all pages
+  const effectivePageMetadata = React.useMemo(() => {
+    const hasQuery = searchQuery.trim().length > 0
+    if (hasQuery) {
+      // When search is active, always use searchResults (even if empty)
+      return searchResults
+    } else {
+      // When search is not active, use all pages
+      return pageMetadata
+    }
+  }, [searchResults, pageMetadata, searchQuery])
+  
+  // Compute page tree from effective metadata (search results or all pages)
+  const pageTree = React.useMemo(() => buildPageTree(effectivePageMetadata), [effectivePageMetadata])
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [showError, setShowError] = React.useState<boolean>(false)
@@ -187,9 +200,11 @@ export default function App() {
 
   // Enhanced search function with client-side metadata search
   const performSearch = async (query: string, mode: SearchMode = 'titles') => {
+    console.log(`?? App.performSearch: query="${query}", mode="${mode}"`)
     globalState.set('searchQuery', query)
     
     if (!query.trim()) {
+      // Clear search results when query is empty
       globalState.set('searchResults', [])
       return
     }
@@ -203,9 +218,11 @@ export default function App() {
           console.warn('No semantic API available for full content search')
           return
         }
+        console.log(`?? App: Using server-side search for fullContent mode`)
         results = await semanticApi.searchPagesWithContent(query)
       } else {
         // Perform client-side metadata search using already-loaded pageMetadata
+        console.log(`?? App: Using client-side search for ${mode} mode, searching ${pageMetadata.length} pages`)
         const searchTerm = query.toLowerCase()
         const matchedPages: Array<{ page: PageMetadata; score: number }> = []
         
@@ -244,6 +261,12 @@ export default function App() {
             score = 0
           }
           
+          // For metadata mode, include both title and tag matches
+          if (mode === 'metadata' && !titleMatch && !tagMatch) {
+            isMatch = false  
+            score = 0
+          }
+          
           // Search in path for additional scoring
           if (isMatch && page.path.toLowerCase().includes(searchTerm)) {
             let pathIndex = 0
@@ -255,6 +278,7 @@ export default function App() {
           }
           
           if (isMatch) {
+            console.log(`? App: Found match in page "${page.title}" (score: ${score})`)
             matchedPages.push({ page, score })
           }
         })
@@ -270,9 +294,11 @@ export default function App() {
           excerpt: `Found in: ${page.title}${page.tags.length > 0 ? ` (tags: ${page.tags.join(', ')})` : ''}`,
           score
         }))
+        
+        console.log(`?? App: Client-side search found ${results.length} results`)
       }
       
-      // Convert search results to PageMetadata format for display
+      // Convert search results to PageMetadata format and sort by display order
       const searchResultsAsMetadata = results.map(result => {
         const originalPage = pageMetadata.find(p => p.pageId === result.id)
         return originalPage || {
@@ -285,7 +311,11 @@ export default function App() {
         }
       })
       
-      globalState.set('searchResults', searchResultsAsMetadata)
+      // Sort search results using the same criteria as normal page display
+      const sortedSearchResults = sortPagesByDisplayOrder(searchResultsAsMetadata)
+      
+      console.log(`?? App: Setting ${sortedSearchResults.length} sorted search results in global state`)
+      globalState.set('searchResults', sortedSearchResults)
     } catch (error) {
       console.error('Search failed:', error)
       globalState.set('searchResults', [])
@@ -597,8 +627,7 @@ export default function App() {
 
   const handleDragDrop = async (
     dragData: DragData,
-    dropTarget: DropTarget,
-    _updatedPages: PageMetadata[]
+    dropTarget: DropTarget
   ) => {
     if (!semanticApi) {
       console.warn('?? No semantic API available for drag and drop')
@@ -658,6 +687,9 @@ export default function App() {
         
         console.log('?? Moving folder from:', dragData.path, 'to:', newFolderPath)
         
+        // Collect all updated metadata as we move each page
+        const updatedPagesMetadata: PageMetadata[] = []
+        
         // Move each page in the folder
         for (const page of affectedPages) {
           // Calculate new path for this page
@@ -684,21 +716,41 @@ export default function App() {
           
           if (updatedMetadata) {
             console.log('? Page moved successfully:', page.title)
+            updatedPagesMetadata.push(updatedMetadata)
+            
+            // ?? CRITICAL FIX: Update current page metadata if this moved page is currently selected
+            if (currentPageMetadata?.pageId === page.pageId) {
+              console.log('?? Updating current page metadata after folder move:', updatedMetadata.path)
+              globalState.set('currentPageMetadata', updatedMetadata)
+            }
           } else {
             console.error('? Failed to move page:', page.title)
           }
         }
         
-        // Reload all page metadata to reflect the changes
-        console.log('?? Reloading page metadata after folder move')
-        const pages = await semanticApi.listAllPages()
+        // Update global state with all the updated metadata - NO UNNECESSARY API CALL!
+        console.log('?? Updating global state with moved pages metadata (no bandwidth waste)')
+        const updatedPageMetadata = pageMetadata.map(existingPage => {
+          const updatedPage = updatedPagesMetadata.find(updated => updated.pageId === existingPage.pageId)
+          return updatedPage || existingPage
+        })
         
         // Re-sort to maintain alphabetical order
-        const sortedPages = sortPagesByDisplayOrder(pages)
-        globalState.set('pageMetadata', sortedPages)
+        const resortedPageMetadata = sortPagesByDisplayOrder(updatedPageMetadata)
+        globalState.set('pageMetadata', resortedPageMetadata)
         
-        console.log('? Folder move operation completed with proper sorting')
+        // ?? CRITICAL FIX: If we moved a folder containing the current page, ensure it stays visible
+        if (currentPageMetadata && updatedPagesMetadata.some(p => p.pageId === currentPageMetadata.pageId)) {
+          console.log('?? Ensuring current page remains visible after folder move')
+          const updatedCurrentPage = updatedPagesMetadata.find(p => p.pageId === currentPageMetadata.pageId)
+          if (updatedCurrentPage) {
+            // Force re-expand the path to ensure the moved page stays visible
+            // This prevents the tree from collapsing when the folder structure changes
+            handlePageSelect(updatedCurrentPage)
+          }
+        }
         
+        console.log('? Folder move operation completed efficiently without unnecessary bandwidth')
       } else {
         // Handle single file drag operations
         const draggedPage = pageMetadata.find(p => p.pageId === dragData.pageId)
@@ -762,7 +814,7 @@ export default function App() {
         if (updatedMetadata) {
           console.log('? File moved successfully:', updatedMetadata)
 
-          // Update the global pageMetadata with the new path - maintain sort order
+          // Update the global pageMetadata with the returned metadata - NO UNNECESSARY API CALL!
           const updatedPageMetadata = pageMetadata.map(p => 
             p.pageId === draggedPage.pageId ? updatedMetadata : p
           )
@@ -776,7 +828,7 @@ export default function App() {
             globalState.set('currentPageMetadata', updatedMetadata)
           }
           
-          console.log('?? Successfully updated and re-sorted global state after file move')
+          console.log('? Successfully updated and re-sorted global state after file move (bandwidth efficient)')
         } else {
           console.error('? Server returned null when updating page path')
         }
@@ -1001,18 +1053,20 @@ export default function App() {
               }}>
                 <Typography>Loading pages...</Typography>
               </Box>
-            ) : pageTree.length > 0 ? (
+            ) : (
               <FolderTree
                 pageTree={pageTree}
                 selectedPageMetadata={currentPageMetadata}
                 onPageSelect={handlePageSelect}
                 onSearch={performSearch}
                 searchQuery={searchQuery}
-                pageMetadata={pageMetadata}
+                pageMetadata={effectivePageMetadata}
                 onDragDrop={handleDragDrop}
                 semanticApi={semanticApi}
               />
-            ) : (
+            )}
+            {/* Only show the "no pages available" fallback if there are truly no pages AND no search is active */}
+            {!isLoadingPages && pageMetadata.length === 0 && !searchQuery.trim() && (
               <Box sx={{ 
                 display: 'flex', 
                 flexDirection: 'column',

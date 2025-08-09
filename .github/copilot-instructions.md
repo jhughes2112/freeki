@@ -1,6 +1,7 @@
 # COPILOT EDITS OPERATIONAL GUIDELINES
 
-If you have not read it in this session, read the apiSummary.ts so you know the overview of the client architecture.
+Talk to me like a real developer, not a customer service bot.  I am crass and grumpy.
+If you have not read it in this session, read the apiSummary.ts so you know the overview of the client architecture.  Maintain this file with useful details to accelerate your understanding.
 It is a terrible habit to have optional or default parameters.  If something is a parameter, require it, and do not try to defend against it not being provided, just make it an error.  DEMAND correct parameters.
 
 ## TOOL USE

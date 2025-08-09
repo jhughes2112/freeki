@@ -112,8 +112,7 @@ interface FolderTreeProps {
   semanticApi: ISemanticApi | null
   onDragDrop?: (
     dragData: import('./pageTreeUtils').DragData, 
-    dropTarget: import('./pageTreeUtils').DropTarget,
-    updatedPages: PageMetadata[]
+    dropTarget: import('./pageTreeUtils').DropTarget
   ) => Promise<void>
 }
 
@@ -134,6 +133,10 @@ interface TreeNodeComponentProps {
   onGlobalDragEnd?: () => void
   pageMetadata: PageMetadata[]
   currentlyHoveredFolders: Set<string>
+  isFolderExpanded: (folderPath: string) => boolean
+  isSearchActive: boolean
+  isDragging: boolean
+  temporaryExpandedFolders: Set<string>
 }
 
 function TreeNodeComponent({ 
@@ -152,16 +155,33 @@ function TreeNodeComponent({
   onGlobalDragStart,
   onGlobalDragEnd,
   pageMetadata,
-  currentlyHoveredFolders
-}: TreeNodeComponentProps) {
-  // Calculate if this folder should be expanded based on whether any of its children are visible
+  currentlyHoveredFolders,
+  isFolderExpanded,
+  isSearchActive,
+  isDragging,
+  temporaryExpandedFolders,
+  activeDropTarget
+}: TreeNodeComponentProps & { activeDropTarget: string | null }) {
+  // Use the proper folder expansion check including temporary expansions during drag
   const isExpanded = useMemo(() => {
     if (!node.isFolder) return false
     
-    // Check if any child pages are in the visible set
-    const childPages = pageMetadata.filter(page => page.path.startsWith(node.metadata.path + '/'))
-    return childPages.some(page => visiblePageIds.has(page.pageId))
-  }, [node.isFolder, node.metadata.path, pageMetadata, visiblePageIds])
+    // Check permanent expansion state first
+    const isPermanentlyExpanded = isFolderExpanded(node.metadata.path)
+    
+    // During search, expand all folders to show search results
+    if (isSearchActive) {
+      return true
+    }
+    
+    // During drag, also check for temporary expansions
+    if (isDragging) {
+      const isTemporarilyExpanded = temporaryExpandedFolders.has(node.metadata.path)
+      return isPermanentlyExpanded || isTemporarilyExpanded
+    }
+    
+    return isPermanentlyExpanded
+  }, [node.isFolder, node.metadata.path, isFolderExpanded, isSearchActive, isDragging, temporaryExpandedFolders])
   
   const isSelected = selectedPageMetadata?.pageId === node.metadata.pageId
   const hasChildren = node.children && node.children.length > 0
@@ -169,7 +189,7 @@ function TreeNodeComponent({
   const folderIconRef = useRef<HTMLDivElement>(null)
 
   // Drag and drop state
-  const [isDragging, setIsDragging] = useState(false)
+  const [isDraggingState, setIsDragging] = useState(false)
   const [dragOver, setDragOver] = useState<'none' | 'before' | 'inside' | 'after'>('none')
   const dragCounter = useRef(0)
   
@@ -548,10 +568,11 @@ function TreeNodeComponent({
     positionTextOptimally()  // horizontally scroll the view so the name of the file or folder is most visible on narrow screens
   }
 
-  // Calculate visual styles for drag states
+  // Calculate visual styles for drag states including folder-wide drop zones
   const getDropIndicatorStyles = () => {
     const baseStyles = {}
     
+    // Individual item drop indicators
     if (dragOver === 'before') {
       return {
         ...baseStyles,
@@ -590,6 +611,22 @@ function TreeNodeComponent({
         borderRadius: 'var(--freeki-border-radius)',
         boxShadow: '0 0 0 2px var(--freeki-primary)',
         transition: 'all 0.15s ease-in-out'
+      }
+    }
+    
+    // Folder-wide drop zone highlighting
+    if (isDragging && activeDropTarget) {
+      const currentFolderPath = node.isFolder ? node.metadata.path : 
+        (node.metadata.path.includes('/') ? node.metadata.path.substring(0, node.metadata.path.lastIndexOf('/')) : 'root')
+      
+      if (currentFolderPath === activeDropTarget || 
+          (activeDropTarget === 'root' && !node.metadata.path.includes('/'))) {
+        return {
+          ...baseStyles,
+          backgroundColor: 'rgba(var(--freeki-primary-rgb), 0.1)',
+          borderLeft: '4px solid var(--freeki-primary)',
+          transition: 'all 0.2s ease-in-out'
+        }
       }
     }
     
@@ -632,14 +669,14 @@ function TreeNodeComponent({
           borderRadius: 'var(--freeki-border-radius)',
           mx: 0.5,
           mb: 0.1,  // Reduced from 0.25 to minimize gaps
-          cursor: isDragging ? 'grabbing' : 'pointer',
+          cursor: isDraggingState ? 'grabbing' : 'pointer',
           color: 'var(--freeki-folders-font-color)',
           fontSize: 'var(--freeki-folders-font-size)',
           minHeight: 32,
           alignItems: 'center',
           transition: 'all 0.2s ease-in-out',
-          opacity: isDragging ? 0.5 : 1,
-          transform: isDragging ? 'rotate(2deg)' : 'none',
+          opacity: isDraggingState ? 0.5 : 1,
+          transform: isDraggingState ? 'rotate(2deg)' : 'none',
           position: 'relative',
           ...getDropIndicatorStyles()
         }}
@@ -722,8 +759,14 @@ function TreeNodeComponent({
                 onGlobalDragEnd={onGlobalDragEnd}
                 pageMetadata={pageMetadata}
                 currentlyHoveredFolders={currentlyHoveredFolders}
+                isFolderExpanded={isFolderExpanded}
+                isSearchActive={isSearchActive}
+                isDragging={isDragging}
+                temporaryExpandedFolders={temporaryExpandedFolders}
+                activeDropTarget={activeDropTarget}
               />
             ))}
+
           </List>
         </Collapse>
       )}
@@ -745,7 +788,9 @@ export default function FolderTree({
     settings, 
     toggleFolderExpansion, 
     ensurePageVisible,
-    updateSetting
+    updateSetting,
+    saveSettings,
+    isFolderExpanded
   } = useUserSettings(semanticApi)
   
   const containerRef = useRef<HTMLDivElement>(null)
@@ -756,8 +801,53 @@ export default function FolderTree({
   // Debouncing for full content search
   const searchTimeoutRef = useRef<number | null>(null)
   
-  // Convert visiblePageIds to Set for efficient lookups
-  const visiblePageIds = useMemo(() => new Set(settings.visiblePageIds), [settings.visiblePageIds])
+  // Convert expanded folder paths to visible page IDs (computed, not stored)
+  const visiblePageIds = useMemo(() => {
+    const visible = new Set<string>()
+    
+    // For each expanded folder, add all its direct children to visible set
+    for (const folderPath of settings.expandedFolderPaths) {
+      const pagesInFolder = pageMetadata.filter(page => {
+        const pagePath = page.path
+        const pageDir = pagePath.includes('/') ? pagePath.substring(0, pagePath.lastIndexOf('/')) : ''
+        return pageDir === folderPath
+      })
+      
+      pagesInFolder.forEach(page => {
+        visible.add(page.pageId)
+      })
+    }
+    
+    return visible
+  }, [settings.expandedFolderPaths, pageMetadata])
+
+  // Check if we're in search mode - search is active if there's any text in the search field
+  const isSearchActive = useMemo(() => {
+    const hasExternalQuery = externalSearchQuery !== undefined && externalSearchQuery.trim().length > 0
+    const hasLocalQuery = filterText.trim().length > 0
+    return hasExternalQuery || hasLocalQuery
+  }, [externalSearchQuery, filterText])
+
+  // When search is active, show all matching pages in the tree
+  // When search is inactive, use normal visibility rules
+  const effectiveVisiblePageIds = useMemo(() => {
+    if (isSearchActive) {
+      // During search, check if we actually have search results
+      // If pageMetadata is provided but no results, it means the search returned nothing
+      if (pageMetadata.length === 0) {
+        // No search results - return empty set to trigger "No pages found"
+        return new Set<string>()
+      }
+      
+      // During search, make all search result pages visible
+      const searchResultPageIds = new Set<string>()
+      pageMetadata.forEach(page => {
+        searchResultPageIds.add(page.pageId)
+      })
+      return searchResultPageIds
+    }
+    return visiblePageIds
+  }, [isSearchActive, pageMetadata, visiblePageIds])
 
   // Cleanup search timeout on unmount
   useEffect(() => {
@@ -775,60 +865,57 @@ export default function FolderTree({
   // Track which folders are currently being hovered during drag
   const [currentlyHoveredFolders, setCurrentlyHoveredFolders] = useState<Set<string>>(new Set())
 
-  // Combined visibility: permanent + temporary during drag
-  const effectiveVisiblePageIds = useMemo(() => {
-    if (!isDragging || temporaryExpandedFolders.size === 0) {
-      return visiblePageIds
-    }
-
-    // Create a union of permanent visible pages and temporarily expanded folder contents
-    const combinedSet = new Set(visiblePageIds)
-    
-    for (const folderPath of temporaryExpandedFolders) {
-      // Only include direct children of the temporarily expanded folder
-      const directChildren = pageMetadata.filter(page => {
-        const pagePath = page.path
-        const pageDir = pagePath.substring(0, pagePath.lastIndexOf('/'))
-        return pageDir === folderPath
-      })
-      directChildren.forEach(page => combinedSet.add(page.pageId))
-    }
-    
-    return combinedSet
-  }, [visiblePageIds, temporaryExpandedFolders, isDragging, pageMetadata])
-
+  // Enhanced drop zone highlighting - track which folder is the active drop target
+  const [activeDropTarget, setActiveDropTarget] = useState<string | null>(null)
+  
   // Global drag state management
   const handleGlobalDragStart = useCallback(() => {
     setIsDragging(true)
     setTemporaryExpandedFolders(new Set())
     setCurrentlyHoveredFolders(new Set())
+    setActiveDropTarget(null)
   }, [])
 
   const handleGlobalDragEnd = useCallback(() => {
-    // Capture ALL currently visible page IDs to permanent storage
-    // This ensures that any folder expansions during drag become permanent
-    const allCurrentlyVisible = new Set(settings.visiblePageIds)
+    // ?? SIMPLIFIED: Only track folder expansion state, not individual file visibility
+    // The visibility of files is derived from which folders are expanded
     
-    // Add all pages that are currently visible (including temporary expansions)
+    console.log('?? Capturing current folder expansion state...')
+    
+    // Start with current expanded folders
+    const newExpandedFolders = new Set(settings.expandedFolderPaths)
+    
+    // Add any temporarily expanded folders from this drag to permanent state
     for (const folderPath of temporaryExpandedFolders) {
-      const directChildren = pageMetadata.filter(page => {
-        const pagePath = page.path
-        const pageDir = pagePath.substring(0, pagePath.lastIndexOf('/'))
-        return pageDir === folderPath
-      })
-      directChildren.forEach(page => allCurrentlyVisible.add(page.pageId))
+      console.log('?? Making temporary folder permanent:', folderPath)
+      newExpandedFolders.add(folderPath)
     }
     
-    // Also capture any pages that were visible due to filtering or other expansions
-    effectiveVisiblePageIds.forEach(pageId => allCurrentlyVisible.add(pageId))
+    // ?? CRITICAL: Always ensure the currently selected page's parent folders stay expanded
+    if (selectedPageMetadata) {
+      console.log('?? Ensuring current page path stays expanded:', selectedPageMetadata.path)
+      
+      // Ensure all parent folders of the current page are expanded
+      const currentPagePath = selectedPageMetadata.path
+      const pathParts = currentPagePath.split('/').filter(Boolean)
+      for (let i = 1; i < pathParts.length; i++) {
+        const parentFolderPath = pathParts.slice(0, i).join('/')
+        newExpandedFolders.add(parentFolderPath)
+        console.log('?? Ensuring parent folder expanded:', parentFolderPath)
+      }
+    }
     
-    // Update settings with comprehensive permanent visibility
-    updateSetting('visiblePageIds', Array.from(allCurrentlyVisible))
+    // Update settings with ONLY the folder expansion state
+    // Let the tree compute which files are visible based on which folders are expanded
+    updateSetting('expandedFolderPaths', Array.from(newExpandedFolders))
+    
+    console.log('? Drag end complete. Expanded folders:', Array.from(newExpandedFolders))
     
     setIsDragging(false)
     setTemporaryExpandedFolders(new Set())
     setCurrentlyHoveredFolders(new Set())
-  }, [temporaryExpandedFolders, settings.visiblePageIds, pageMetadata, updateSetting, effectiveVisiblePageIds])
+    setActiveDropTarget(null)
+  }, [temporaryExpandedFolders, settings.expandedFolderPaths, pageMetadata, selectedPageMetadata, updateSetting])
 
   // Enhanced temporary auto-expansion during drag - expand only direct children
   const handleTemporaryAutoExpand = useCallback((folderPath: string) => {
@@ -836,6 +923,7 @@ export default function FolderTree({
       return
     }
     
+    // Add to temporary expanded folders set without modifying permanent settings
     setTemporaryExpandedFolders(prev => new Set([...prev, folderPath]))
   }, [isDragging])
 
@@ -862,6 +950,20 @@ export default function FolderTree({
       ancestorFolders.forEach(folder => newSet.add(folder))
       return newSet
     })
+    
+    // ?? FIXED: Don't set activeDropTarget to 'root' - use null instead for root level items
+    // This prevents all root level items from getting highlighted when dragging root items
+    console.log('?? Setting active drop target for path:', itemPath)
+    if (pathParts.length > 1) {
+      // For files in folders, the drop target is the folder containing the file
+      const targetFolderPath = pathParts.slice(0, -1).join('/')
+      setActiveDropTarget(targetFolderPath)
+      console.log('?? Active drop target set to:', targetFolderPath)
+    } else {
+      // Root level item - don't set any active drop target to avoid mass highlighting
+      setActiveDropTarget(null)
+      console.log('?? Root level item - no active drop target set')
+    }
   }, [isDragging])
 
   // Remove folder from hover tracking and potentially from temporary expansion
@@ -888,6 +990,11 @@ export default function FolderTree({
       return newSet
     })
     
+    // ?? FIXED: More aggressive cleanup of active drop target
+    // Clear active drop target when leaving ANY item to prevent persistent highlighting
+    setActiveDropTarget(null)
+    console.log('?? Cleared active drop target on drag leave')
+    
     // NEVER collapse folders while dragging - wait until drag ends
     // This prevents the drag targets from shifting unexpectedly during drag operations
     // The temporary folders will be handled in handleGlobalDragEnd
@@ -896,23 +1003,9 @@ export default function FolderTree({
   // Handle manual folder toggle
   const handleToggleFolderExpansion = useCallback((folderPath: string) => {
     toggleFolderExpansion(folderPath, pageMetadata)
-    
-    // After any folder expansion, capture all currently visible page IDs
-    // This ensures the folder state is permanently remembered
-    setTimeout(() => {
-      const allCurrentlyVisible = new Set(settings.visiblePageIds)
-      
-      // Add any pages that become visible due to the toggle
-      pageMetadata.forEach(page => {
-        const isVisible = visiblePageIds.has(page.pageId)
-        if (isVisible) {
-          allCurrentlyVisible.add(page.pageId)
-        }
-      })
-      
-      updateSetting('visiblePageIds', Array.from(allCurrentlyVisible))
-    }, 50) // Small delay to allow state updates to propagate
-  }, [toggleFolderExpansion, pageMetadata, settings.visiblePageIds, visiblePageIds, updateSetting])
+    // Remove the problematic setTimeout - the toggleFolderExpansion function 
+    // already handles updating both expandedFolderPaths and visiblePageIds
+  }, [toggleFolderExpansion, pageMetadata])
 
   // Handle auto-expansion during drag hover (permanent expansion)
   const handleAutoExpandFolder = useCallback((folderPath: string) => {
@@ -921,63 +1014,36 @@ export default function FolderTree({
 
   // Filter tree nodes based on search text - simplified since server/App handles search logic
   const filteredPageTree = useMemo(() => {
-    if (!filterText.trim()) return pageTree
-    
-    const filterLower = filterText.toLowerCase()
-    
-    const filterTree = (nodes: TreeNode[]): TreeNode[] => {
-      return nodes.reduce((filtered: TreeNode[], node) => {
-        let matches = false
-        
-        // All search modes now use the same client-side logic 
-        // since App.tsx handles the actual search differentiation
-        const titleMatch = node.metadata.title.toLowerCase().includes(filterLower)
-        const tagMatch = node.metadata.tags.some(tag => tag.toLowerCase().includes(filterLower))
-        matches = titleMatch || tagMatch
-        
-        const childMatches = node.children ? filterTree(node.children) : []
-        
-        if (matches || childMatches.length > 0) {
-          filtered.push({
-            ...node,
-            children: childMatches.length > 0 ? childMatches : node.children
+    // When search is active, pageTree already contains only matching results
+    // When search is inactive, show the full tree
+    return pageTree
+  }, [pageTree])
+
+  // Auto-expand all folders when search is active to show all results
+  const visiblePageIdsForDisplay = useMemo(() => {
+    if (isSearchActive) {
+      // During search, ensure all parent folders of search results are expanded
+      const allVisiblePageIds = new Set(effectiveVisiblePageIds)
+      
+      pageMetadata.forEach(page => {
+        const pathParts = page.path.split('/').filter(Boolean)
+        // Expand all parent folders for this search result
+        for (let i = 1; i < pathParts.length; i++) {
+          const folderPath = pathParts.slice(0, i).join('/')
+          // Find all pages in this folder and make them visible
+          pageMetadata.forEach(folderPage => {
+            if (folderPage.path.startsWith(folderPath + '/')) {
+              allVisiblePageIds.add(folderPage.pageId)
+            }
           })
         }
-        
-        return filtered
-      }, [])
+      })
+      
+      return allVisiblePageIds
     }
     
-    return filterTree(pageTree)
-  }, [pageTree, filterText])
-
-  // Auto-expand all folders that contain matches when filtering
-  const visiblePageIdsForFiltering = useMemo(() => {
-    if (!filterText.trim()) return effectiveVisiblePageIds
-    
-    const allVisiblePageIds = new Set(effectiveVisiblePageIds)
-    
-    const collectFolderPages = (nodes: TreeNode[]) => {
-      for (const node of nodes) {
-        if (node.isFolder && node.children) {
-          // Add all pages in filtered folders to visible set
-          const childPages = pageMetadata.filter(page => page.path.startsWith(node.metadata.path + '/'))
-          childPages.forEach(page => allVisiblePageIds.add(page.pageId))
-          collectFolderPages(node.children)
-        }
-      }
-    }
-    
-    // Expand all folders in filtered results
-    collectFolderPages(filteredPageTree)
-    
-    // Capture these expanded folders to permanent storage after a delay
-    setTimeout(() => {
-      updateSetting('visiblePageIds', Array.from(allVisiblePageIds))
-    }, 100)
-    
-    return allVisiblePageIds
-  }, [filteredPageTree, effectiveVisiblePageIds, filterText, pageMetadata, updateSetting])
+    return isDragging ? effectiveVisiblePageIds : visiblePageIds
+  }, [isSearchActive, effectiveVisiblePageIds, isDragging, pageMetadata, visiblePageIds])
 
   // Auto-expand path to selected page when it changes
   useEffect(() => {
@@ -1018,22 +1084,16 @@ export default function FolderTree({
     const newValue = event.target.value
     setFilterText(newValue)
     
-    // Clear existing timeout
-    if (searchTimeoutRef.current) {
+    // Clear existing timeout - with null safety
+    if (searchTimeoutRef.current !== null) {
       clearTimeout(searchTimeoutRef.current)
       searchTimeoutRef.current = null
     }
     
     // Call the parent's search handler if provided
     if (onSearch) {
-      // For full content search: debounce and enforce minimum 3 characters
+      // For full content search: debounce by 1 second
       if (searchMode === 'fullContent') {
-        // Don't search for less than 3 characters
-        if (newValue.trim().length > 0 && newValue.trim().length < 3) {
-          // Do nothing - too short for full content search
-          return
-        }
-        
         // Empty search - search immediately
         if (newValue.trim().length === 0) {
           onSearch(newValue, searchMode).catch(error => {
@@ -1059,7 +1119,7 @@ export default function FolderTree({
 
   const handleSearchModeToggle = () => {
     // Clear any pending search timeout when switching modes
-    if (searchTimeoutRef.current) {
+    if (searchTimeoutRef.current !== null) {
       clearTimeout(searchTimeoutRef.current)
       searchTimeoutRef.current = null
     }
@@ -1070,21 +1130,21 @@ export default function FolderTree({
                    : 'titles'
     setSearchMode(nextMode)
     
-    // Call the parent's search handler with new mode if there's a search query
-    if (filterText.trim() && onSearch) {
-      // Apply same rules for the new mode
-      if (nextMode === 'fullContent') {
-        // For full content: check minimum length and debounce
-        if (filterText.trim().length >= 3) {
-          searchTimeoutRef.current = setTimeout(() => {
-            onSearch!(filterText, nextMode).catch(error => {
+    // If switching to fullContent mode, start the timer if there's text
+    if (nextMode === 'fullContent') {
+      if (filterText.trim()) {
+        const timerId = setTimeout(() => {
+          if (onSearch) {
+            onSearch(filterText, nextMode).catch(error => {
               console.error('Search failed:', error)
             })
-          }, 1000)
-        }
-        // If less than 3 characters, don't search
-      } else {
-        // For titles and metadata: search immediately
+          }
+        }, 1000)
+        searchTimeoutRef.current = timerId
+      }
+    } else {
+      // For other modes, search immediately if there's text
+      if (filterText.trim() && onSearch) {
         onSearch(filterText, nextMode).catch(error => {
           console.error('Search failed:', error)
         })
@@ -1095,7 +1155,7 @@ export default function FolderTree({
   // Update filter text when external search query changes (from tag clicks)
   useEffect(() => {
     // Clear any pending search timeout when external query changes
-    if (searchTimeoutRef.current) {
+    if (searchTimeoutRef.current !== null) {
       clearTimeout(searchTimeoutRef.current)
       searchTimeoutRef.current = null
     }
@@ -1104,19 +1164,24 @@ export default function FolderTree({
     // This ensures tag clicks work even when clicking the same tag twice
     if (externalSearchQuery !== undefined) {
       setFilterText(externalSearchQuery)
-      // Auto-switch to metadata mode if currently in titles mode for tag searches
-      if (searchMode === 'titles' && externalSearchQuery.trim()) {
-        setSearchMode('metadata')
-      }
     }
-  }, [externalSearchQuery, searchMode])
+  }, [externalSearchQuery])
 
   const getSearchModeTitle = () => {
     switch (searchMode) {
-      case 'titles': return 'Search Titles'
+      case 'titles': return 'Search Titles Only'
       case 'metadata': return 'Search Titles & Tags'
       case 'fullContent': return 'Search Everything (3+ chars, 1s delay)'
       default: return 'Search mode'
+    }
+  }
+
+  const getSearchPlaceholder = () => {
+    switch (searchMode) {
+      case 'titles': return 'Search page titles...'
+      case 'metadata': return 'Search titles & tags...'
+      case 'fullContent': return 'Search everything (3+ chars)...'
+      default: return 'Search pages...'
     }
   }
 
@@ -1135,11 +1200,7 @@ export default function FolderTree({
         <TextField
           variant="outlined"
           size="small"
-          placeholder={
-            searchMode === 'fullContent' 
-              ? "Search everything (3+ chars)" 
-              : "Search pages"
-          }
+          placeholder={getSearchPlaceholder()}
           value={filterText}
           onChange={handleFilterChange}
           fullWidth
@@ -1314,8 +1375,7 @@ export default function FolderTree({
                 })
                 targetItem.dispatchEvent(syntheticEvent)
               }
-              
-              e.dataTransfer.dropEffect = 'move'
+             e.dataTransfer.dropEffect = 'move'
             }}
             onDrop={(e) => {
               // Enhanced drop handling that includes virtual folders and gaps
@@ -1398,14 +1458,14 @@ export default function FolderTree({
                 level={0}
                 selectedPageMetadata={selectedPageMetadata}
                 onPageSelect={onPageSelect}
-                visiblePageIds={filterText.trim() ? visiblePageIdsForFiltering : effectiveVisiblePageIds}
+                visiblePageIds={visiblePageIdsForDisplay}
                 onToggleFolderExpansion={handleToggleFolderExpansion}
                 selectedItemRef={selectedItemRef}
                 onDragDrop={async (dragData, dropTarget) => {
                   // For now, just call the parent handler if provided
                   if (onDragDrop) {
                     try {
-                      await onDragDrop(dragData, dropTarget, pageMetadata)
+                      await onDragDrop(dragData, dropTarget)
                     } catch (error) {
                       console.error('Parent onDragDrop handler failed:', error)
                       throw error
@@ -1420,6 +1480,11 @@ export default function FolderTree({
                 onGlobalDragEnd={handleGlobalDragEnd}
                 pageMetadata={pageMetadata}
                 currentlyHoveredFolders={currentlyHoveredFolders}
+                isFolderExpanded={isFolderExpanded}
+                isSearchActive={isSearchActive}
+                isDragging={isDragging}
+                temporaryExpandedFolders={temporaryExpandedFolders}
+                activeDropTarget={activeDropTarget}
               />
             ))}
           </List>

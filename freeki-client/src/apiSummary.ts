@@ -156,9 +156,10 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 
 #### FolderTree.tsx - Tree Visualization
 - Converts flat pageMetadata to visual tree
-- Search filtering with multiple modes
+- Search filtering with multiple modes  
 - Auto-expansion and selection tracking
-- Drag/drop disabled (using alphabetical sorting)
+- Enhanced drag/drop with folder-wide visual feedback
+- Bandwidth-efficient updates using returned metadata
 
 #### Semantic Components
 - Each component imports `createSemanticApi()` directly
