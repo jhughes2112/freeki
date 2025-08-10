@@ -7,14 +7,14 @@ export interface ArchitectureSummary {
   overview: string
 }
 
-export const API_SUMMARY_VERSION = '3.1.0'
+export const API_SUMMARY_VERSION = '3.2.0'
 export const LAST_UPDATED = '2024-12-19'
 
 // Export this summary for runtime access
 export default {
   version: API_SUMMARY_VERSION,
   lastUpdated: LAST_UPDATED,
-  overview: 'Immediate reactive state + drag-synced scrolling tree + hover-aware floating UI + runtime theming'
+  overview: 'Immediate reactive state + drag-synced scrolling tree + drag-responsive floating UI + runtime theming'
 } as ArchitectureSummary
 
 /*
@@ -126,7 +126,7 @@ width: 'calc(100% + 200px)'
 ```typescript
 // Floating overlay positioned relative to target row
 <Box ref={buttonOverlayRef} sx={{ position: 'absolute', zIndex: 20 }}>
-  {/* Buttons positioned at right edge, track Y position only */}
+  {}// Buttons positioned at right edge, track Y position only
 </Box>
 
 // Position calculation
@@ -141,6 +141,8 @@ overlay.style.top = `${topOffset}px`
 - **Hover color transitions** - proper CSS transitions on all interactive elements
 
 **HOVER FIX**: Both buttons use identical IconButton structure with `pointerEvents: 'auto'` override for consistent hover behavior and tooltip display.
+
+**DRAG HOVER FIX**: New Folder button includes explicit drag event handlers (`onDragEnter`, `onDragLeave`, `onDragOver`) to provide visual feedback during drag operations, since normal mouse events are suppressed during drag.
 
 ---
 

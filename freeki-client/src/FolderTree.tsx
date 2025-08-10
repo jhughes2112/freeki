@@ -118,7 +118,8 @@ export default function FolderTree({
   const [isDragging, setIsDragging] = useState(false)
   const [dragHoverFolder, setDragHoverFolder] = useState('')
   const [currentDraggedPath, setCurrentDraggedPath] = useState('')
-  
+  const [newFolderButtonHover, setNewFolderButtonHover] = useState(false) // Track drag hover state for button
+
   // Hover-to-expand during drag
   const [hoverExpandTimer, setHoverExpandTimer] = useState<number | null>(null)
   const [hoverExpandFolder, setHoverExpandFolder] = useState('')
@@ -430,6 +431,7 @@ export default function FolderTree({
     setIsDragging(false)
     setDragHoverFolder('__NONE__')
     setCurrentDraggedPath('')
+    setNewFolderButtonHover(false) // Reset button hover state
     
     // Clear hover-to-expand timer
     if (hoverExpandTimer) {
@@ -964,13 +966,28 @@ export default function FolderTree({
                   }
                   await handleCreateFolderDrop(dragHoverFolder, dragData)
                 }}
+                onDragEnter={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setNewFolderButtonHover(true)
+                  console.log('NEW FOLDER BUTTON: Drag enter detected')
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setNewFolderButtonHover(false)
+                  console.log('NEW FOLDER BUTTON: Drag leave detected')
+                }}
                 onDragOver={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
+                  setNewFolderButtonHover(true)
+                  console.log('NEW FOLDER BUTTON: Drag over detected')
                 }}
                 onDrop={async (e) => {
                   e.preventDefault()
                   e.stopPropagation()
+                  setNewFolderButtonHover(false)
                   
                   const dragDataString = e.dataTransfer.getData('application/json')
                   if (!dragDataString) return
@@ -980,10 +997,11 @@ export default function FolderTree({
                 }}
                 sx={{
                   p: 0.25,
-                  color: 'var(--freeki-primary)',
-                  backgroundColor: 'white',
+                  color: newFolderButtonHover ? 'white' : 'var(--freeki-primary)',
+                  backgroundColor: newFolderButtonHover ? 'var(--freeki-primary)' : 'white',
                   border: '1px solid var(--freeki-primary)',
                   pointerEvents: 'auto',
+                  transition: 'all 0.15s ease',
                   '&:hover': { 
                     backgroundColor: 'var(--freeki-primary)', 
                     color: 'white'
