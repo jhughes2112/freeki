@@ -8,8 +8,6 @@ import {
   IconButton,
   Avatar,
   Divider,
-  Snackbar,
-  Alert,
   useMediaQuery,
   Tooltip
 } from '@mui/material'
@@ -17,7 +15,6 @@ import {
   Edit,
   Save,
   Cancel,
-  Add,
   Delete,
   Settings,
   AccountCircle,
@@ -103,7 +100,6 @@ export default function App() {
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<boolean>(false)
-  const [showError, setShowError] = React.useState<boolean>(false)
   const isNarrowScreen = useMediaQuery('(max-width: 900px)')
   
   const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
@@ -499,10 +495,6 @@ export default function App() {
     )
   }
   
-  const handleCloseError = () => {
-    setShowError(false)
-  }
-  
   const handlePageSelect = async (metadata: PageMetadata) => {
     if (!semanticApi) return
     
@@ -587,15 +579,15 @@ export default function App() {
     globalState.set('isEditing', false)
   }
 
-  const handleNewPage = async () => {
+  const handleCreatePage = async (title: string, content: string, filepath: string, tags: string[]) => {
     if (!semanticApi) return
     
     try {
       const newMetadata = await semanticApi.createPage({
-        title: 'New Page',
-        content: '# New Page\n\nStart writing your content here...',
-        filepath: 'new-page.md',
-        tags: []
+        title,
+        content,
+        filepath,
+        tags
       })
 
       if (newMetadata) {
@@ -603,11 +595,15 @@ export default function App() {
         // Reload page metadata to include new page
         const pages = await semanticApi.listAllPages()
         globalState.set('pageMetadata', pages)
+        
+        // Select the newly created page
+        handlePageSelect(newMetadata)
       } else {
         console.error('Failed to create page: no response from server')
       }
     } catch (error) {
       console.error('Failed to create page:', error)
+      throw error
     }
   }
 
@@ -995,7 +991,7 @@ export default function App() {
           </Box>
 
           {/* Right side - Action buttons */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginLeft: 'auto' }}>
             {/* Edit/Save/Cancel buttons */}
             {currentPageMetadata && (
               <>
@@ -1045,17 +1041,6 @@ export default function App() {
                 )}
               </>
             )}
-
-            {/* New Page button */}
-            <EnhancedTooltip title="Create new page">
-              <IconButton 
-                sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-                onClick={handleNewPage} 
-                aria-label="Create new page"
-              >
-                <Add />
-              </IconButton>
-            </EnhancedTooltip>
 
             {/* Delete button */}
             {currentPageMetadata && (
@@ -1160,6 +1145,7 @@ export default function App() {
                 searchQuery={searchQuery}
                 pageMetadata={effectivePageMetadata}
                 onDragDrop={handleDragDrop}
+                onCreatePage={handleCreatePage}
                 semanticApi={semanticApi}
               />
             )}

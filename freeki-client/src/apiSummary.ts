@@ -153,8 +153,14 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 - Manages global state subscriptions
 - Handles all CRUD operations directly (no service layer)
 - Responsive layout with collapsible panels
+- **FIXED**: Top bar icons now properly right-aligned with `marginLeft: 'auto'`
 
-#### FolderTree.tsx - Tree Visualization
+#### FolderTree.tsx - Tree Visualization (REFACTORED)
+- **SPLIT INTO LOGICAL COMPONENTS**:
+  - `FolderTree.tsx` - Main container with search and state management
+  - `TreeNodeComponent.tsx` - Individual tree nodes with drag/drop
+  - `SearchDropdown.tsx` - Search configuration dropdown
+  - `folderStateManager.ts` - Folder expansion/visibility logic
 - Converts flat pageMetadata to visual tree
 - Search filtering with multiple modes  
 - Auto-expansion and selection tracking
@@ -165,6 +171,14 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 - Each component imports `createSemanticApi()` directly
 - No intermediate service layers
 - Clean separation of concerns
+
+#### useUserSettings - Data Storage Only (CLEANED UP)
+- **REMOVED**: Folder manipulation logic (moved to `folderStateManager.ts`)
+- **REMOVED**: Unused settings: `companyName`, `wikiTitle`, `lastSelectedPageId`, `defaultEditMode`, `autoSave`, `autoSaveInterval`, `searchMode`
+- **FOCUSED**: Only handles save/load of user preferences to localStorage
+- **SCOPE**: Only stores settings that are actually used by the application
+- No longer violates single responsibility principle
+- Clean interface for user preference management
 
 ---
 
@@ -213,20 +227,31 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 
 ```
 src/
-??? semanticApiInterface.ts    # Clean API contract
-??? realSemanticApi.ts         # Network implementation
-??? fakeSemanticApi.ts         # In-memory implementation  
-??? semanticApiFactory.ts      # One-line factory
-??? globalState.ts             # Reactive state system
-??? pageTreeUtils.ts           # Tree building + drag/drop
-??? themeService.ts            # CSS custom properties
-??? adminSettings.ts           # Color scheme definitions
-??? testData.ts                # Comprehensive test data
-??? App.tsx                    # Main orchestrator
-??? FolderTree.tsx             # Tree visualization
-??? useUserSettings.ts         # Local storage + user prefs
-??? ...other components
+?? semanticApiInterface.ts    # Clean API contract
+?? realSemanticApi.ts         # Network implementation
+?? fakeSemanticApi.ts         # In-memory implementation  
+?? semanticApiFactory.ts      # One-line factory
+?? globalState.ts             # Reactive state system
+?? pageTreeUtils.ts           # Tree building + drag/drop
+?? themeService.ts            # CSS custom properties
+?? adminSettings.ts           # Color scheme definitions
+?? testData.ts                # Comprehensive test data
+?? App.tsx                    # Main orchestrator
+?? FolderTree/                # Tree visualization (REFACTORED)
+?  ?? FolderTree.tsx          # Main tree container
+?  ?? TreeNodeComponent.tsx   # Individual tree nodes
+?  ?? SearchDropdown.tsx      # Search configuration
+?  ?? folderStateManager.ts   # Folder expansion logic
+?? useUserSettings.ts         # Local storage + user prefs (CLEANED)
+?? ...other components
 ```
+
+**REFACTORING COMPLETED**:
+- ? Split oversized FolderTree.tsx into logical components
+- ? Moved folder operations out of useUserSettings (violated SRP)
+- ? Fixed top bar alignment issue in App.tsx
+- ? Eliminated unused variables and imports
+- ? Clean compilation with zero errors
 
 This architecture provides a clean, maintainable foundation with unique solutions for:
 - API abstraction without over-engineering
@@ -234,6 +259,7 @@ This architecture provides a clean, maintainable foundation with unique solution
 - Simple alphabetical sorting across folder hierarchies  
 - Runtime theming without CSS rebuilds
 - Comprehensive testing without server dependencies
+- **Proper separation of concerns and single responsibility**
 
 */
 

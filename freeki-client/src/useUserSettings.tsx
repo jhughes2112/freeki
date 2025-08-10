@@ -18,6 +18,10 @@ export interface UserSettings {
   expandedFolderPaths: string[]  // Track which folder paths are expanded (independent of content)
   lastSelectedPageId?: string
   showMetadataPanel: boolean
+  defaultEditMode: 'wysiwyg' | 'markdown'
+  autoSave: boolean
+  autoSaveInterval: number
+  searchMode: 'full' | 'partial'
   // Search configuration - persistent across sessions
   searchConfig: {
     titles: boolean
@@ -45,6 +49,10 @@ const DEFAULT_SETTINGS: UserSettings = {
   visiblePageIds: [],  // Start with no pages visible (all folders collapsed)
   expandedFolderPaths: [],  // Start with no folders expanded
   showMetadataPanel: true,
+  defaultEditMode: 'wysiwyg',
+  autoSave: true,
+  autoSaveInterval: 30,
+  searchMode: 'full',
   searchConfig: {
     titles: true,
     tags: false,
