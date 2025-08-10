@@ -48,6 +48,7 @@
   flex-shrink: 0;
   z-index: 5;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  order: 3; /* Ensure metadata panel appears last in flex order */
 }
 
 .metadata-panel.collapsed {
@@ -63,6 +64,7 @@
   overflow: hidden;
   position: relative;
   z-index: 15;
+  order: 2; /* Ensure center content is between sidebar and metadata */
   transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -102,7 +104,8 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  opacity: 0.9;
+  opacity: 1;
+  box-shadow: 0 2px 6px var(--freeki-shadow-color);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 1000;
   cursor: pointer;
@@ -110,6 +113,8 @@
 
 .chevron-button:hover {
   opacity: 1;
+  box-shadow: 0 4px 12px var(--freeki-shadow-color);
+  transform: translateY(-50%) scale(1.05);
 }
 
 /* Theme classes for chevron buttons */
@@ -138,12 +143,12 @@
 
 .chevron-button.chevron-wide-screen.sidebar-open,
 .chevron-button.chevron-wide-screen.sidebar-closed {
-  left: -9px;
+  left: -16px;
 }
 
 .chevron-button.chevron-wide-screen.metadata-open,
 .chevron-button.chevron-wide-screen.metadata-closed {
-  right: -9px;
+  right: -16px;
 }
 
 /* Narrow screen chevron buttons - attached to panels and slide with them */
@@ -162,6 +167,7 @@
     left: 0;
     top: 0;
     z-index: 100;
+    order: initial; /* Reset order for absolute positioning */
   }
   
   .metadata-panel {
@@ -172,6 +178,7 @@
     right: 0;
     top: 0;
     z-index: 100;
+    order: initial; /* Reset order for absolute positioning */
   }
   
   /* Transform rules for panel visibility - only show 10px when collapsed */
@@ -200,6 +207,7 @@
     width: 100% !important;
     flex: 1 !important;
     z-index: 50 !important; /* Lower than panels so panel slivers show above */
+    order: initial !important; /* Reset order for absolute positioning */
   }
   
   /* Hide wide screen chevrons on narrow screens */

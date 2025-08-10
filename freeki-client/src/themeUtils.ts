@@ -122,6 +122,42 @@ export function injectGlobalStyles() {
       color: var(--freeki-p-font-color) !important;
       font-size: var(--freeki-p-font-size) !important;
     }
+
+    /* Search field styling - use folder panel colors for consistency */
+    .MuiTextField-root .MuiOutlinedInput-root {
+      background-color: var(--freeki-folders-background) !important;
+      color: var(--freeki-folders-font-color) !important;
+    }
+
+    .MuiTextField-root .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline {
+      border-color: var(--freeki-border-color) !important;
+    }
+
+    .MuiTextField-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+      border-color: var(--freeki-primary) !important;
+    }
+
+    .MuiTextField-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+      border-color: var(--freeki-primary) !important;
+    }
+
+    .MuiTextField-root .MuiOutlinedInput-input {
+      color: var(--freeki-folders-font-color) !important;
+    }
+
+    .MuiTextField-root .MuiOutlinedInput-input::placeholder {
+      opacity: 0.6 !important;
+    }
+
+    /* Fix invisible clear button and other icons in search field */
+    .MuiTextField-root .MuiIconButton-root {
+      color: var(--freeki-folders-font-color) !important;
+    }
+
+    .MuiTextField-root .MuiIconButton-root:hover {
+      color: var(--freeki-primary) !important;
+      backgroundColor: rgba(var(--freeki-primary-rgb), 0.1) !important;
+    }
   `
   document.head.appendChild(style)
 }

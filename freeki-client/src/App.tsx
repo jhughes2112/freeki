@@ -68,12 +68,12 @@ const EnhancedTooltip = ({ children, title, ...props }: {
 )
 
 export default function App() {
-  // API client instance - centralized and passed down
+  // API client instance
   const [semanticApi, setSemanticApi] = React.useState<ISemanticApi | null>(null)
   
-  const { settings, userInfo, isLoaded, updateSetting } = useUserSettings(semanticApi)
+  const { settings, userInfo, isLoaded, updateSetting, fetchUserInfo } = useUserSettings(semanticApi)
   
-  // Use global state with new structure
+  // Global state
   const adminSettings = useGlobalState('adminSettings')
   const pageMetadata = useGlobalState('pageMetadata')
   const currentPageMetadata = useGlobalState('currentPageMetadata')
@@ -85,32 +85,28 @@ export default function App() {
   
   const isNarrowScreen = useMediaQuery('(max-width: 900px)')
   
-  // Derive current layout state - this is READ-ONLY derived state
+  // Derive current layout state - READ-ONLY
   const currentLayout = React.useMemo(() => getCurrentLayoutState(settings), [settings, isNarrowScreen])
 
-  // Use search results if search is active and we have a query, otherwise use all pages
+  // Use search results if active, otherwise all pages
   const effectivePageMetadata = React.useMemo(() => {
     const hasQuery = searchQuery.trim().length > 0
-    if (hasQuery) {
-      return searchResults
-    } else {
-      return pageMetadata
-    }
+    return hasQuery ? searchResults : pageMetadata
   }, [searchResults, pageMetadata, searchQuery])
   
-  // Compute page tree from effective metadata (search results or all pages)
+  // Page tree
   const pageTree = React.useMemo(() => buildPageTree(effectivePageMetadata), [effectivePageMetadata])
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<boolean>(false)
 
-  // Initialize Semantic API - centralized creation
+  // Initialize Semantic API
   useEffect(() => {
     const api = createSemanticApi()
     setSemanticApi(api)
   }, [])
 
-  // Load admin settings and pages on startup
+  // Load initial data and fetch user info
   useEffect(() => {
     if (!semanticApi) return
     
@@ -118,25 +114,23 @@ export default function App() {
       const api = semanticApi!
       
       try {
-        // Load admin settings
+        // Load user info first
+        await fetchUserInfo()
+        
         globalState.set('isLoadingAdminSettings', true)
         const settings = await fetchAdminSettings(api)
         if (settings) {
           globalState.set('adminSettings', settings)
         }
         
-        // Load page metadata from API
         globalState.set('isLoadingPages', true)
         const pages = await api.listAllPages()
         if (pages.length > 0) {
           globalState.set('pageMetadata', pages)
-          
-          // Find the first page using the same sorting logic as the tree
           const sortedPages = sortPagesByDisplayOrder(pages)
           const defaultPage = sortedPages[0]
           
           globalState.set('currentPageMetadata', defaultPage)
-          // Load content for default page
           const pageWithContent = await api.getSinglePage(defaultPage.pageId)
           if (pageWithContent) {
             globalState.set('currentPageContent', {
@@ -145,14 +139,12 @@ export default function App() {
             })
           }
         } else {
-          // No pages available
           globalState.set('pageMetadata', [])
           globalState.set('currentPageMetadata', null)
           globalState.set('currentPageContent', null)
         }
       } catch (error) {
         console.error('Failed to load initial data:', error)
-        // Set empty state on error
         globalState.set('pageMetadata', [])
         globalState.set('currentPageMetadata', null)
         globalState.set('currentPageContent', null)
@@ -163,17 +155,9 @@ export default function App() {
     }
     
     loadInitialData()
-  }, [semanticApi])
+  }, [semanticApi, fetchUserInfo])
 
-  // Sync theme changes between user settings and global state
-  useEffect(() => {
-    if (isLoaded) {
-      // Theme is handled within userSettings, no need to sync to separate global theme
-      console.log('Theme updated:', settings.theme)
-    }
-  }, [settings.theme, isLoaded])
-
-  // Enhanced search function with configurable search types
+  // Search function
   const performSearch = async (query: string, searchConfig: { titles: boolean; tags: boolean; author: boolean; content: boolean }) => {
     globalState.set('searchQuery', query)
     
@@ -198,7 +182,6 @@ export default function App() {
         results = await semanticApi.searchPagesWithContent(query)
       }
       
-      // Perform client-side metadata search for selected types
       const clientSearchTypes = []
       if (searchConfig.titles) clientSearchTypes.push('titles')
       if (searchConfig.tags) clientSearchTypes.push('tags')
@@ -477,24 +460,17 @@ export default function App() {
     setShowAdminSettings(true)
   }
 
-  // Panel toggles - these directly update global state
+  // Panel toggles - directly update global state
   const handleSidebarToggle = () => {
-    const newLayout = isNarrowScreen ? settings.narrowScreenLayout : settings.wideScreenLayout
-    const newValue = !newLayout.showFolderPanel
+    const newValue = !currentLayout.showFolderPanel
     
     if (isNarrowScreen) {
       updateSetting('narrowScreenLayout', {
         ...settings.narrowScreenLayout,
-        showFolderPanel: newValue
+        showFolderPanel: newValue,
+        // In narrow mode, close metadata when opening folder panel
+        showMetadataPanel: newValue ? false : settings.narrowScreenLayout.showMetadataPanel
       })
-      // In narrow mode, close metadata when opening folder panel
-      if (newValue && settings.narrowScreenLayout.showMetadataPanel) {
-        updateSetting('narrowScreenLayout', {
-          ...settings.narrowScreenLayout,
-          showFolderPanel: newValue,
-          showMetadataPanel: false
-        })
-      }
     } else {
       updateSetting('wideScreenLayout', {
         ...settings.wideScreenLayout,
@@ -504,22 +480,15 @@ export default function App() {
   }
 
   const handleMetadataToggle = () => {
-    const newLayout = isNarrowScreen ? settings.narrowScreenLayout : settings.wideScreenLayout
-    const newValue = !newLayout.showMetadataPanel
+    const newValue = !currentLayout.showMetadataPanel
     
     if (isNarrowScreen) {
       updateSetting('narrowScreenLayout', {
         ...settings.narrowScreenLayout,
-        showMetadataPanel: newValue
+        showMetadataPanel: newValue,
+        // In narrow mode, close folder when opening metadata panel
+        showFolderPanel: newValue ? false : settings.narrowScreenLayout.showFolderPanel
       })
-      // In narrow mode, close folder when opening metadata panel
-      if (newValue && settings.narrowScreenLayout.showFolderPanel) {
-        updateSetting('narrowScreenLayout', {
-          ...settings.narrowScreenLayout,
-          showFolderPanel: false,
-          showMetadataPanel: newValue
-        })
-      }
     } else {
       updateSetting('wideScreenLayout', {
         ...settings.wideScreenLayout,
@@ -595,7 +564,6 @@ export default function App() {
 
     try {
       if (dragData.isFolder) {
-        // Handle folder drag operations - simplified for now
         const affectedPages = pageMetadata.filter((page: PageMetadata) => 
           page.path.startsWith(dragData.path + '/')
         )
@@ -604,7 +572,6 @@ export default function App() {
           return
         }
         
-        // Calculate new base path for the folder
         let newBasePath: string
         
         if (dropTarget.position === 'inside') {
@@ -663,7 +630,6 @@ export default function App() {
         globalState.set('pageMetadata', resortedPageMetadata)
         
       } else {
-        // Handle single file drag operations
         const draggedPage = pageMetadata.find((p: PageMetadata) => p.pageId === dragData.pageId)
         if (!draggedPage) {
           return
@@ -718,19 +684,16 @@ export default function App() {
           }
         }
       }
-
     } catch (error) {
       console.error('Error during drag and drop operation:', error)
     }
   }
 
-  // Handle theme toggle
   const handleThemeToggle = () => {
     const nextTheme = settings.theme === 'light' ? 'dark' : settings.theme === 'dark' ? 'auto' : 'light'
     updateSetting('theme', nextTheme)
   }
 
-  // Get theme icon and tooltip
   const getThemeIcon = () => {
     if (settings.theme === 'light') return <LightMode />
     if (settings.theme === 'dark') return <DarkMode />
@@ -743,7 +706,6 @@ export default function App() {
     return 'Switch to Light Mode'
   }
 
-  // Wait for settings and semantic API to load
   if (!isLoaded || !semanticApi) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -794,7 +756,7 @@ export default function App() {
             </EnhancedTooltip>
           </Box>
 
-          {/* Center - Page Title (if page is selected) */}
+          {/* Center - Page Title */}
           <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             {currentPageMetadata && (
               <Typography 
@@ -1020,16 +982,14 @@ export default function App() {
             {currentLayout.showFolderPanel ? <ChevronLeft /> : <ChevronRight />}
           </button>
           
-          {currentPageMetadata && currentLayout.showMetadataPanel && (
-            <button
-              className={`chevron-button chevron-wide-screen chevron-metadata-theme ${currentLayout.showMetadataPanel ? 'metadata-open' : 'metadata-closed'}`}
-              onClick={handleMetadataToggle}
-              aria-label={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
-              title={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
-            >
-              {currentLayout.showMetadataPanel ? <ChevronRight /> : <ChevronLeft />}
-            </button>
-          )}
+          <button
+            className={`chevron-button chevron-wide-screen chevron-metadata-theme ${currentLayout.showMetadataPanel ? 'metadata-open' : 'metadata-closed'}`}
+            onClick={handleMetadataToggle}
+            aria-label={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
+            title={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
+          >
+            {currentLayout.showMetadataPanel ? <ChevronRight /> : <ChevronLeft />}
+          </button>
 
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }} role="main">
             <Box sx={{ flex: 1, overflow: 'auto' }} role="main">
@@ -1054,7 +1014,7 @@ export default function App() {
         </div>
 
         {/* Right Metadata Panel */}  
-        {currentPageMetadata && currentPageContent && currentLayout.showMetadataPanel && (
+        {currentLayout.showMetadataPanel && (
           <div className={`metadata-panel${currentLayout.showMetadataPanel ? '' : ' collapsed'}${isNarrowScreen && currentLayout.showMetadataPanel ? ' narrow-opened' : ''}`} 
             style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
           >
@@ -1068,13 +1028,28 @@ export default function App() {
             </button>
 
             <FadePanelContent visible={currentLayout.showMetadataPanel}>
-              <PageMetadataPanel
-                metadata={currentPageMetadata}
-                content={currentPageContent}
-                onTagClick={handleTagClick}
-                onTagAdd={handleTagAdd}
-                onTagRemove={handleTagRemove}
-              />
+              {currentPageMetadata && currentPageContent ? (
+                <PageMetadataPanel
+                  metadata={currentPageMetadata}
+                  content={currentPageContent}
+                  onTagClick={handleTagClick}
+                  onTagAdd={handleTagAdd}
+                  onTagRemove={handleTagRemove}
+                />
+              ) : (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  height: 200,
+                  color: 'var(--freeki-page-details-font-color)',
+                  p: 2
+                }}>
+                  <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.6 }}>
+                    {currentPageMetadata ? 'Loading page content...' : 'No page selected'}
+                  </Typography>
+                </Box>
+              )}
             </FadePanelContent>
             
             {currentLayout.showMetadataPanel && !isNarrowScreen && (

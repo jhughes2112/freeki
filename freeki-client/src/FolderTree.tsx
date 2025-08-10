@@ -21,7 +21,6 @@ import {
 } from '@mui/material'
 import {
   Clear,
-  Tune,
   Folder,
   FolderOpen,
   Description,
@@ -32,6 +31,7 @@ import type { PageMetadata } from './globalState'
 import type { TreeNode, DropTarget } from './pageTreeUtils'
 import type { ISemanticApi } from './semanticApiInterface'
 import { useGlobalState, globalState } from './globalState'
+import SearchPipButton from './SearchPipButton'
 
 // Extended DragData interface with expanded folder state
 interface DragData {
@@ -113,16 +113,6 @@ export default function FolderTree({
     content: false
   })
   
-  // Drag state
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragHoverFolder, setDragHoverFolder] = useState('')
-  const [currentDraggedPath, setCurrentDraggedPath] = useState('')
-  const [newFolderButtonHover, setNewFolderButtonHover] = useState(false) // Track drag hover state for button
-
-  // Hover-to-expand during drag
-  const [hoverExpandTimer, setHoverExpandTimer] = useState<number | null>(null)
-  const [hoverExpandFolder, setHoverExpandFolder] = useState('')
-
   // Dialog state
   const [showNewPageDialog, setShowNewPageDialog] = useState(false)
   const [newPageTitle, setNewPageTitle] = useState('')
@@ -136,7 +126,17 @@ export default function FolderTree({
 
   // Search dropdown state
   const [searchMenuAnchor, setSearchMenuAnchor] = useState<null | HTMLElement>(null)
-  
+
+  // Drag state
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragHoverFolder, setDragHoverFolder] = useState('')
+  const [currentDraggedPath, setCurrentDraggedPath] = useState('')
+  const [newFolderButtonHover, setNewFolderButtonHover] = useState(false) // Track drag hover state for button
+
+  // Hover-to-expand during drag
+  const [hoverExpandTimer, setHoverExpandTimer] = useState<number | null>(null)
+  const [hoverExpandFolder, setHoverExpandFolder] = useState('')
+
   // Refs
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
@@ -235,12 +235,12 @@ export default function FolderTree({
       const itemElement = item as HTMLElement
       const itemStyle = window.getComputedStyle(itemElement)
       if (itemStyle.display === 'none') continue // Skip hidden items
-      
+          
       const textEl = itemElement.querySelector('.folder-tree-text') as HTMLElement
       const iconEl = itemElement.querySelector('.MuiListItemIcon-root') as HTMLElement
-      
+          
       if (!textEl || !iconEl) continue
-      
+          
       // Create measurement element for this item's text
       const measurer = document.createElement('span')
       measurer.style.position = 'absolute'
@@ -252,14 +252,14 @@ export default function FolderTree({
       measurer.style.fontWeight = textStyle.fontWeight
       measurer.textContent = textEl.textContent || ''
       document.body.appendChild(measurer)
-      
+          
       const textWidth = measurer.getBoundingClientRect().width
       document.body.removeChild(measurer)
-      
+          
       const iconWidth = iconEl.getBoundingClientRect().width + 6
       const paddingLeft = parseFloat(window.getComputedStyle(itemElement).paddingLeft) || 0
       const totalContentWidth = paddingLeft + iconWidth + textWidth
-      
+          
       if (totalContentWidth > actualVisibleWidth) {
         anyRowTooWide = true
         console.log(`${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
@@ -819,7 +819,7 @@ export default function FolderTree({
           }}
           sx={itemStyles}
         >
-          <ListItemIcon sx={{ minWidth: 20, mr: 0.75 }}>
+          <ListItemIcon sx={{ minWidth: 20, mr: 0.75, color: 'var(--freeki-folders-font-color)' }}>
             {node.isFolder ? (
               isExpanded ? <FolderOpen fontSize="small" /> : <Folder fontSize="small" />
             ) : (
@@ -865,7 +865,6 @@ export default function FolderTree({
       flexDirection: 'column',
       color: 'var(--freeki-folders-font-color)',
       backgroundColor: 'var(--freeki-folders-background)',
-      // Remove any padding that creates the gutter
       padding: 0,
       margin: 0
     }}>
@@ -886,12 +885,10 @@ export default function FolderTree({
                     <Clear fontSize="small" />
                   </IconButton>
                 )}
-                <IconButton 
-                  size="small" 
+                <SearchPipButton 
+                  searchConfig={searchConfig}
                   onClick={(e) => setSearchMenuAnchor(e.currentTarget)}
-                >
-                  <Tune fontSize="small" />
-                </IconButton>
+                />
               </>
             )
           }}
