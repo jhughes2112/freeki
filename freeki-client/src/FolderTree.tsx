@@ -180,8 +180,8 @@ export default function FolderTree({
     // Find the target row for buttons (current page folder or drag hover folder)
     let targetElement: HTMLElement | null = null
     
-    if (isDragging && dragHoverFolder) {
-      // During drag - position at hover folder
+    if (isDragging && dragHoverFolder !== undefined && dragHoverFolder !== '__NONE__') {
+      // During drag - position at hover folder (including root, but not sentinel value)
       const hoverElements = containerRef.current?.querySelectorAll('.MuiListItem-root')
       if (hoverElements) {
         for (const element of hoverElements) {
@@ -222,7 +222,7 @@ export default function FolderTree({
     const isFolder = listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderIcon"]') || listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderOpenIcon"]')
     const itemType = isFolder ? 'FOLDER' : 'FILE'
     
-    console.log(`🔍 ${itemType} ROW_HOVER: "${textContent}"`)
+    console.log(`${itemType} ROW_HOVER: "${textContent}"`)
     
     // Check if ANY visible rows are too wide for the container
     const allListItems = container.querySelectorAll('.MuiListItem-root')
@@ -262,7 +262,7 @@ export default function FolderTree({
       
       if (totalContentWidth > actualVisibleWidth) {
         anyRowTooWide = true
-        console.log(`📏 ${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
+        console.log(`${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
         break
       }
     }
@@ -272,12 +272,12 @@ export default function FolderTree({
       const iconElement = listItem.querySelector('.MuiListItemIcon-root') as HTMLElement
       if (iconElement) {
         const paddingLeft = parseFloat(window.getComputedStyle(listItem).paddingLeft) || 0
-        console.log(`✅ ${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
+        console.log(`${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
         container.scrollLeft = paddingLeft
       }
     } else {
       // All content fits - reset to natural position
-      console.log(`✅ ${itemType}: All content fits, resetting to scroll=0`)
+      console.log(`${itemType}: All content fits, resetting to scroll=0`)
       container.scrollLeft = 0
     }
   }
@@ -423,12 +423,12 @@ export default function FolderTree({
   const handleDragStart = (draggedPath: string) => {
     setIsDragging(true)
     setCurrentDraggedPath(draggedPath)
-    setDragHoverFolder('')
+    setDragHoverFolder('__NONE__') // Use sentinel value instead of empty string to prevent initial button showing
   }
 
   const handleDragEnd = () => {
     setIsDragging(false)
-    setDragHoverFolder('')
+    setDragHoverFolder('__NONE__')
     setCurrentDraggedPath('')
     
     // Clear hover-to-expand timer
@@ -449,14 +449,14 @@ export default function FolderTree({
     
     // Can't drop a parent folder into any of its children or descendants
     if (targetPath.startsWith(dragPath + '/')) {
-      console.log(`⛔ Illegal drop: Cannot move parent folder '${dragPath}' into its child '${targetPath}'`)
+      console.log(`Illegal drop: Cannot move parent folder '${dragPath}' into its child '${targetPath}'`)
       return false
     }
     
     return true
   }
 
-  // Enhanced drag enter with validation
+  // Enhanced drag enter with validation - also trigger row hover for scroll synchronization
   const handleDragEnter = (folderPath: string) => {
     if (isDragging) {
       // Only allow valid drop targets
@@ -465,6 +465,25 @@ export default function FolderTree({
       }
       
       setDragHoverFolder(folderPath)
+      
+      // Find the target element and trigger row hover to sync scrolling
+      const container = containerRef.current
+      if (container) {
+        const folderElements = container.querySelectorAll('.MuiListItem-root')
+        for (const element of folderElements) {
+          const pathData = element.getAttribute('data-folder-path')
+          if (pathData === folderPath) {
+            const listItem = element as HTMLElement
+            const textEl = listItem.querySelector('.folder-tree-text') as HTMLElement
+            
+            // Trigger the same scrolling logic as row hover
+            if (textEl) {
+              handleRowHover(listItem, textEl.textContent || '')
+            }
+            break
+          }
+        }
+      }
       
       // Auto-expand collapsed folders on hover during drag
       if (folderPath !== hoverExpandFolder) {
@@ -537,7 +556,7 @@ export default function FolderTree({
     
     // Validate the drop operation
     if (!isValidDropTarget(dragData.path, targetFolderPath)) {
-      console.log(`⛔ Drop rejected: Invalid target for '${dragData.path}' -> '${targetFolderPath}'`)
+      console.log(`Drop rejected: Invalid target for '${dragData.path}' -> '${targetFolderPath}'`)
       return
     }
     
@@ -548,7 +567,7 @@ export default function FolderTree({
         position: 'inside'
       }
       
-      console.log(`✅ Dropping ${dragData.path} into ${targetFolderPath}`)
+      console.log(`Dropping ${dragData.path} into ${targetFolderPath}`)
       await onDragDrop(dragData, dropTarget)
       
       // Auto-expand the target folder and restore child folder expansion state
@@ -570,7 +589,7 @@ export default function FolderTree({
       console.error('Failed to drop item:', error)
     } finally {
       setIsDragging(false)
-      setDragHoverFolder('')
+      setDragHoverFolder('__NONE__')
     }
   }
 
@@ -580,7 +599,7 @@ export default function FolderTree({
     
     // Validate the drop operation first
     if (!isValidDropTarget(draggedData.path, targetFolderPath)) {
-      console.log(`⛔ Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`)
+      console.log(`Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`)
       return
     }
     
@@ -598,7 +617,7 @@ export default function FolderTree({
     
     // Final validation before creating folder
     if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
-      console.log(`⛔ Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
+      console.log(`Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
       return
     }
     
@@ -610,7 +629,7 @@ export default function FolderTree({
         position: 'inside'
       }
       
-      console.log(`✅ Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
+      console.log(`Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
       await onDragDrop(newFolderDragData, dropTarget)
       
       // Auto-expand the new folder and restore child folder expansion state
@@ -625,7 +644,7 @@ export default function FolderTree({
       console.error('Failed to create folder and move content:', error)
     } finally {
       setIsDragging(false)
-      setDragHoverFolder('')
+      setDragHoverFolder('__NONE__')
 
       setCurrentDraggedPath('')
       
@@ -891,11 +910,15 @@ export default function FolderTree({
             height: 32,
             display: 'none', // Hidden by default
             zIndex: 20,
-            pointerEvents: 'none', // Allow clicks to pass through empty areas
+            pointerEvents: 'none', // Container blocks events...
             gap: 1,
             alignItems: 'center',
             justifyContent: 'flex-end',
-            flexDirection: 'row'
+            flexDirection: 'row',
+            // But child buttons override this
+            '& > *': {
+              pointerEvents: 'auto'
+            }
           }}
         >
           {/* New Page button for current page's folder */}
@@ -915,7 +938,7 @@ export default function FolderTree({
                   color: 'var(--freeki-primary)',
                   backgroundColor: 'white',
                   border: '1px solid var(--freeki-primary)',
-                  pointerEvents: 'auto', // Enable clicks on the button
+                  pointerEvents: 'auto',
                   '&:hover': { backgroundColor: 'var(--freeki-primary)', color: 'white' }
                 }}
               >
@@ -925,21 +948,21 @@ export default function FolderTree({
           )}
 
           {/* New Folder drop zone during drag */}
-          {isDragging && dragHoverFolder && (
-            <Tooltip title="Drop here to create new folder" placement="left" arrow>
+          {isDragging && dragHoverFolder !== undefined && dragHoverFolder !== '__NONE__' && (
+            <Tooltip title="New Folder" placement="left" arrow>
               <IconButton
                 size="small"
-                sx={{
-                  p: 0.25,
-                  color: 'white',
-                  backgroundColor: 'var(--freeki-primary)',
-                  border: '1px solid var(--freeki-primary)',
-                  pointerEvents: 'auto', // Enable drag events on the drop zone
-                  '&:hover': { 
-                    backgroundColor: 'white', 
-                    color: 'var(--freeki-primary)',
-                    borderColor: 'var(--freeki-primary)'
+                onClick={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  
+                  // Simulate a drop event
+                  const dragData = {
+                    pageId: currentDraggedPath,
+                    isFolder: true,
+                    path: currentDraggedPath
                   }
+                  await handleCreateFolderDrop(dragHoverFolder, dragData)
                 }}
                 onDragOver={(e) => {
                   e.preventDefault()
@@ -954,6 +977,17 @@ export default function FolderTree({
                   
                   const dragData = JSON.parse(dragDataString)
                   await handleCreateFolderDrop(dragHoverFolder, dragData)
+                }}
+                sx={{
+                  p: 0.25,
+                  color: 'var(--freeki-primary)',
+                  backgroundColor: 'white',
+                  border: '1px solid var(--freeki-primary)',
+                  pointerEvents: 'auto',
+                  '&:hover': { 
+                    backgroundColor: 'var(--freeki-primary)', 
+                    color: 'white'
+                  }
                 }}
               >
                 <CreateNewFolder fontSize="small" />
@@ -1102,7 +1136,7 @@ export default function FolderTree({
                 whiteSpace: 'nowrap'
               }}
             >
-              /{newPageTargetFolder ? `${newPageTargetFolder}/` : ''}
+              /{newPageTargetFolder ? `${newPageTargetFolder}/` : '' }
             </Typography>
             <TextField
               autoFocus
@@ -1132,7 +1166,9 @@ export default function FolderTree({
                     if (input && showNewPageDialog) {
                       setTimeout(() => {
                         input.focus()
-                        input.select()
+                        if (input.select && typeof input.select === 'function') {
+                          input.select()
+                        }
                       }, 100)
                     }
                   }
@@ -1194,14 +1230,8 @@ export default function FolderTree({
           setNewFolderTargetPath('')
           setNewFolderDragData(null)
           setIsDragging(false)
-          setDragHoverFolder('')
+          setDragHoverFolder('__NONE__')
           setCurrentDraggedPath('')
-          
-          if (hoverExpandTimer) {
-            clearTimeout(hoverExpandTimer)
-            setHoverExpandTimer(null)
-          }
-          setHoverExpandFolder('')
         }}
         disableRestoreFocus
         maxWidth="md"
@@ -1251,7 +1281,7 @@ export default function FolderTree({
                 whiteSpace: 'nowrap'
               }}
             >
-              /{newFolderTargetPath ? `${newFolderTargetPath}/` : ''}
+              /{newFolderTargetPath ? `${newFolderTargetPath}/` : '' }
             </Typography>
             <TextField
               autoFocus
@@ -1281,7 +1311,9 @@ export default function FolderTree({
                     if (input && showNewFolderDialog) {
                       setTimeout(() => {
                         input.focus()
-                        input.select()
+                        if (input.select && typeof input.select === 'function') {
+                          input.select()
+                        }
                       }, 100)
                     }
                   }
@@ -1310,14 +1342,8 @@ export default function FolderTree({
               setNewFolderTargetPath('')
               setNewFolderDragData(null)
               setIsDragging(false)
-              setDragHoverFolder('')
+              setDragHoverFolder('__NONE__')
               setCurrentDraggedPath('')
-            
-              if (hoverExpandTimer) {
-                clearTimeout(hoverExpandTimer)
-                setHoverExpandTimer(null)
-              }
-              setHoverExpandFolder('')
             }}
             sx={{ 
               borderRadius: 'var(--freeki-border-radius)',
