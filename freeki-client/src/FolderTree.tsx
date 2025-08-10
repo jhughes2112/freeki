@@ -275,8 +275,9 @@ export default function FolderTree({
   }
 
   // Drag handlers
-  const handleDragStart = () => {
+  const handleDragStart = (draggedPath: string) => {
     setIsDragging(true)
+    setCurrentDraggedPath(draggedPath)
     setDragHoverFolder('') // Start at root
   }
 
@@ -286,7 +287,7 @@ export default function FolderTree({
     setDragHoverFolder('')
     setCurrentDraggedPath('')
     
-    // Clear hover-to-expand state
+    // Clear hover-to-expand timer
     if (hoverExpandTimer) {
       clearTimeout(hoverExpandTimer)
       setHoverExpandTimer(null)
@@ -297,6 +298,26 @@ export default function FolderTree({
   const handleDragEnter = (folderPath: string) => {
     if (isDragging) {
       setDragHoverFolder(folderPath)
+      
+      // FIXED: Auto-expand collapsed folders on hover during drag
+      if (folderPath !== hoverExpandFolder) {
+        // Clear previous timer
+        if (hoverExpandTimer) {
+          clearTimeout(hoverExpandTimer)
+        }
+        
+        setHoverExpandFolder(folderPath)
+        
+        // Set new timer for this folder (1 second hover)
+        if (!expandedFolders.has(folderPath) && folderPath !== '') {
+          const timerId = setTimeout(() => {
+            console.log(`?? Auto-expanding folder ${folderPath} after hover`)
+            setExpandedFolders(prev => new Set([...prev, folderPath]))
+          }, 1000)
+          
+          setHoverExpandTimer(timerId)
+        }
+      }
     }
   }
 
@@ -409,6 +430,14 @@ export default function FolderTree({
       // FIXED: ALWAYS end drag state after drop, success or failure
       setIsDragging(false)
       setDragHoverFolder('')
+      setCurrentDraggedPath('')
+      
+      // Clear hover timer
+      if (hoverExpandTimer) {
+        clearTimeout(hoverExpandTimer)
+        setHoverExpandTimer(null)
+      }
+      setHoverExpandFolder('')
     }
   }
 
@@ -460,9 +489,13 @@ export default function FolderTree({
     const hasChildren = node.children && node.children.length > 0
     const isCurrentPageFolder = node.isFolder && node.metadata.path === getCurrentPageFolder()
     
+    // FIXED: Check if this folder is being dragged
+    const isBeingDragged = isDragging && currentDraggedPath === node.metadata.path
+    const isDraggedIntoItself = isDragging && currentDraggedPath === node.metadata.path
+    
     // Drag styling
-    const isDragHover = isDragging && dragHoverFolder === node.metadata.path
-    const showNewFolderZone = isDragging && dragHoverFolder === node.metadata.path
+    const isDragHover = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself
+    const showNewFolderZone = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself
     
     const itemStyles = {
       pl: 1 + level * 1.5,
@@ -479,6 +512,14 @@ export default function FolderTree({
       ...(isDragHover && {
         backgroundColor: 'rgba(var(--freeki-primary-rgb), 0.1)',
         borderLeft: '3px solid var(--freeki-primary)'
+      }),
+      ...(isBeingDragged && {
+        opacity: 0.5
+      }),
+      // FIXED: Show hover-to-expand visual feedback
+      ...(isDragging && !isExpanded && hoverExpandFolder === node.metadata.path && node.isFolder && {
+        backgroundColor: 'rgba(var(--freeki-secondary-rgb, 255, 165, 0), 0.1)',
+        borderLeft: '2px dashed orange'
       })
     }
 
@@ -511,7 +552,7 @@ export default function FolderTree({
               path: node.metadata.path,
               expandedChildFolders
             }));
-            handleDragStart()
+            handleDragStart(node.metadata.path)
           }}
           onDragEnd={handleDragEnd}
           onDragEnter={(e) => {
@@ -568,8 +609,8 @@ export default function FolderTree({
             </Typography>
           </Box>
 
-          {/* New Page button for current page's folder */}
-          {isCurrentPageFolder && !isDragging && (
+          {/* New Page button for current page's folder - FIXED: hide when dragging this folder */}
+          {isCurrentPageFolder && !isDragging && !isBeingDragged && (
             <IconButton
               size="small"
               onClick={(e) => {
@@ -797,9 +838,16 @@ export default function FolderTree({
           setNewFolderName('')
           setNewFolderTargetPath('')
           setNewFolderDragData(null)
-          // Also clear drag state when canceling
           setIsDragging(false)
           setDragHoverFolder('')
+          setCurrentDraggedPath('')
+          
+          // Clear hover timer
+          if (hoverExpandTimer) {
+            clearTimeout(hoverExpandTimer)
+            setHoverExpandTimer(null)
+          }
+          setHoverExpandFolder('')
         }}
         disableRestoreFocus
       >
@@ -845,6 +893,14 @@ export default function FolderTree({
             setNewFolderDragData(null)
             setIsDragging(false)
             setDragHoverFolder('')
+            setCurrentDraggedPath('')
+            
+            // Clear hover timer
+            if (hoverExpandTimer) {
+              clearTimeout(hoverExpandTimer)
+              setHoverExpandTimer(null)
+            }
+            setHoverExpandFolder('')
           }}>Cancel</Button>
           <Button onClick={handleNewFolderConfirm} disabled={!newFolderName.trim()} variant="contained">
             Create Folder
