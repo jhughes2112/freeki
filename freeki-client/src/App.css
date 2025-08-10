@@ -143,12 +143,12 @@
 
 .chevron-button.chevron-wide-screen.sidebar-open,
 .chevron-button.chevron-wide-screen.sidebar-closed {
-  left: -16px;
+  left: -9px;
 }
 
 .chevron-button.chevron-wide-screen.metadata-open,
 .chevron-button.chevron-wide-screen.metadata-closed {
-  right: -16px;
+  right: -9px;
 }
 
 /* Narrow screen chevron buttons - attached to panels and slide with them */

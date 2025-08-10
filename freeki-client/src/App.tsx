@@ -1014,66 +1014,65 @@ export default function App() {
         </div>
 
         {/* Right Metadata Panel */}  
-        {currentLayout.showMetadataPanel && (
-          <div className={`metadata-panel${currentLayout.showMetadataPanel ? '' : ' collapsed'}${isNarrowScreen && currentLayout.showMetadataPanel ? ' narrow-opened' : ''}`} 
-            style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
+        <div 
+          className={`metadata-panel${currentLayout.showMetadataPanel ? '' : ' collapsed'}${isNarrowScreen && currentLayout.showMetadataPanel ? ' narrow-opened' : ''}`} 
+          style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
+        >
+          <button
+            className={`chevron-button chevron-narrow-screen metadata-chevron chevron-metadata-theme ${currentLayout.showMetadataPanel ? 'metadata-open' : 'metadata-closed'}`}
+            onClick={handleMetadataToggle}
+            aria-label={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
+            title={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
           >
-            <button
-              className={`chevron-button chevron-narrow-screen metadata-chevron chevron-metadata-theme ${currentLayout.showMetadataPanel ? 'metadata-open' : 'metadata-closed'}`}
-              onClick={handleMetadataToggle}
-              aria-label={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
-              title={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
-            >
-              {currentLayout.showMetadataPanel ? <ChevronRight /> : <ChevronLeft />}
-            </button>
+            {currentLayout.showMetadataPanel ? <ChevronRight /> : <ChevronLeft />}
+          </button>
 
-            <FadePanelContent visible={currentLayout.showMetadataPanel}>
-              {currentPageMetadata && currentPageContent ? (
-                <PageMetadataPanel
-                  metadata={currentPageMetadata}
-                  content={currentPageContent}
-                  onTagClick={handleTagClick}
-                  onTagAdd={handleTagAdd}
-                  onTagRemove={handleTagRemove}
-                />
-              ) : (
-                <Box sx={{ 
-                  display: 'flex', 
-                  justifyContent: 'center', 
-                  alignItems: 'center', 
-                  height: 200,
-                  color: 'var(--freeki-page-details-font-color)',
-                  p: 2
-                }}>
-                  <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.6 }}>
-                    {currentPageMetadata ? 'Loading page content...' : 'No page selected'}
-                  </Typography>
-                </Box>
-              )}
-            </FadePanelContent>
-            
-            {currentLayout.showMetadataPanel && !isNarrowScreen && (
-              <Box
-                onMouseDown={handleMetadataResize}
-                tabIndex={0}
-                aria-label="Metadata panel width resizer"
-                sx={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: 4,
-                  height: '100%',
-                  backgroundColor: 'transparent',
-                  cursor: 'col-resize',
-                  '&:hover': {
-                    backgroundColor: 'primary.main',
-                  },
-                  zIndex: 1
-                }}
+          <FadePanelContent visible={currentLayout.showMetadataPanel}>
+            {currentPageMetadata && currentPageContent ? (
+              <PageMetadataPanel
+                metadata={currentPageMetadata}
+                content={currentPageContent}
+                onTagClick={handleTagClick}
+                onTagAdd={handleTagAdd}
+                onTagRemove={handleTagRemove}
               />
+            ) : (
+              <Box sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                height: 200,
+                color: 'var(--freeki-page-details-font-color)',
+                p: 2
+              }}>
+                <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.6 }}>
+                  {currentPageMetadata ? 'Loading page content...' : 'No page selected'}
+                </Typography>
+              </Box>
             )}
-          </div>
-        )}
+          </FadePanelContent>
+          
+          {currentLayout.showMetadataPanel && !isNarrowScreen && (
+            <Box
+              onMouseDown={handleMetadataResize}
+              tabIndex={0}
+              aria-label="Metadata panel width resizer"
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: 4,
+                height: '100%',
+                backgroundColor: 'transparent',
+                cursor: 'col-resize',
+                '&:hover': {
+                  backgroundColor: 'primary.main',
+                },
+                zIndex: 1
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* Footer */}
