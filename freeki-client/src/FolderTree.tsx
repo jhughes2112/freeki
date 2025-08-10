@@ -148,6 +148,51 @@ export default function FolderTree({
     }
   }, [externalSearchQuery])
 
+  // Update button positions when container scrolls or resizes
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    
+    const updateButtonPositions = () => {
+      const containerRect = container.getBoundingClientRect()
+      const scrollLeft = container.scrollLeft
+      const actualVisibleWidth = containerRect.width - 200 // Subtract the extra 200px buffer
+      const rightEdgePosition = scrollLeft + actualVisibleWidth - 40 // 40px from right edge to account for button width
+      
+      // Update all New Page buttons - ALWAYS at right edge
+      const newPageButtons = container.querySelectorAll('.new-page-button')
+      newPageButtons.forEach((button) => {
+        const buttonElement = button as HTMLElement
+        buttonElement.style.left = `${rightEdgePosition}px`
+      })
+      
+      // Update all New Folder drop zones - ALWAYS at right edge
+      const newFolderZones = container.querySelectorAll('.new-folder-zone')
+      newFolderZones.forEach((zone) => {
+        const zoneElement = zone as HTMLElement
+        zoneElement.style.left = `${rightEdgePosition - 10}px` // Slightly more left to account for wider drop zone
+      })
+    }
+    
+    // Update on scroll
+    container.addEventListener('scroll', updateButtonPositions)
+    // Update on resize (when panel size changes)
+    const resizeObserver = new ResizeObserver(updateButtonPositions)
+    resizeObserver.observe(container)
+    // Update immediately and whenever anything changes
+    updateButtonPositions()
+    
+    // Also update when dragging state changes to ensure buttons stay at right edge
+    const mutationObserver = new MutationObserver(updateButtonPositions)
+    mutationObserver.observe(container, { childList: true, subtree: true })
+    
+    return () => {
+      container.removeEventListener('scroll', updateButtonPositions)
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+    }
+  }, [pageTree, expandedFolderPaths, isDragging, dragHoverFolder]) // Re-run when anything changes
+
   // Smart text positioning on row hover - simple logic: check if ALL content fits, otherwise show icon at left
   const handleRowHover = (listItem: HTMLElement, textContent: string) => {
     if (!containerRef.current) return
@@ -765,14 +810,22 @@ export default function FolderTree({
           {/* New Page button for current page's folder */}
           {isCurrentPageFolder && !isDragging && !isBeingDragged && (
             <IconButton
+              className="new-page-button"
               size="small"
               onClick={(e) => {
                 e.stopPropagation()
                 handleNewPageClick(node.metadata.path)
               }}
               sx={{
+                position: 'absolute',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                left: 0, // Will be dynamically updated by scroll listener
                 p: 0.25,
                 color: 'var(--freeki-primary)',
+                backgroundColor: 'white',
+                border: '1px solid var(--freeki-primary)',
+                zIndex: 10,
                 '&:hover': { backgroundColor: 'var(--freeki-primary)', color: 'white' }
               }}
             >
@@ -783,9 +836,10 @@ export default function FolderTree({
           {/* New Folder drop zone during drag - only for valid targets */}
           {showNewFolderZone && (
             <Box
+              className="new-folder-zone"
               sx={{
                 position: 'absolute',
-                right: 8,
+                left: 0, // Will be dynamically updated by scroll listener
                 top: '50%',
                 transform: 'translateY(-50%)',
                 padding: '4px 8px',
@@ -873,7 +927,7 @@ export default function FolderTree({
         ref={containerRef} 
         sx={{ 
           flex: 1, 
-          overflow: 'hidden', // FIXED: Enable horizontal scrolling
+          overflow: 'hidden', // Enable horizontal scrolling
           scrollbarWidth: 'none', // Firefox
           msOverflowStyle: 'none', // IE/Edge
           '&::-webkit-scrollbar': { // Chrome/Safari/WebKit
