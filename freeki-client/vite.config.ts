@@ -2,8 +2,18 @@ import { defineConfig } from 'vite';
 import plugin from '@vitejs/plugin-react';
 
 // https://vitejs.dev/config/
+// vite.config.ts
 export default defineConfig({
-    plugins: [plugin()],
+	  plugins: [plugin(), {
+		name: 'force-full-reload',
+		handleHotUpdate({ file, server }) {
+		  if (file.endsWith('.css')) {
+			server.ws.send({ type: 'full-reload' });
+			return [];
+		  }
+		},
+	  }],
+
 	build: {
       outDir: 'static-root',
       emptyOutDir: true
@@ -38,6 +48,9 @@ export default defineConfig({
                 secure: false,
             },
         },
+		hmr: {
+			overlay: true,
+		},
         watch: {
             // Ignore heavy directories that cause OnIgnoreList slowness
             ignored: [

@@ -136,8 +136,14 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
     key: K, 
     value: UserSettings[K]
   ) => {
-    saveSettings({ [key]: value })
-  }, [saveSettings])
+    try {
+      const updatedSettings = { ...settings, [key]: value }
+      setSettings(updatedSettings)
+      localStorage.setItem(deviceKey, JSON.stringify(updatedSettings))
+    } catch (error) {
+      console.warn('Failed to save user setting:', error)
+    }
+  }, [settings, deviceKey]) // Made this more stable by inlining the logic
   
   const resetSettings = useCallback(() => {
     try {

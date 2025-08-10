@@ -42,6 +42,9 @@ export interface AppState {
   searchQuery: string
   searchResults: PageMetadata[]
   
+  // Folder expansion state - which folder paths are expanded
+  expandedFolderPaths: string[]
+  
   // UI state
   theme: 'light' | 'dark' | 'auto'
   sidebarCollapsed: boolean
@@ -60,8 +63,8 @@ type PropertyPath = string
 // Type for state change listeners with property paths
 export type PropertyChangeListener = (
   path: PropertyPath,
-  newValue: any,
-  oldValue: any,
+  newValue: unknown,
+  oldValue: unknown,
   currentState: AppState,
   modifiedState: AppState
 ) => void
@@ -74,7 +77,7 @@ function deepClone<T>(obj: T): T {
   if (typeof obj === 'object') {
     const cloned = {} as T
     for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
         cloned[key] = deepClone(obj[key])
       }
     }
@@ -99,6 +102,7 @@ class GlobalStateManager {
       isEditing: false,
       searchQuery: '',
       searchResults: [],
+      expandedFolderPaths: [], // Start with no folders expanded (root will be added by FolderTree)
       theme: 'light',
       sidebarCollapsed: false,
       metadataCollapsed: false,
@@ -134,7 +138,7 @@ class GlobalStateManager {
   }
 
   // Set nested property using dot notation
-  setProperty(path: PropertyPath, value: any): void {
+  setProperty(path: PropertyPath, value: unknown): void {
     const parts = path.split('.')
     const oldValue = this.getProperty(path)
     if (oldValue === value) return // Skip if no change
@@ -147,30 +151,30 @@ class GlobalStateManager {
   }
 
   // Helper to update nested property immutably
-  private updateNestedProperty(obj: any, parts: string[], value: any): any {
+  private updateNestedProperty(obj: AppState, parts: string[], value: unknown): AppState {
     if (parts.length === 1) {
-      return { ...obj, [parts[0]]: value }
+      return { ...obj, [parts[0]]: value } as AppState
     }
     
     const [firstPart, ...restParts] = parts
-    const currentValue = obj[firstPart] || {}
+    const currentValue = (obj as unknown as Record<string, unknown>)[firstPart] || {}
     
     return {
       ...obj,
-      [firstPart]: this.updateNestedProperty(currentValue, restParts, value)
-    }
+      [firstPart]: this.updateNestedProperty(currentValue as AppState, restParts, value)
+    } as AppState
   }
 
   // Get nested property using dot notation
-  getProperty(path: PropertyPath): any {
+  getProperty(path: PropertyPath): unknown {
     const parts = path.split('.')
-    let target = this.state as any
+    let target = this.state as unknown as Record<string, unknown>
     
     for (const part of parts) {
       if (target === null || target === undefined || typeof target !== 'object') {
         return undefined
       }
-      target = target[part]
+      target = target[part] as Record<string, unknown>
     }
     
     return target
@@ -183,12 +187,13 @@ class GlobalStateManager {
     
     // Notify all changed properties
     Object.entries(updates).forEach(([key, value]) => {
-      this.notifyListeners(key, value, (this.state as any)[key])
+      const typedKey = key as keyof AppState
+      this.notifyListeners(typedKey, value, this.state[typedKey])
     })
   }
 
   // Immediate listener notification
-  private notifyListeners(path: PropertyPath, newValue: any, oldValue: any): void {
+  private notifyListeners(path: PropertyPath, newValue: unknown, oldValue: unknown): void {
     // Get parent paths for nested property notifications
     const parentPaths = this.getParentPaths(path)
     
@@ -246,13 +251,79 @@ class GlobalStateManager {
 // Create and export global state manager instance
 export const globalState = new GlobalStateManager()
 
+// Persistence manager for automatically saving certain state to localStorage
+class StatePersistenceManager {
+  private deviceKey: string
+  
+  constructor() {
+    this.deviceKey = this.getDeviceKey()
+    this.setupObservers()
+    this.loadInitialState()
+  }
+  
+  private getDeviceKey(): string {
+    const screen = `${window.screen.width}x${window.screen.height}`
+    const isMobile = window.innerWidth <= 768
+    const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024
+    
+    let deviceType = 'desktop'
+    if (isMobile) deviceType = 'mobile'
+    else if (isTablet) deviceType = 'tablet'
+    
+    const ua = navigator.userAgent
+    let hash = 0
+    for (let i = 0; i < ua.length; i++) {
+      const char = ua.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    
+    return `freeki-settings-${deviceType}-${screen}-${Math.abs(hash).toString(36)}`
+  }
+  
+  private setupObservers(): void {
+    // Auto-save expandedFolderPaths when it changes
+    globalState.subscribe('expandedFolderPaths', (path, newValue) => {
+      if (Array.isArray(newValue)) {
+        this.saveExpandedFolders(newValue)
+      }
+    })
+  }
+  
+  private loadInitialState(): void {
+    // Load expanded folders from localStorage
+    try {
+      const saved = localStorage.getItem(`${this.deviceKey}-expandedFolders`)
+      if (saved) {
+        const expandedFolders = JSON.parse(saved) as string[]
+        if (Array.isArray(expandedFolders)) {
+          globalState.set('expandedFolderPaths', expandedFolders)
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load expanded folders:', error)
+    }
+  }
+  
+  private saveExpandedFolders(expandedFolders: string[]): void {
+    try {
+      localStorage.setItem(`${this.deviceKey}-expandedFolders`, JSON.stringify(expandedFolders))
+    } catch (error) {
+      console.warn('Failed to save expanded folders:', error)
+    }
+  }
+}
+
+// Initialize persistence manager
+new StatePersistenceManager() // Auto-starts when module loads
+
 // React hook for using global state in components
 import { useState, useEffect, useRef } from 'react'
 
 export function useGlobalState(): AppState
 export function useGlobalState<K extends keyof AppState>(key: K): AppState[K]
-export function useGlobalState(path: PropertyPath): any
-export function useGlobalState<K extends keyof AppState>(keyOrPath?: K | PropertyPath): AppState | AppState[K] | any {
+export function useGlobalState(path: PropertyPath): unknown
+export function useGlobalState<K extends keyof AppState>(keyOrPath?: K | PropertyPath): AppState | AppState[K] | unknown {
   const [, forceUpdate] = useState(0)
   const updateCountRef = useRef(0)
   
@@ -291,7 +362,7 @@ export function useGlobalState<K extends keyof AppState>(keyOrPath?: K | Propert
 export function useGlobalStateListener(
   path: PropertyPath,
   listener: PropertyChangeListener,
-  deps: any[] = []
+  deps: unknown[] = []
 ): void {
   useEffect(() => {
     return globalState.subscribe(path, listener)

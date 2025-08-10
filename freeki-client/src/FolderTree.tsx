@@ -31,6 +31,7 @@ import type { PageMetadata } from './globalState'
 import type { TreeNode, DropTarget } from './pageTreeUtils'
 import type { ISemanticApi } from './semanticApiInterface'
 import { useUserSettings } from './useUserSettings'
+import { useGlobalState, globalState } from './globalState'
 
 // Extended DragData interface with expanded folder state
 interface DragData {
@@ -74,7 +75,7 @@ function generateFileName(title: string, existingPaths: string[], folderPath: st
   let fullPath = folderPath ? `${folderPath}/${fileName}` : fileName
   let counter = 1
   
-  while (existingPaths.includes(fullPath)) {
+  while (existingPaths.indexOf(fullPath) !== -1) {
     fileName = `${baseFileName}-${counter}.md`
     fullPath = folderPath ? `${folderPath}/${fileName}` : fileName
     counter++
@@ -96,12 +97,13 @@ export default function FolderTree({
 }: FolderTreeProps) {
   const { settings, updateSetting } = useUserSettings(semanticApi)
   
-  // Simple state - just what we need
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
-    const initial = new Set<string>(settings.expandedFolderPaths || [])
-    initial.add('') // Root always expanded
-    return initial
-  })
+  // Use global state for folder expansion - clean and simple
+  const expandedFolderPaths = useGlobalState('expandedFolderPaths') as string[]
+  const expandedFolders = useMemo(() => {
+    const set = new Set(expandedFolderPaths)
+    set.add('') // Root always expanded
+    return set
+  }, [expandedFolderPaths])
   
   const [searchText, setSearchText] = useState(externalSearchQuery || '')
   const [searchConfig, setSearchConfig] = useState<SearchConfiguration>(settings.searchConfig || {
@@ -113,10 +115,10 @@ export default function FolderTree({
   
   // Drag state
   const [isDragging, setIsDragging] = useState(false)
-  const [dragHoverFolder, setDragHoverFolder] = useState('') // Always set, never null
-  const [currentDraggedPath, setCurrentDraggedPath] = useState('') // Track what's being dragged
+  const [dragHoverFolder, setDragHoverFolder] = useState('')
+  const [currentDraggedPath, setCurrentDraggedPath] = useState('')
   
-  // NEW: Hover-to-expand during drag
+  // Hover-to-expand during drag
   const [hoverExpandTimer, setHoverExpandTimer] = useState<number | null>(null)
   const [hoverExpandFolder, setHoverExpandFolder] = useState('')
 
@@ -125,7 +127,7 @@ export default function FolderTree({
   const [newPageTitle, setNewPageTitle] = useState('')
   const [newPageTargetFolder, setNewPageTargetFolder] = useState('')
   
-  // NEW: New Folder Dialog state
+  // New Folder Dialog state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
   const [newFolderTargetPath, setNewFolderTargetPath] = useState('')
@@ -139,17 +141,88 @@ export default function FolderTree({
   const selectedItemRef = useRef<HTMLLIElement>(null)
   const searchTimeoutRef = useRef<number | null>(null)
 
-  // Save expanded folders to settings
-  useEffect(() => {
-    updateSetting('expandedFolderPaths', Array.from(expandedFolders))
-  }, [expandedFolders, updateSetting])
-
   // Update search text from external changes
   useEffect(() => {
     if (externalSearchQuery !== undefined) {
       setSearchText(externalSearchQuery)
     }
   }, [externalSearchQuery])
+
+  // Smart text positioning on row hover - scroll to show long text
+  const handleRowHover = (listItem: HTMLElement, textContent: string) => {
+    if (!containerRef.current) return
+    
+    const container = containerRef.current
+    const textElement = listItem.querySelector('.folder-tree-text') as HTMLElement
+    if (!textElement) return
+    
+    // Check if this is a folder or file for debugging
+    const isFolder = listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderIcon"]') || listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderOpenIcon"]')
+    const itemType = isFolder ? 'FOLDER' : 'FILE'
+    
+    console.log(`?? ${itemType} ROW_HOVER: "${textContent}"`)
+    
+    // Get current container and element bounds
+    const containerRect = container.getBoundingClientRect()
+    const elementRect = listItem.getBoundingClientRect()
+    const iconElement = listItem.querySelector('.MuiListItemIcon-root') as HTMLElement
+    
+    if (!iconElement) return
+    
+    // Create a measurement element to get the actual text width
+    const measurer = document.createElement('span')
+    measurer.style.position = 'absolute'
+    measurer.style.visibility = 'hidden'
+    measurer.style.whiteSpace = 'nowrap'
+    const textStyle = window.getComputedStyle(textElement)
+    measurer.style.fontSize = textStyle.fontSize
+    measurer.style.fontFamily = textStyle.fontFamily
+    measurer.style.fontWeight = textStyle.fontWeight
+    measurer.textContent = textContent
+    document.body.appendChild(measurer)
+    
+    const fullTextWidth = measurer.getBoundingClientRect().width
+    document.body.removeChild(measurer)
+    
+    // Calculate positions relative to container
+    const iconWidth = 20 + 6 // Icon + margin
+    const paddingLeft = parseFloat(window.getComputedStyle(listItem).paddingLeft) || 0
+    const textStartX = elementRect.left - containerRect.left + paddingLeft + iconWidth
+    const textEndX = textStartX + fullTextWidth
+    
+    // Use actual visible panel width, not inflated container width
+    const actualVisibleWidth = containerRect.width - 200 // Subtract the extra 200px
+    
+    console.log(`?? ${itemType}: textWidth=${fullTextWidth}, containerWidth=${containerRect.width}, visibleWidth=${actualVisibleWidth}, textStart=${textStartX}, textEnd=${textEndX}`)
+    
+    // Check if text is already fully visible in the ACTUAL visible area
+    if (textStartX >= 0 && textEndX <= actualVisibleWidth) {
+      console.log(`? ${itemType}: Text already fully visible in panel, no action needed`)
+      return
+    }
+    
+    // Scroll to show the text properly
+    if (fullTextWidth > actualVisibleWidth) {
+      // Text is too long for visible area - scroll to show icon at left edge
+      const iconRect = iconElement.getBoundingClientRect()
+      const scrollAmount = iconRect.left - containerRect.left
+      container.scrollLeft += scrollAmount
+      console.log(`? ${itemType}: Large text, scrolled by ${scrollAmount}px to show icon at left`)
+    } else {
+      // Text fits but is clipped - scroll to show all text
+      if (textEndX > actualVisibleWidth) {
+        // Text is cut off on the right - scroll right to show the end
+        const scrollAmount = textEndX - actualVisibleWidth + 10 // 10px buffer
+        container.scrollLeft += scrollAmount
+        console.log(`? ${itemType}: Scrolled right by ${scrollAmount}px to show text end`)
+      } else if (textStartX < 0) {
+        // Text is cut off on the left - scroll left to show the beginning
+        const scrollAmount = Math.abs(textStartX) + 10 // 10px buffer
+        container.scrollLeft -= scrollAmount
+        console.log(`? ${itemType}: Scrolled left by ${scrollAmount}px to show text start`)
+      }
+    }
+  }
 
   // Enhanced page tree with root folder
   const enhancedPageTree = useMemo(() => {
@@ -197,48 +270,62 @@ export default function FolderTree({
   // Check if search is active
   const isSearchActive = searchText.trim().length > 0
 
-  // Toggle folder expansion
+  // Toggle folder expansion - update global state directly
   const toggleFolder = (folderPath: string) => {
     if (folderPath === '') return // Root can't be collapsed
     
-    // FIXED: Prevent collapsing parent folder of currently viewed page
+    // Prevent collapsing parent folder of currently viewed page
     if (selectedPageMetadata && selectedPageMetadata.path.startsWith(folderPath + '/')) {
-      console.log(`?? Cannot collapse folder ${folderPath} - contains current page ${selectedPageMetadata.path}`)
+      console.log(`Cannot collapse folder ${folderPath} - contains current page ${selectedPageMetadata.path}`)
       return
     }
     
-    setExpandedFolders(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(folderPath)) {
-        newSet.delete(folderPath)
-        // Also collapse all child folders
-        for (const path of prev) {
-          if (path.startsWith(folderPath + '/')) {
-            newSet.delete(path)
-          }
-        }
-      } else {
-        newSet.add(folderPath)
-      }
-      return newSet
-    })
+    const currentPaths = expandedFolderPaths.slice()
+    const pathIndex = currentPaths.indexOf(folderPath)
+    
+    if (pathIndex >= 0) {
+      // Collapse this folder and all child folders
+      const filteredPaths = currentPaths.filter(path => 
+        path !== folderPath && !path.startsWith(folderPath + '/')
+      )
+      globalState.set('expandedFolderPaths', filteredPaths)
+    } else {
+      // Expand this folder
+      currentPaths.push(folderPath)
+      globalState.set('expandedFolderPaths', currentPaths)
+    }
   }
 
   // Auto-expand to show selected page
   useEffect(() => {
     if (selectedPageMetadata) {
       const pathParts = selectedPageMetadata.path.split('/').filter(Boolean)
-      setExpandedFolders(prev => {
-        const newSet = new Set(prev)
-        // Add all parent folder paths
-        for (let i = 1; i < pathParts.length; i++) {
-          const folderPath = pathParts.slice(0, i).join('/')
-          newSet.add(folderPath)
+      const neededPaths: string[] = []
+      
+      // Add all parent folder paths
+      for (let i = 1; i < pathParts.length; i++) {
+        const folderPath = pathParts.slice(0, i).join('/')
+        neededPaths.push(folderPath)
+      }
+      
+      // Only update if we need to add paths
+      if (neededPaths.length > 0) {
+        const currentPaths = expandedFolderPaths.slice()
+        let needsUpdate = false
+        
+        for (const path of neededPaths) {
+          if (currentPaths.indexOf(path) === -1) {
+            currentPaths.push(path)
+            needsUpdate = true
+          }
         }
-        return newSet
-      })
+        
+        if (needsUpdate) {
+          globalState.set('expandedFolderPaths', currentPaths)
+        }
+      }
     }
-  }, [selectedPageMetadata?.pageId])
+  }, [selectedPageMetadata?.pageId, expandedFolderPaths])
 
   // Handle search
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -278,11 +365,10 @@ export default function FolderTree({
   const handleDragStart = (draggedPath: string) => {
     setIsDragging(true)
     setCurrentDraggedPath(draggedPath)
-    setDragHoverFolder('') // Start at root
+    setDragHoverFolder('')
   }
 
   const handleDragEnd = () => {
-    // FIXED: ALWAYS clear drag state completely, no matter what
     setIsDragging(false)
     setDragHoverFolder('')
     setCurrentDraggedPath('')
@@ -295,11 +381,34 @@ export default function FolderTree({
     setHoverExpandFolder('')
   }
 
+  // Validate that a drop operation is legal - prevent parent folders from being dropped into their own children
+  const isValidDropTarget = (dragPath: string, targetPath: string): boolean => {
+    // Files can be dropped anywhere
+    if (!dragPath) return true
+    
+    // Can't drop into yourself
+    if (dragPath === targetPath) return false
+    
+    // Can't drop a parent folder into any of its children or descendants
+    if (targetPath.startsWith(dragPath + '/')) {
+      console.log(`? Illegal drop: Cannot move parent folder '${dragPath}' into its child '${targetPath}'`)
+      return false
+    }
+    
+    return true
+  }
+
+  // Enhanced drag enter with validation
   const handleDragEnter = (folderPath: string) => {
     if (isDragging) {
+      // Only allow valid drop targets
+      if (!isValidDropTarget(currentDraggedPath, folderPath)) {
+        return // Don't set hover or expand for invalid targets
+      }
+      
       setDragHoverFolder(folderPath)
       
-      // FIXED: Auto-expand collapsed folders on hover during drag
+      // Auto-expand collapsed folders on hover during drag
       if (folderPath !== hoverExpandFolder) {
         // Clear previous timer
         if (hoverExpandTimer) {
@@ -311,8 +420,12 @@ export default function FolderTree({
         // Set new timer for this folder (1 second hover)
         if (!expandedFolders.has(folderPath) && folderPath !== '') {
           const timerId = setTimeout(() => {
-            console.log(`?? Auto-expanding folder ${folderPath} after hover`)
-            setExpandedFolders(prev => new Set([...prev, folderPath]))
+            console.log(`Auto-expanding folder ${folderPath} after hover`)
+            const currentPaths = expandedFolderPaths.slice()
+            if (currentPaths.indexOf(folderPath) === -1) {
+              currentPaths.push(folderPath)
+              globalState.set('expandedFolderPaths', currentPaths)
+            }
           }, 1000)
           
           setHoverExpandTimer(timerId)
@@ -324,35 +437,51 @@ export default function FolderTree({
   // Auto-expand folder when something is dropped into it
   const autoExpandTargetFolder = (targetFolderPath: string, dragData?: DragData) => {
     if (targetFolderPath !== '') {
-      setExpandedFolders(prev => {
-        const newSet = new Set(prev)
-        newSet.add(targetFolderPath)
-        // Also expand all parent folders
-        const pathParts = targetFolderPath.split('/')
-        for (let i = 1; i < pathParts.length; i++) {
-          const parentPath = pathParts.slice(0, i).join('/')
-          newSet.add(parentPath)
+      const currentPaths = expandedFolderPaths.slice()
+      const pathsToAdd: string[] = []
+      
+      // Add target folder
+      if (currentPaths.indexOf(targetFolderPath) === -1) {
+        pathsToAdd.push(targetFolderPath)
+      }
+      
+      // Add all parent folders
+      const pathParts = targetFolderPath.split('/')
+      for (let i = 1; i < pathParts.length; i++) {
+        const parentPath = pathParts.slice(0, i).join('/')
+        if (currentPaths.indexOf(parentPath) === -1) {
+          pathsToAdd.push(parentPath)
         }
-        
-        // FIXED: If we have drag data with expanded child folders, restore those too
-        if (dragData?.expandedChildFolders && dragData.expandedChildFolders.length > 0) {
-          for (const childPath of dragData.expandedChildFolders) {
-            // Calculate the relative path from the dragged item
-            const relativePath = childPath.substring(dragData.path.length + 1)
-            // Build the new path in the target location
-            const newChildPath = targetFolderPath ? `${targetFolderPath}/${relativePath}` : relativePath
-            console.log(`?? Restoring expanded folder: ${childPath} -> ${newChildPath}`)
-            newSet.add(newChildPath)
+      }
+      
+      // Restore expanded child folders if available
+      if (dragData?.expandedChildFolders && dragData.expandedChildFolders.length > 0) {
+        for (const childPath of dragData.expandedChildFolders) {
+          // Calculate the relative path from the dragged item
+          const relativePath = childPath.substring(dragData.path.length + 1)
+          // Build the new path in the target location
+          const newChildPath = targetFolderPath ? `${targetFolderPath}/${relativePath}` : relativePath
+          if (currentPaths.indexOf(newChildPath) === -1) {
+            pathsToAdd.push(newChildPath)
           }
         }
-        
-        return newSet
-      })
+      }
+      
+      if (pathsToAdd.length > 0) {
+        globalState.set('expandedFolderPaths', currentPaths.concat(pathsToAdd))
+      }
     }
   }
 
+  // Enhanced drop handler with validation
   const handleDrop = async (dragData: DragData, targetFolderPath: string) => {
     if (!onDragDrop) return
+    
+    // Validate the drop operation
+    if (!isValidDropTarget(dragData.path, targetFolderPath)) {
+      console.log(`? Drop rejected: Invalid target for '${dragData.path}' -> '${targetFolderPath}'`)
+      return
+    }
     
     try {
       const dropTarget: DropTarget = {
@@ -361,38 +490,42 @@ export default function FolderTree({
         position: 'inside'
       }
       
-      console.log(`?? Dropping ${dragData.path} into ${targetFolderPath}`)
+      console.log(`? Dropping ${dragData.path} into ${targetFolderPath}`)
       await onDragDrop(dragData, dropTarget)
       
-      // FIXED: Auto-expand the target folder and restore child folder expansion state
+      // Auto-expand the target folder and restore child folder expansion state
       autoExpandTargetFolder(targetFolderPath, dragData)
       
       // If we're moving a folder, also ensure the moved folder itself is expanded in its new location
       if (dragData.isFolder) {
         const newFolderPath = targetFolderPath ? `${targetFolderPath}/${dragData.path.split('/').pop()}` : dragData.path.split('/').pop()
         if (newFolderPath) {
-          setExpandedFolders(prev => {
-            const newSet = new Set(prev)
-            newSet.add(newFolderPath)
-            console.log(`?? Auto-expanding moved folder at new location: ${newFolderPath}`)
-            return newSet
-          })
+          const currentPaths = expandedFolderPaths.slice()
+          if (currentPaths.indexOf(newFolderPath) === -1) {
+            currentPaths.push(newFolderPath)
+            globalState.set('expandedFolderPaths', currentPaths)
+            console.log(`Auto-expanding moved folder at new location: ${newFolderPath}`)
+          }
         }
       }
     } catch (error) {
       console.error('Failed to drop item:', error)
     } finally {
-      // FIXED: ALWAYS end drag state after drop, success or failure
       setIsDragging(false)
       setDragHoverFolder('')
     }
   }
 
-  // Handle creating new folder via drop - FIXED to use proper dialog instead of prompt
+  // Enhanced drop handler with validation and user feedback
   const handleCreateFolderDrop = async (targetFolderPath: string, draggedData: DragData) => {
     if (!onCreatePage || !onDragDrop) return
     
-    // Show dialog instead of janky prompt
+    // Validate the drop operation first
+    if (!isValidDropTarget(draggedData.path, targetFolderPath)) {
+      console.log(`? Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`)
+      return
+    }
+    
     setNewFolderTargetPath(targetFolderPath)
     setNewFolderDragData(draggedData)
     setShowNewFolderDialog(true)
@@ -405,6 +538,12 @@ export default function FolderTree({
     
     const newFolderPath = newFolderTargetPath ? `${newFolderTargetPath}/${newFolderName.trim()}` : newFolderName.trim()
     
+    // Final validation before creating folder
+    if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
+      console.log(`? Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
+      return
+    }
+    
     try {
       // Move the dragged content into the new folder FIRST
       const dropTarget: DropTarget = {
@@ -413,6 +552,7 @@ export default function FolderTree({
         position: 'inside'
       }
       
+      console.log(`? Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
       await onDragDrop(newFolderDragData, dropTarget)
       
       // Auto-expand the new folder and restore child folder expansion state
@@ -425,9 +565,7 @@ export default function FolderTree({
       setNewFolderDragData(null)
     } catch (error) {
       console.error('Failed to create folder and move content:', error)
-      // Don't close dialog on error so user can retry
     } finally {
-      // FIXED: ALWAYS end drag state after drop, success or failure
       setIsDragging(false)
       setDragHoverFolder('')
       setCurrentDraggedPath('')
@@ -462,16 +600,14 @@ export default function FolderTree({
         []
       )
       
-      // Auto-expand the target folder (no drag data for new page creation)
+      // Auto-expand the target folder
       autoExpandTargetFolder(newPageTargetFolder)
       
-      // FIXED: Reset ALL dialog state properly AFTER successful creation
       setShowNewPageDialog(false)
       setNewPageTitle('')
       setNewPageTargetFolder('')
     } catch (error) {
       console.error('Failed to create page:', error)
-      // Don't close dialog on error so user can retry
     }
   }
 
@@ -489,26 +625,35 @@ export default function FolderTree({
     const hasChildren = node.children && node.children.length > 0
     const isCurrentPageFolder = node.isFolder && node.metadata.path === getCurrentPageFolder()
     
-    // FIXED: Check if this folder is being dragged
     const isBeingDragged = isDragging && currentDraggedPath === node.metadata.path
     const isDraggedIntoItself = isDragging && currentDraggedPath === node.metadata.path
     
-    // Drag styling
-    const isDragHover = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself
-    const showNewFolderZone = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself
+    // Check if this is a valid drop target
+    const isValidTarget = !isDragging || isValidDropTarget(currentDraggedPath, node.metadata.path)
+    
+    // Drag styling - only show hover effects for valid targets
+    const isDragHover = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself && isValidTarget
+    const showNewFolderZone = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself && isValidTarget
     
     const itemStyles = {
       pl: 1 + level * 1.5,
-      pr: 1,
+      pr: 0, // Remove right padding to extend to edge
       py: 0.1,
       backgroundColor: isSelected ? 'var(--freeki-folders-selected-background)' : 'transparent',
       borderRadius: 'var(--freeki-border-radius)',
-      mx: 0.5,
+      mx: 0, // Remove margins that create gutters
       mb: 0.05,
       cursor: 'pointer',
       minHeight: 32,
       alignItems: 'center',
       position: 'relative',
+      whiteSpace: 'nowrap',
+      overflow: 'visible',
+      // Force full width and ensure hoverable area extends to container edge
+      width: '100%',
+      maxWidth: '100%',
+      display: 'flex',
+      boxSizing: 'border-box',
       ...(isDragHover && {
         backgroundColor: 'rgba(var(--freeki-primary-rgb), 0.1)',
         borderLeft: '3px solid var(--freeki-primary)'
@@ -516,7 +661,11 @@ export default function FolderTree({
       ...(isBeingDragged && {
         opacity: 0.5
       }),
-      // FIXED: Show hover-to-expand visual feedback
+      // Show visual feedback for invalid drop targets
+      ...(isDragging && !isValidTarget && {
+        opacity: 0.3,
+        cursor: 'not-allowed'
+      }),
       ...(isDragging && !isExpanded && hoverExpandFolder === node.metadata.path && node.isFolder && {
         backgroundColor: 'rgba(var(--freeki-secondary-rgb, 255, 165, 0), 0.1)',
         borderLeft: '2px dashed orange'
@@ -535,15 +684,14 @@ export default function FolderTree({
               onPageSelect(node.metadata)
             }
           }}
+          onMouseEnter={(e) => handleRowHover(e.currentTarget, node.metadata.title)}
           onDragStart={(e) => {
-            // FIXED: Capture expanded child folders if this is a folder being dragged
             let expandedChildFolders: string[] = []
             if (node.isFolder) {
-              // Get all currently expanded folders that are children of this folder
-              expandedChildFolders = Array.from(expandedFolders).filter(path => 
+              expandedChildFolders = expandedFolderPaths.filter(path => 
                 path.startsWith(node.metadata.path + '/') && path !== node.metadata.path
               )
-              console.log(`?? Dragging folder ${node.metadata.path} with expanded children:`, expandedChildFolders)
+              console.log(`Dragging folder ${node.metadata.path} with expanded children:`, expandedChildFolders)
             }
             
             e.dataTransfer.setData('application/json', JSON.stringify({
@@ -567,7 +715,12 @@ export default function FolderTree({
               handleDragEnter(parentPath)
             }
           }}
-          onDragOver={(e) => e.preventDefault()}
+          onDragOver={(e) => {
+            // Only allow drop if it's a valid target
+            if (isValidTarget) {
+              e.preventDefault()
+            }
+          }}
           onDrop={async (e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -596,20 +749,25 @@ export default function FolderTree({
             )}
           </ListItemIcon>
           
-          <Box sx={{ flex: 1 }}>
+          <Box sx={{ flex: 1, minWidth: 0, overflow: 'visible', width: '100%' }}>
             <Typography
+              className="folder-tree-text"
               variant="body2"
               sx={{
                 fontWeight: isSelected ? 600 : 400,
                 fontSize: 'var(--freeki-folders-font-size)',
-                color: 'var(--freeki-folders-font-color)'
+                color: 'var(--freeki-folders-font-color)',
+                whiteSpace: 'nowrap',
+                overflow: 'visible',
+                minWidth: 0,
+                width: '100%'
               }}
             >
               {node.metadata.title}
             </Typography>
           </Box>
 
-          {/* New Page button for current page's folder - FIXED: hide when dragging this folder */}
+          {/* New Page button for current page's folder */}
           {isCurrentPageFolder && !isDragging && !isBeingDragged && (
             <IconButton
               size="small"
@@ -627,7 +785,7 @@ export default function FolderTree({
             </IconButton>
           )}
 
-          {/* New Folder drop zone during drag - FIXED to pass drag data */}
+          {/* New Folder drop zone during drag - only for valid targets */}
           {showNewFolderZone && (
             <Box
               sx={{
@@ -651,7 +809,6 @@ export default function FolderTree({
                 e.preventDefault()
                 e.stopPropagation()
                 
-                // Get the dragged data
                 const dragDataString = e.dataTransfer.getData('application/json')
                 if (!dragDataString) return
                 
@@ -682,7 +839,10 @@ export default function FolderTree({
       display: 'flex',
       flexDirection: 'column',
       color: 'var(--freeki-folders-font-color)',
-      backgroundColor: 'var(--freeki-folders-background)'
+      backgroundColor: 'var(--freeki-folders-background)',
+      // Remove any padding that creates the gutter
+      padding: 0,
+      margin: 0
     }}>
       {/* Search bar */}
       <Box sx={{ p: 2, pb: 1 }}>
@@ -713,14 +873,32 @@ export default function FolderTree({
         />
       </Box>
       
-      {/* Tree content */}
-      <Box ref={containerRef} sx={{ flex: 1, overflow: 'auto' }}>
+      {/* Tree content - Make container wider than parent to prevent gaps when translating */}
+      <Box 
+        ref={containerRef} 
+        sx={{ 
+          flex: 1, 
+          overflow: 'hidden', // FIXED: Enable horizontal scrolling
+          scrollbarWidth: 'none', // Firefox
+          msOverflowStyle: 'none', // IE/Edge
+          '&::-webkit-scrollbar': { // Chrome/Safari/WebKit
+            display: 'none'
+          },
+          // Remove any padding that creates gutters
+          padding: 0,
+          margin: 0,
+          // Make container wider than parent to prevent gaps when translating
+          width: 'calc(100% + 200px)', // Extra 200px to cover translation gaps
+          minWidth: 'calc(100% + 200px)',
+          boxSizing: 'border-box'
+        }}
+      >
         {enhancedPageTree.length === 0 ? (
           <Typography variant="body2" sx={{ p: 3, textAlign: 'center', opacity: 0.6 }}>
             No pages found
           </Typography>
         ) : (
-          <List dense disablePadding>
+          <List dense disablePadding sx={{ width: 'calc(100% + 200px)', minWidth: 'calc(100% + 200px)' }}>
             {enhancedPageTree.map((node) => renderNode(node, 0))}
           </List>
         )}
@@ -807,7 +985,6 @@ export default function FolderTree({
               input: {
                 ref: (input: HTMLInputElement) => {
                   if (input && showNewPageDialog) {
-                    // Force focus after a brief delay to ensure dialog is fully rendered
                     setTimeout(() => {
                       input.focus()
                       input.select()
@@ -842,7 +1019,6 @@ export default function FolderTree({
           setDragHoverFolder('')
           setCurrentDraggedPath('')
           
-          // Clear hover timer
           if (hoverExpandTimer) {
             clearTimeout(hoverExpandTimer)
             setHoverExpandTimer(null)
@@ -895,7 +1071,6 @@ export default function FolderTree({
             setDragHoverFolder('')
             setCurrentDraggedPath('')
             
-            // Clear hover timer
             if (hoverExpandTimer) {
               clearTimeout(hoverExpandTimer)
               setHoverExpandTimer(null)
