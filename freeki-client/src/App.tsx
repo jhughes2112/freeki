@@ -31,7 +31,7 @@ import PageMetadataPanel from './PageMetadata'
 import AdminSettingsDialog from './AdminSettingsDialog'
 import ConfirmDialog from './ConfirmDialog'
 import { useUserSettings } from './useUserSettings'
-import { useGlobalState, globalState } from './globalState'
+import { useGlobalState, globalState, getCurrentLayoutState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
 import { sortPagesByDisplayOrder } from './pageTreeUtils'
 import type { PageMetadata } from './globalState'
@@ -83,14 +83,17 @@ export default function App() {
   const searchResults = useGlobalState('searchResults')
   const isLoadingPages = useGlobalState('isLoadingPages')
   
+  const isNarrowScreen = useMediaQuery('(max-width: 900px)')
+  
+  // Derive current layout state - this is READ-ONLY derived state
+  const currentLayout = React.useMemo(() => getCurrentLayoutState(settings), [settings, isNarrowScreen])
+
   // Use search results if search is active and we have a query, otherwise use all pages
   const effectivePageMetadata = React.useMemo(() => {
     const hasQuery = searchQuery.trim().length > 0
     if (hasQuery) {
-      // When search is active, always use searchResults (even if empty)
       return searchResults
     } else {
-      // When search is not active, use all pages
       return pageMetadata
     }
   }, [searchResults, pageMetadata, searchQuery])
@@ -100,11 +103,6 @@ export default function App() {
   
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<boolean>(false)
-  const isNarrowScreen = useMediaQuery('(max-width: 900px)')
-  
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(false)
-  const [isMetadataCollapsed, setIsMetadataCollapsed] = React.useState(false)
-  const [hasInitialized, setHasInitialized] = React.useState(false)
 
   // Initialize Semantic API - centralized creation
   useEffect(() => {
@@ -117,7 +115,6 @@ export default function App() {
     if (!semanticApi) return
     
     async function loadInitialData() {
-      // At this point we know semanticApi is not null due to the guard above
       const api = semanticApi!
       
       try {
@@ -136,28 +133,8 @@ export default function App() {
           
           // Find the first page using the same sorting logic as the tree
           const sortedPages = sortPagesByDisplayOrder(pages)
-          
-          console.log('?? Page loading order (files before folders):')
-          sortedPages.slice(0, 5).forEach((page, index) => {
-            console.log(`  ${index + 1}. ${page.title} (${page.path})`)
-          })
-          
           const defaultPage = sortedPages[0]
-          console.log(`?? Selected default page: ${defaultPage.title} (${defaultPage.path})`)
           
-          // Debug: Test with some example data to ensure Home comes first
-          const testPages: PageMetadata[] = [
-            { pageId: 'doc', title: 'Documentation', author: 'Test User', path: 'documentation/intro.md', tags: [], lastModified: 1000, version: 1 },
-            { pageId: 'advanced', title: 'Advanced', author: 'Test User', path: 'documentation/advanced.md', tags: [], lastModified: 1000, version: 1 },
-            { pageId: 'home', title: 'Home', author: 'Test User', path: 'home.md', tags: [], lastModified: 1000, version: 1 },
-            { pageId: 'welcome', title: 'Welcome', author: 'Test User', path: 'welcome.md', tags: [], lastModified: 1000, version: 1 }
-          ]
-          const testSorted = sortPagesByDisplayOrder(testPages)
-          console.log('?? Test sorting (should show Home and Welcome first):')
-          testSorted.forEach((page, index) => {
-            console.log(`  ${index + 1}. ${page.title} (${page.path})`)
-          })
-  
           globalState.set('currentPageMetadata', defaultPage)
           // Load content for default page
           const pageWithContent = await api.getSinglePage(defaultPage.pageId)
@@ -191,24 +168,21 @@ export default function App() {
   // Sync theme changes between user settings and global state
   useEffect(() => {
     if (isLoaded) {
-      globalState.set('theme', settings.theme)
+      // Theme is handled within userSettings, no need to sync to separate global theme
+      console.log('Theme updated:', settings.theme)
     }
   }, [settings.theme, isLoaded])
 
   // Enhanced search function with configurable search types
   const performSearch = async (query: string, searchConfig: { titles: boolean; tags: boolean; author: boolean; content: boolean }) => {
-    console.log(`?? App.performSearch: query="${query}", config=`, searchConfig)
     globalState.set('searchQuery', query)
     
     if (!query.trim()) {
-      // Clear search results when query is empty
       globalState.set('searchResults', [])
       return
     }
     
-    // Check if no search types are enabled
     if (!searchConfig.titles && !searchConfig.tags && !searchConfig.author && !searchConfig.content) {
-      console.log('?? App: No search types enabled, clearing results')
       globalState.set('searchResults', [])
       return
     }
@@ -217,12 +191,10 @@ export default function App() {
       let results: string[] = []
       
       if (searchConfig.content) {
-        // Use server-side content search API
         if (!semanticApi) {
           console.warn('No semantic API available for content search')
           return
         }
-        console.log(`?? App: Using server-side search for content`)
         results = await semanticApi.searchPagesWithContent(query)
       }
       
@@ -233,7 +205,6 @@ export default function App() {
       if (searchConfig.author) clientSearchTypes.push('author')
       
       if (clientSearchTypes.length > 0) {
-        console.log(`?? App: Using client-side search for ${clientSearchTypes.join(', ')}, searching ${pageMetadata.length} pages`)
         const searchTerm = query.toLowerCase()
         const matchedPages: Array<{ page: PageMetadata; score: number }> = []
         
@@ -241,12 +212,10 @@ export default function App() {
           let isMatch = false
           let score = 0
           
-          // Search in title if enabled
           if (searchConfig.titles) {
             const titleMatch = page.title.toLowerCase().includes(searchTerm)
             if (titleMatch) {
               isMatch = true
-              // Count occurrences in title (weighted heavily)
               let titleIndex = 0
               const lowerTitle = page.title.toLowerCase()
               while ((titleIndex = lowerTitle.indexOf(searchTerm, titleIndex)) !== -1) {
@@ -256,12 +225,10 @@ export default function App() {
             }
           }
           
-          // Search in tags if enabled
           if (searchConfig.tags) {
             const tagMatch = page.tags.some(tag => tag.toLowerCase().includes(searchTerm))
             if (tagMatch) {
               isMatch = true
-              // Count tag matches
               page.tags.forEach(tag => {
                 if (tag.toLowerCase().includes(searchTerm)) {
                   score += 2
@@ -270,12 +237,10 @@ export default function App() {
             }
           }
           
-          // Search in author if enabled
           if (searchConfig.author) {
             const authorMatch = page.author.toLowerCase().includes(searchTerm)
             if (authorMatch) {
               isMatch = true
-              // Count occurrences in author (weighted moderately)
               let authorIndex = 0
               const lowerAuthor = page.author.toLowerCase()
               while ((authorIndex = lowerAuthor.indexOf(searchTerm, authorIndex)) !== -1) {
@@ -285,7 +250,6 @@ export default function App() {
             }
           }
           
-          // Search in path for additional scoring (always enabled for enabled types)
           if (isMatch && page.path.toLowerCase().includes(searchTerm)) {
             let pathIndex = 0
             const lowerPath = page.path.toLowerCase()
@@ -296,45 +260,31 @@ export default function App() {
           }
           
           if (isMatch) {
-            console.log(`? App: Found match in page "${page.title}" (score: ${score})`)
             matchedPages.push({ page, score })
           }
         })
         
-        // Sort by score descending
         matchedPages.sort((a, b) => b.score - a.score)
-        
-        // Convert to page IDs and combine with server results
         const clientResultIds = matchedPages.map(({ page }) => page.pageId)
         
-        // Combine server and client results
         if (searchConfig.content) {
-          // Merge results, avoiding duplicates
           const serverPageIds = new Set(results)
           const uniqueClientResults = clientResultIds.filter(id => !serverPageIds.has(id))
           results = [...results, ...uniqueClientResults]
         } else {
-          // Only client results
           results = clientResultIds
         }
-        
-        console.log(`?? App: Combined search found ${results.length} results`)
       }
       
-      // Convert search results to PageMetadata format and sort by display order
       const searchResultsAsMetadata = results.map(resultId => {
         const originalPage = pageMetadata.find(p => p.pageId === resultId)
         if (!originalPage) {
-          console.error(`Search result references page ID ${resultId} that doesn't exist in pageMetadata. This should never happen.`)
           throw new Error(`Search integrity error: page ${resultId} not found in metadata`)
         }
         return originalPage
       })
       
-      // Sort search results using the same criteria as normal page display
       const sortedSearchResults = sortPagesByDisplayOrder(searchResultsAsMetadata)
-      
-      console.log(`?? App: Setting ${sortedSearchResults.length} sorted search results in global state`)
       globalState.set('searchResults', sortedSearchResults)
     } catch (error) {
       console.error('Search failed:', error)
@@ -344,14 +294,12 @@ export default function App() {
 
   const handleTagClick = (tag: string) => {
     globalState.set('searchQuery', tag)
-    // When clicking a tag, search only in tags
     performSearch(tag, { titles: false, tags: true, author: false, content: false })
   }
 
   const handleTagAdd = async (tagToAdd: string) => {
     if (!currentPageMetadata || !currentPageContent || !semanticApi) return
     
-    // Don't add if tag already exists
     if (currentPageMetadata.tags.includes(tagToAdd)) return
     
     try {
@@ -365,16 +313,11 @@ export default function App() {
       })
       
       if (updatedMetadata) {
-        // Update metadata in state
         globalState.set('currentPageMetadata', updatedMetadata)
-        
-        // Update in pageMetadata list
         const updatedPageMetadata = pageMetadata.map(p => 
           p.pageId === updatedMetadata.pageId ? updatedMetadata : p
         )
         globalState.set('pageMetadata', updatedPageMetadata)
-      } else {
-        console.error('Failed to add tag: no response from server')
       }
     } catch (error) {
       console.error('Failed to add tag:', error)
@@ -395,119 +338,27 @@ export default function App() {
       })
       
       if (updatedMetadata) {
-        // Update metadata in state
         globalState.set('currentPageMetadata', updatedMetadata)
-        
-        // Update in pageMetadata list
         const updatedPageMetadata = pageMetadata.map(p => 
           p.pageId === updatedMetadata.pageId ? updatedMetadata : p
         )
         globalState.set('pageMetadata', updatedPageMetadata)
-      } else {
-        console.error('Failed to remove tag: no response from server')
       }
     } catch (error) {
       console.error('Failed to remove tag:', error)
     }
   }
 
-  // Initialize collapsed state based on screen size
-  useEffect(() => {
-    if (!hasInitialized) {
-      if (isNarrowScreen) {
-        setIsSidebarCollapsed(settings.narrowScreenLayout.sidebarCollapsed)
-        setIsMetadataCollapsed(settings.narrowScreenLayout.metadataCollapsed)
-      } else {
-        setIsSidebarCollapsed(settings.wideScreenLayout.sidebarCollapsed)
-        setIsMetadataCollapsed(settings.wideScreenLayout.metadataCollapsed)
-      }
-      setHasInitialized(true)
-    }
-  }, [isNarrowScreen, hasInitialized, settings.narrowScreenLayout, settings.wideScreenLayout])
-
-  // Handle screen size changes after initialization
-  useEffect(() => {
-    if (hasInitialized) {
-      if (isNarrowScreen) {
-        updateSetting('wideScreenLayout', {
-          ...settings.wideScreenLayout,
-          sidebarCollapsed: isSidebarCollapsed,
-          metadataCollapsed: isMetadataCollapsed
-        })
-        setIsSidebarCollapsed(settings.narrowScreenLayout.sidebarCollapsed)
-        setIsMetadataCollapsed(settings.narrowScreenLayout.metadataCollapsed)
-      } else {
-        updateSetting('narrowScreenLayout', {
-          ...settings.narrowScreenLayout,
-          sidebarCollapsed: isSidebarCollapsed,
-          metadataCollapsed: isMetadataCollapsed
-        })
-        setIsSidebarCollapsed(settings.wideScreenLayout.sidebarCollapsed)
-        setIsMetadataCollapsed(settings.wideScreenLayout.metadataCollapsed)
-      }
-    }
-  }, [isNarrowScreen, hasInitialized])
-
-  // Update layout settings when panel states change
-  useEffect(() => {
-    if (hasInitialized) {
-      if (isNarrowScreen) {
-        updateSetting('narrowScreenLayout', {
-          ...settings.narrowScreenLayout,
-          sidebarCollapsed: isSidebarCollapsed,
-          metadataCollapsed: isMetadataCollapsed
-        })
-      } else {
-        updateSetting('wideScreenLayout', {
-          ...settings.wideScreenLayout,
-          sidebarCollapsed: isSidebarCollapsed,
-          metadataCollapsed: isMetadataCollapsed
-        })
-      }
-    }
-  }, [isSidebarCollapsed, isMetadataCollapsed, hasInitialized, isNarrowScreen])
-
-  // Handle theme toggle
-  const handleThemeToggle = () => {
-    const nextTheme = settings.theme === 'light' ? 'dark' : settings.theme === 'dark' ? 'auto' : 'light'
-    updateSetting('theme', nextTheme)
-  }
-
-  // Get theme icon and tooltip
-  const getThemeIcon = () => {
-    if (settings.theme === 'light') return <LightMode />
-    if (settings.theme === 'dark') return <DarkMode />
-    return <Monitor />
-  }
-
-  const getThemeTooltip = () => {
-    if (settings.theme === 'light') return 'Switch to Dark Mode'
-    if (settings.theme === 'dark') return 'Switch to Auto Mode'
-    return 'Switch to Light Mode'
-  }
-
-  // Wait for settings and semantic API to load
-  if (!isLoaded || !semanticApi) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Typography>Loading...</Typography>
-      </Box>
-    )
-  }
-  
   const handlePageSelect = async (metadata: PageMetadata) => {
     if (!semanticApi) return
     
-    // Don't reload if the same page is already selected
     if (currentPageMetadata?.pageId === metadata.pageId) {
-      console.log('Page already selected, skipping reload:', metadata.pageId)
       return
     }
     
     globalState.set('currentPageMetadata', metadata)
     globalState.set('isEditing', false)
     
-    // Load content for selected page
     globalState.set('isLoadingPageContent', true)
     try {
       const pageWithContent = await semanticApi.getSinglePage(metadata.pageId)
@@ -517,7 +368,6 @@ export default function App() {
           content: pageWithContent.content
         })
       } else {
-        console.warn('Failed to load page content for:', metadata.pageId)
         globalState.set('currentPageContent', {
           pageId: metadata.pageId,
           content: `# ${metadata.title}\n\nContent could not be loaded.`
@@ -551,24 +401,16 @@ export default function App() {
       })
       
       if (updatedMetadata) {
-        // Update content in state
         globalState.set('currentPageContent', {
           pageId: currentPageMetadata.pageId,
           content: content
         })
-        
-        // Update metadata in state
         globalState.set('currentPageMetadata', updatedMetadata)
-        
-        // Update in pageMetadata list
         const updatedPageMetadata = pageMetadata.map(p => 
           p.pageId === updatedMetadata.pageId ? updatedMetadata : p
         )
         globalState.set('pageMetadata', updatedPageMetadata)
-        
         globalState.set('isEditing', false)
-      } else {
-        console.error('Failed to save page: no response from server')
       }
     } catch (error) {
       console.error('Failed to save page:', error)
@@ -591,15 +433,9 @@ export default function App() {
       })
 
       if (newMetadata) {
-        console.log('Page created successfully:', newMetadata)
-        // Reload page metadata to include new page
         const pages = await semanticApi.listAllPages()
         globalState.set('pageMetadata', pages)
-        
-        // Select the newly created page
         handlePageSelect(newMetadata)
-      } else {
-        console.error('Failed to create page: no response from server')
       }
     } catch (error) {
       console.error('Failed to create page:', error)
@@ -619,11 +455,9 @@ export default function App() {
       const success = await semanticApi.deletePage(currentPageMetadata.pageId)
       
       if (success) {
-        // Remove from pageMetadata
         const updatedPageMetadata = pageMetadata.filter(p => p.pageId !== currentPageMetadata.pageId)
         globalState.set('pageMetadata', updatedPageMetadata)
         
-        // Select first remaining page using same sorting logic
         if (updatedPageMetadata.length > 0) {
           const sortedPages = sortPagesByDisplayOrder(updatedPageMetadata)
           const nextDefaultPage = sortedPages[0]
@@ -632,8 +466,7 @@ export default function App() {
           globalState.set('currentPageMetadata', null)
           globalState.set('currentPageContent', null)
         }
-      } else {
-        console.error('Failed to delete page: server returned false')
+        setShowDeleteConfirm(false)
       }
     } catch (error) {
       console.error('Failed to delete page:', error)
@@ -644,18 +477,55 @@ export default function App() {
     setShowAdminSettings(true)
   }
 
+  // Panel toggles - these directly update global state
   const handleSidebarToggle = () => {
-    if (isNarrowScreen && !isSidebarCollapsed) {
-      setIsMetadataCollapsed(true)
+    const newLayout = isNarrowScreen ? settings.narrowScreenLayout : settings.wideScreenLayout
+    const newValue = !newLayout.showFolderPanel
+    
+    if (isNarrowScreen) {
+      updateSetting('narrowScreenLayout', {
+        ...settings.narrowScreenLayout,
+        showFolderPanel: newValue
+      })
+      // In narrow mode, close metadata when opening folder panel
+      if (newValue && settings.narrowScreenLayout.showMetadataPanel) {
+        updateSetting('narrowScreenLayout', {
+          ...settings.narrowScreenLayout,
+          showFolderPanel: newValue,
+          showMetadataPanel: false
+        })
+      }
+    } else {
+      updateSetting('wideScreenLayout', {
+        ...settings.wideScreenLayout,
+        showFolderPanel: newValue
+      })
     }
-    setIsSidebarCollapsed(!isSidebarCollapsed)
   }
 
   const handleMetadataToggle = () => {
-    if (isNarrowScreen && !isMetadataCollapsed) {
-      setIsSidebarCollapsed(true)
+    const newLayout = isNarrowScreen ? settings.narrowScreenLayout : settings.wideScreenLayout
+    const newValue = !newLayout.showMetadataPanel
+    
+    if (isNarrowScreen) {
+      updateSetting('narrowScreenLayout', {
+        ...settings.narrowScreenLayout,
+        showMetadataPanel: newValue
+      })
+      // In narrow mode, close folder when opening metadata panel
+      if (newValue && settings.narrowScreenLayout.showFolderPanel) {
+        updateSetting('narrowScreenLayout', {
+          ...settings.narrowScreenLayout,
+          showFolderPanel: false,
+          showMetadataPanel: newValue
+        })
+      }
+    } else {
+      updateSetting('wideScreenLayout', {
+        ...settings.wideScreenLayout,
+        showMetadataPanel: newValue
+      })
     }
-    setIsMetadataCollapsed(!isMetadataCollapsed)
   }
 
   const handleSidebarResize = (e: React.MouseEvent) => {
@@ -719,82 +589,54 @@ export default function App() {
     dropTarget: DropTarget
   ) => {
     if (!semanticApi) {
-      console.warn('?? No semantic API available for drag and drop')
+      console.warn('No semantic API available for drag and drop')
       return
     }
 
-    console.log('?? App: Processing drag and drop operation:', { 
-      dragData, 
-      dropTarget,
-      isVirtualFolder: dropTarget.targetPageId.startsWith('folder_')
-    })
-    
     try {
       if (dragData.isFolder) {
-        // Handle folder drag operations
-        console.log('?? Moving folder:', dragData.path)
-        
-        // Get all pages in the dragged folder
-        const affectedPages = pageMetadata.filter(page => 
+        // Handle folder drag operations - simplified for now
+        const affectedPages = pageMetadata.filter((page: PageMetadata) => 
           page.path.startsWith(dragData.path + '/')
         )
         
         if (affectedPages.length === 0) {
-          console.warn('?? No pages found in folder to move:', dragData.path)
           return
         }
-        
-        console.log(`?? Found ${affectedPages.length} pages to move in folder`)
         
         // Calculate new base path for the folder
         let newBasePath: string
         
         if (dropTarget.position === 'inside') {
           if (dropTarget.targetPageId.startsWith('folder_')) {
-            // Moving inside another folder
             newBasePath = dropTarget.targetPath
           } else {
-            // Moving inside a file's folder (same level as file)
             const targetPathParts = dropTarget.targetPath.split('/')
             newBasePath = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
           }
         } else {
-          // Moving before/after something - use same level as target
           const targetPathParts = dropTarget.targetPath.split('/')
           newBasePath = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
         }
         
-        // Calculate the new folder name
         const folderName = dragData.path.split('/').pop() || dragData.path
         const newFolderPath = newBasePath ? `${newBasePath}/${folderName}` : folderName
         
-        // Don't move if the path would be the same
         if (newFolderPath === dragData.path) {
-          console.log('?? Target folder path is same as current path, no move needed')
           return
         }
         
-        console.log('?? Moving folder from:', dragData.path, 'to:', newFolderPath)
-        
-        // Collect all updated metadata as we move each page
         const updatedPagesMetadata: PageMetadata[] = []
         
-        // Move each page in the folder
         for (const page of affectedPages) {
-          // Calculate new path for this page
-          const relativePath = page.path.substring(dragData.path.length + 1) // Remove folder prefix + '/'
+          const relativePath = page.path.substring(dragData.path.length + 1)
           const newPagePath = `${newFolderPath}/${relativePath}`
           
-          console.log(`?? Moving page: ${page.path} ? ${newPagePath}`)
-          
-          // Get current content for this page
           const pageWithContent = await semanticApi.getSinglePage(page.pageId)
           if (!pageWithContent) {
-            console.error('? Could not load page content for move operation:', page.pageId)
             continue
           }
           
-          // Update page with new path
           const updatedMetadata = await semanticApi.updatePage({
             pageId: page.pageId,
             title: page.title,
@@ -804,91 +646,54 @@ export default function App() {
           })
           
           if (updatedMetadata) {
-            console.log('? Page moved successfully:', page.title)
             updatedPagesMetadata.push(updatedMetadata)
             
-            // ?? CRITICAL FIX: Update current page metadata if this moved page is currently selected
             if (currentPageMetadata?.pageId === page.pageId) {
-              console.log('?? Updating current page metadata after folder move:', updatedMetadata.path)
               globalState.set('currentPageMetadata', updatedMetadata)
             }
-          } else {
-            console.error('? Failed to move page:', page.title)
           }
         }
         
-        // Update global state with all the updated metadata - NO UNNECESSARY API CALL!
-        console.log('?? Updating global state with moved pages metadata (no bandwidth waste)')
-        const updatedPageMetadata = pageMetadata.map(existingPage => {
+        const updatedPageMetadata = pageMetadata.map((existingPage: PageMetadata) => {
           const updatedPage = updatedPagesMetadata.find(updated => updated.pageId === existingPage.pageId)
           return updatedPage || existingPage
         })
         
-        // Re-sort to maintain alphabetical order
         const resortedPageMetadata = sortPagesByDisplayOrder(updatedPageMetadata)
         globalState.set('pageMetadata', resortedPageMetadata)
         
-        // ?? CRITICAL FIX: If we moved a folder containing the current page, ensure it stays visible
-        if (currentPageMetadata && updatedPagesMetadata.some(p => p.pageId === currentPageMetadata.pageId)) {
-          console.log('?? Ensuring current page remains visible after folder move')
-          const updatedCurrentPage = updatedPagesMetadata.find(p => p.pageId === currentPageMetadata.pageId)
-          if (updatedCurrentPage) {
-            // Force re-expand the path to ensure the moved page stays visible
-            // This prevents the tree from collapsing when the folder structure changes
-            handlePageSelect(updatedCurrentPage)
-          }
-        }
-        
-        console.log('? Folder move operation completed efficiently without unnecessary bandwidth')
       } else {
         // Handle single file drag operations
-        const draggedPage = pageMetadata.find(p => p.pageId === dragData.pageId)
+        const draggedPage = pageMetadata.find((p: PageMetadata) => p.pageId === dragData.pageId)
         if (!draggedPage) {
-          console.error('? Could not find dragged page in metadata:', dragData.pageId)
           return
         }
 
-        // Calculate the new file path based on drop target and position
         let newPath: string
 
         if (dropTarget.position === 'inside') {
-          // Moving inside a folder - handle both real files and virtual folders
           const fileName = draggedPage.path.split('/').pop() || draggedPage.path
           
           if (dropTarget.targetPageId.startsWith('folder_')) {
-            // Target is a virtual folder - use its path directly as the folder path
             newPath = `${dropTarget.targetPath}/${fileName}`
           } else {
-            // Target is a regular file - move to same folder level as the target
             const targetPathParts = dropTarget.targetPath.split('/')
             const targetFolder = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
             newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName
           }
         } else {
-          // Moving before/after a file - keep same folder level as target
           const targetPathParts = dropTarget.targetPath.split('/')
           const targetFolder = targetPathParts.length > 1 ? targetPathParts.slice(0, -1).join('/') : ''
           const fileName = draggedPage.path.split('/').pop() || draggedPage.path
           newPath = targetFolder ? `${targetFolder}/${fileName}` : fileName
         }
 
-        // Don't move if the path would be the same
         if (newPath === draggedPage.path) {
-          console.log('?? Target path is same as current path, no move needed')
           return
         }
 
-        console.log('?? Moving file:', {
-          from: draggedPage.path,
-          to: newPath,
-          position: dropTarget.position,
-          targetType: dropTarget.targetPageId.startsWith('folder_') ? 'virtual-folder' : 'file'
-        })
-
-        // Get the current content since updatePage requires it
         const pageWithContent = await semanticApi.getSinglePage(draggedPage.pageId)
         if (!pageWithContent) {
-          console.error('? Could not load page content for move operation')
           return
         }
 
@@ -901,31 +706,50 @@ export default function App() {
         })
 
         if (updatedMetadata) {
-          console.log('? File moved successfully:', updatedMetadata)
-
-          // Update the global pageMetadata with the returned metadata - NO UNNECESSARY API CALL!
-          const updatedPageMetadata = pageMetadata.map(p => 
+          const updatedPageMetadata = pageMetadata.map((p: PageMetadata) => 
             p.pageId === draggedPage.pageId ? updatedMetadata : p
           )
           
-          // Re-sort the pages to maintain alphabetical order after the move
           const resortedPageMetadata = sortPagesByDisplayOrder(updatedPageMetadata)
           globalState.set('pageMetadata', resortedPageMetadata)
           
-          // Update current page metadata if it was the moved file
           if (currentPageMetadata?.pageId === draggedPage.pageId) {
             globalState.set('currentPageMetadata', updatedMetadata)
           }
-          
-          console.log('? Successfully updated and re-sorted global state after file move (bandwidth efficient)')
-        } else {
-          console.error('? Server returned null when updating page path')
         }
       }
 
     } catch (error) {
-      console.error('? Error during drag and drop operation:', error)
+      console.error('Error during drag and drop operation:', error)
     }
+  }
+
+  // Handle theme toggle
+  const handleThemeToggle = () => {
+    const nextTheme = settings.theme === 'light' ? 'dark' : settings.theme === 'dark' ? 'auto' : 'light'
+    updateSetting('theme', nextTheme)
+  }
+
+  // Get theme icon and tooltip
+  const getThemeIcon = () => {
+    if (settings.theme === 'light') return <LightMode />
+    if (settings.theme === 'dark') return <DarkMode />
+    return <Monitor />
+  }
+
+  const getThemeTooltip = () => {
+    if (settings.theme === 'light') return 'Switch to Dark Mode'
+    if (settings.theme === 'dark') return 'Switch to Auto Mode'
+    return 'Switch to Light Mode'
+  }
+
+  // Wait for settings and semantic API to load
+  if (!isLoaded || !semanticApi) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Typography>Loading...</Typography>
+      </Box>
+    )
   }
 
   const currentYear = new Date().getFullYear()
@@ -1110,22 +934,22 @@ export default function App() {
       </AppBar>
 
       {/* Main Content Area */}
-      <div className={`main-layout${isNarrowScreen && (!isSidebarCollapsed || !isMetadataCollapsed) ? ' panel-open' : ''}`} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className={`main-layout${isNarrowScreen && (currentLayout.showFolderPanel || currentLayout.showMetadataPanel) ? ' panel-open' : ''}`} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Left Sidebar */}
         <div 
-          className={`sidebar-panel${isSidebarCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isSidebarCollapsed ? ' narrow-opened' : ''}`}
+          className={`sidebar-panel${currentLayout.showFolderPanel ? '' : ' collapsed'}${isNarrowScreen && currentLayout.showFolderPanel ? ' narrow-opened' : ''}`}
           style={{ '--sidebar-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.sidebarWidth + 'px'}` } as React.CSSProperties}
         >
           <button
-            className={`chevron-button chevron-narrow-screen sidebar-chevron chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            className={`chevron-button chevron-narrow-screen sidebar-chevron chevron-sidebar-theme ${currentLayout.showFolderPanel ? 'sidebar-open' : 'sidebar-closed'}`}
             onClick={handleSidebarToggle}
-            aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-            title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+            aria-label={currentLayout.showFolderPanel ? "Close sidebar" : "Open sidebar"}
+            title={currentLayout.showFolderPanel ? "Close sidebar" : "Open sidebar"}
           >
-            {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+            {currentLayout.showFolderPanel ? <ChevronLeft /> : <ChevronRight />}
           </button>
 
-          <FadePanelContent visible={!isSidebarCollapsed}>
+          <FadePanelContent visible={currentLayout.showFolderPanel}>
             {isLoadingPages ? (
               <Box sx={{ 
                 display: 'flex', 
@@ -1149,28 +973,9 @@ export default function App() {
                 semanticApi={semanticApi}
               />
             )}
-            {/* Only show the "no pages available" fallback if there are truly no pages AND no search is active */}
-            {!isLoadingPages && pageMetadata.length === 0 && !searchQuery.trim() && (
-              <Box sx={{ 
-                display: 'flex', 
-                flexDirection: 'column',
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: 200,
-                color: 'var(--freeki-folders-font-color)',
-                p: 2
-              }}>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  No pages available
-                </Typography>
-                <Typography variant="caption">
-                  Create your first page to get started
-                </Typography>
-              </Box>
-            )}
           </FadePanelContent>
 
-          {!isSidebarCollapsed && !isNarrowScreen && (
+          {currentLayout.showFolderPanel && !isNarrowScreen && (
             <Box
               onMouseDown={handleSidebarResize}
               tabIndex={0}
@@ -1201,28 +1006,28 @@ export default function App() {
             flexDirection: 'column', 
             overflow: 'hidden', 
             position: 'relative',
-            marginLeft: (!isNarrowScreen && isSidebarCollapsed) ? `-${settings.wideScreenLayout.sidebarWidth}px` : '0',
-            marginRight: (!isNarrowScreen && isMetadataCollapsed) ? `-${settings.wideScreenLayout.metadataWidth}px` : '0',
+            marginLeft: (!isNarrowScreen && !currentLayout.showFolderPanel) ? `-${settings.wideScreenLayout.sidebarWidth}px` : '0',
+            marginRight: (!isNarrowScreen && !currentLayout.showMetadataPanel) ? `-${settings.wideScreenLayout.metadataWidth}px` : '0',
             transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin-right 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
           <button
-            className={`chevron-button chevron-wide-screen chevron-sidebar-theme ${isSidebarCollapsed ? 'sidebar-closed' : 'sidebar-open'}`}
+            className={`chevron-button chevron-wide-screen chevron-sidebar-theme ${currentLayout.showFolderPanel ? 'sidebar-open' : 'sidebar-closed'}`}
             onClick={handleSidebarToggle}
-            aria-label={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
-            title={isSidebarCollapsed ? "Open sidebar" : "Close sidebar"}
+            aria-label={currentLayout.showFolderPanel ? "Close sidebar" : "Open sidebar"}
+            title={currentLayout.showFolderPanel ? "Close sidebar" : "Open sidebar"}
           >
-            {isSidebarCollapsed ? <ChevronRight /> : <ChevronLeft />}
+            {currentLayout.showFolderPanel ? <ChevronLeft /> : <ChevronRight />}
           </button>
           
-          {currentPageMetadata && settings.showMetadataPanel && (
+          {currentPageMetadata && currentLayout.showMetadataPanel && (
             <button
-              className={`chevron-button chevron-wide-screen chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+              className={`chevron-button chevron-wide-screen chevron-metadata-theme ${currentLayout.showMetadataPanel ? 'metadata-open' : 'metadata-closed'}`}
               onClick={handleMetadataToggle}
-              aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
-              title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+              aria-label={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
+              title={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
             >
-              {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+              {currentLayout.showMetadataPanel ? <ChevronRight /> : <ChevronLeft />}
             </button>
           )}
 
@@ -1249,20 +1054,20 @@ export default function App() {
         </div>
 
         {/* Right Metadata Panel */}  
-        {currentPageMetadata && currentPageContent && settings.showMetadataPanel && (
-          <div className={`metadata-panel${isMetadataCollapsed ? ' collapsed' : ''}${isNarrowScreen && !isMetadataCollapsed ? ' narrow-opened' : ''}`} 
+        {currentPageMetadata && currentPageContent && currentLayout.showMetadataPanel && (
+          <div className={`metadata-panel${currentLayout.showMetadataPanel ? '' : ' collapsed'}${isNarrowScreen && currentLayout.showMetadataPanel ? ' narrow-opened' : ''}`} 
             style={{ '--metadata-width': `${isNarrowScreen ? '90vw' : settings.wideScreenLayout.metadataWidth + 'px'}` } as React.CSSProperties}
           >
             <button
-              className={`chevron-button chevron-narrow-screen metadata-chevron chevron-metadata-theme ${isMetadataCollapsed ? 'metadata-closed' : 'metadata-open'}`}
+              className={`chevron-button chevron-narrow-screen metadata-chevron chevron-metadata-theme ${currentLayout.showMetadataPanel ? 'metadata-open' : 'metadata-closed'}`}
               onClick={handleMetadataToggle}
-              aria-label={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
-              title={isMetadataCollapsed ? "Open metadata panel" : "Close metadata panel"}
+              aria-label={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
+              title={currentLayout.showMetadataPanel ? "Close metadata panel" : "Open metadata panel"}
             >
-              {isMetadataCollapsed ? <ChevronLeft /> : <ChevronRight />}
+              {currentLayout.showMetadataPanel ? <ChevronRight /> : <ChevronLeft />}
             </button>
 
-            <FadePanelContent visible={!isMetadataCollapsed}>
+            <FadePanelContent visible={currentLayout.showMetadataPanel}>
               <PageMetadataPanel
                 metadata={currentPageMetadata}
                 content={currentPageContent}
@@ -1272,7 +1077,7 @@ export default function App() {
               />
             </FadePanelContent>
             
-            {!isMetadataCollapsed && !isNarrowScreen && (
+            {currentLayout.showMetadataPanel && !isNarrowScreen && (
               <Box
                 onMouseDown={handleMetadataResize}
                 tabIndex={0}

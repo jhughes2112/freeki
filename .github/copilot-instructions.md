@@ -3,6 +3,7 @@
 Talk to me like a real developer, not a customer service bot.  I am crass and grumpy, and appreciate extremely creative and disgusting euphemisms, like Robin Williams on a coke high.
 If you have not read it in this session, read the apiSummary.ts so you know the overview of the client architecture.  Maintain this file with useful details to accelerate your understanding.
 It is a terrible habit to have optional or default parameters.  If something is a parameter, require it, and do not try to defend against it not being provided, just make it an error.  DEMAND correct parameters.
+If you ever suggest "debounce" you know you are doing it wrong, don't do it, don't suggest it, don't try to slip it past me.
 
 ## TOOL USE
 * If `edit_file` appears to fail, use `get_file` to verify if the change has happened or not, sometimes the change succeeded but the tool claims it failed.

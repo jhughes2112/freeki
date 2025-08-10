@@ -31,7 +31,6 @@ import {
 import type { PageMetadata } from './globalState'
 import type { TreeNode, DropTarget } from './pageTreeUtils'
 import type { ISemanticApi } from './semanticApiInterface'
-import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState } from './globalState'
 
 // Extended DragData interface with expanded folder state
@@ -96,10 +95,10 @@ export default function FolderTree({
   onDragDrop,
   onCreatePage
 }: FolderTreeProps) {
-  const { settings, updateSetting } = useUserSettings(semanticApi)
+  // Use global state for user settings and folder expansion
+  const userSettings = useGlobalState('userSettings')
+  const expandedFolderPaths = userSettings.expandedFolderPaths
   
-  // Use global state for folder expansion - clean and simple
-  const expandedFolderPaths = useGlobalState('expandedFolderPaths') as string[]
   const expandedFolders = useMemo(() => {
     const set = new Set(expandedFolderPaths)
     set.add('') // Root always expanded
@@ -107,7 +106,7 @@ export default function FolderTree({
   }, [expandedFolderPaths])
   
   const [searchText, setSearchText] = useState(externalSearchQuery || '')
-  const [searchConfig, setSearchConfig] = useState<SearchConfiguration>(settings.searchConfig || {
+  const [searchConfig, setSearchConfig] = useState<SearchConfiguration>(userSettings.searchConfig || {
     titles: true,
     tags: false,
     author: false,
@@ -347,11 +346,11 @@ export default function FolderTree({
       const filteredPaths = currentPaths.filter(path => 
         path !== folderPath && !path.startsWith(folderPath + '/')
       )
-      globalState.set('expandedFolderPaths', filteredPaths)
+      globalState.setProperty('userSettings.expandedFolderPaths', filteredPaths)
     } else {
       // Expand this folder
       currentPaths.push(folderPath)
-      globalState.set('expandedFolderPaths', currentPaths)
+      globalState.setProperty('userSettings.expandedFolderPaths', currentPaths)
     }
   }
 
@@ -380,7 +379,7 @@ export default function FolderTree({
         }
         
         if (needsUpdate) {
-          globalState.set('expandedFolderPaths', currentPaths)
+          globalState.setProperty('userSettings.expandedFolderPaths', currentPaths)
         }
       }
     }
@@ -413,7 +412,7 @@ export default function FolderTree({
   // Handle search config changes
   const handleSearchConfigChange = (newConfig: SearchConfiguration) => {
     setSearchConfig(newConfig)
-    updateSetting('searchConfig', newConfig)
+    globalState.setProperty('userSettings.searchConfig', newConfig)
     
     if (searchText.trim() && onSearch) {
       onSearch(searchText, newConfig)
@@ -503,7 +502,7 @@ export default function FolderTree({
             const currentPaths = expandedFolderPaths.slice()
             if (currentPaths.indexOf(folderPath) === -1) {
               currentPaths.push(folderPath)
-              globalState.set('expandedFolderPaths', currentPaths)
+              globalState.setProperty('userSettings.expandedFolderPaths', currentPaths)
             }
           }, 1000)
           
@@ -547,7 +546,7 @@ export default function FolderTree({
       }
       
       if (pathsToAdd.length > 0) {
-        globalState.set('expandedFolderPaths', currentPaths.concat(pathsToAdd))
+        globalState.setProperty('userSettings.expandedFolderPaths', currentPaths.concat(pathsToAdd))
       }
     }
   }
@@ -582,7 +581,7 @@ export default function FolderTree({
           const currentPaths = expandedFolderPaths.slice()
           if (currentPaths.indexOf(newFolderPath) === -1) {
             currentPaths.push(newFolderPath)
-            globalState.set('expandedFolderPaths', currentPaths)
+            globalState.setProperty('userSettings.expandedFolderPaths', currentPaths)
             console.log(`Auto-expanding moved folder at new location: ${newFolderPath}`)
           }
         }

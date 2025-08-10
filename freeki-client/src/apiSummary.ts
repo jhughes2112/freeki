@@ -7,14 +7,14 @@ export interface ArchitectureSummary {
   overview: string
 }
 
-export const API_SUMMARY_VERSION = '3.2.0'
+export const API_SUMMARY_VERSION = '3.3.0'
 export const LAST_UPDATED = '2024-12-19'
 
 // Export this summary for runtime access
 export default {
   version: API_SUMMARY_VERSION,
   lastUpdated: LAST_UPDATED,
-  overview: 'Immediate reactive state + drag-synced scrolling tree + drag-responsive floating UI + runtime theming'
+  overview: 'Consolidated global state + immediate reactive updates + drag-synced scrolling tree + drag-responsive floating UI + runtime theming'
 } as ArchitectureSummary
 
 /*
@@ -53,44 +53,96 @@ const page = await api.getSinglePage(pageId)
 
 ---
 
-### 2. GLOBAL STATE OBSERVER SYSTEM
+### 2. CONSOLIDATED GLOBAL STATE SYSTEM
 **Location**: `src/globalState.ts`
-**Pattern**: Immediate reactive state with property-path targeting
+**Pattern**: Immediate reactive state with property-path targeting and unified user settings
 
 ```typescript
 // CRITICAL: No batching, no throttling - immediate updates
 globalState.set('currentPageMetadata', pageData)
-globalState.set('expandedFolderPaths', ['docs', 'docs/guides'])
+globalState.setProperty('userSettings.expandedFolderPaths', ['docs', 'docs/guides'])
 
 // Property path targeting for nested updates
 globalState.setProperty('adminSettings.colorSchemes.light.appBarBackground', '#FF0000')
+globalState.setProperty('userSettings.searchConfig.titles', true)
 
 // React hooks with automatic re-renders
-const expandedPaths = useGlobalState('expandedFolderPaths') as string[]
+const expandedPaths = useGlobalState('userSettings.expandedFolderPaths') as string[]
+const searchConfig = useGlobalState('userSettings.searchConfig')
 const appBarColor = useGlobalState('adminSettings.colorSchemes.light.appBarBackground')
 ```
 
-**OBSERVER BEHAVIOR**:
-- **Immediate notification** - no delays, no batching
-- **Property path listeners** - can listen to 'adminSettings' or 'adminSettings.colorSchemes.light'
-- **Deep cloning** - immutable state updates
-- **Automatic persistence** - expandedFolderPaths auto-saves to localStorage per device
+**CONSOLIDATED STATE ARCHITECTURE**:
+- **Complete user settings** stored in globalState for consistency
+- **Automatic device-aware persistence** - separate settings per device type/screen
+- **Admin settings** for theme colors and branding (server-side)
+- **User settings** for personal preferences (client-side, per-device)
+- **Page data and UI state** for application functionality
 
 **State Structure**:
 ```typescript
 interface AppState {
+  adminSettings: AdminSettings           // Server-side theme colors, branding
+  userSettings: UserSettings             // Client-side user preferences (device-specific)
+  currentUser: UserInfo | null           // Current authenticated user
   pageMetadata: PageMetadata[]           // Flat server data (source of truth)
-  expandedFolderPaths: string[]          // Which folders are expanded
   currentPageMetadata: PageMetadata      // Selected page
   currentPageContent: PageContent        // Selected page content
-  adminSettings: AdminSettings           // Theme colors, branding
   // + search, UI state, loading flags
+}
+
+interface UserSettings {
+  theme: 'light' | 'dark' | 'auto'       // Theme preference
+  searchConfig: { ... }                  // Search configuration
+  wideScreenLayout: { 
+    showFolderPanel: boolean
+    metadataCollapsed: boolean
+    sidebarWidth: number
+    metadataWidth: number
+    showMetadataPanel: boolean           // Whether to show metadata panel on wide screens
+  }
+  narrowScreenLayout: { 
+    showFolderPanel: boolean
+    metadataCollapsed: boolean
+    showMetadataPanel: boolean           // Whether to show metadata panel on narrow screens
+  }
+  expandedFolderPaths: string[]          // PERSISTENT: Which folders are expanded
 }
 ```
 
+**USER SETTINGS CONSOLIDATION**:
+- **Removed duplication** between useUserSettings and globalState
+- **Eliminated dead entries** like companyName/wikiTitle (now in adminSettings)
+- **Simplified UserSettings** to only user-specific preferences
+- **Automatic persistence** through globalState observers
+- **Device-aware storage** with unified device key generation
+
 ---
 
-### 3. FOLDER TREE HORIZONTAL SCROLLING SYSTEM
+### 3. SIMPLIFIED USER SETTINGS HOOK
+**Location**: `src/useUserSettings.ts`
+**Pattern**: Thin wrapper around globalState for user settings management
+
+```typescript
+// Now works with globalState instead of local state
+const { settings, userInfo, updateSetting } = useUserSettings(semanticApi)
+
+// Updates go directly to global state
+updateSetting('searchConfig', { titles: true, tags: false, content: false })
+
+// Automatic persistence handled by globalState
+// No duplication of device key logic or storage management
+```
+
+**SIMPLIFIED ARCHITECTURE**:
+- **No local state** - everything goes through globalState
+- **Automatic persistence** - handled by StatePersistenceManager
+- **No duplication** - single source of truth for all settings
+- **Clean interface** - same API, better implementation
+
+---
+
+### 4. FOLDER TREE HORIZONTAL SCROLLING SYSTEM
 **Location**: `src/FolderTree.tsx`
 **Pattern**: Intelligent text positioning with hover-responsive scrolling
 
@@ -119,14 +171,14 @@ width: 'calc(100% + 200px)'
 
 ---
 
-### 4. FLOATING UI BUTTON SYSTEM
+### 5. FLOATING UI BUTTON SYSTEM
 **Location**: `src/FolderTree.tsx`
 **Pattern**: Invisible overlay with intelligent positioning
 
 ```typescript
 // Floating overlay positioned relative to target row
 <Box ref={buttonOverlayRef} sx={{ position: 'absolute', zIndex: 20 }}>
-  {}// Buttons positioned at right edge, track Y position only
+  // Buttons positioned at right edge, track Y position only
 </Box>
 
 // Position calculation
@@ -146,7 +198,7 @@ overlay.style.top = `${topOffset}px`
 
 ---
 
-### 5. ALPHABETICAL SORTING SYSTEM
+### 6. ALPHABETICAL SORTING SYSTEM
 **Location**: `src/pageTreeUtils.ts`
 **Pattern**: Simple alphabetical sorting with files before folders
 
@@ -170,7 +222,7 @@ const sortedPages = sortPagesByDisplayOrder(pageMetadata)
 
 ---
 
-### 6. DYNAMIC CSS CUSTOM PROPERTIES THEME SYSTEM
+### 7. DYNAMIC CSS CUSTOM PROPERTIES THEME SYSTEM
 **Location**: `src/themeUtils.ts` + `adminSettings.ts`
 **Pattern**: Runtime CSS variable updates for complete visual customization
 
@@ -197,7 +249,7 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 
 ---
 
-### 7. COMPONENT ARCHITECTURE PATTERNS
+### 8. COMPONENT ARCHITECTURE PATTERNS
 
 #### App.tsx - Main Orchestrator
 - Initializes semantic API
@@ -207,6 +259,7 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 
 #### FolderTree.tsx - Advanced Tree Visualization
 - **Single monolithic component** - contains all tree logic (NOT split into sub-components)
+- **Uses global state directly** - no local user settings duplication
 - Converts flat pageMetadata to visual tree with virtual folder nodes
 - Search filtering with configurable modes (titles, tags, content, author)
 - Auto-expansion of parent folders for selected pages
@@ -214,85 +267,24 @@ document.documentElement.style.setProperty('--freeki-folders-font-color', '#2E2E
 - Floating button overlay system for contextual actions
 - Intelligent horizontal scrolling with hover responsiveness
 
-#### useUserSettings - Pure Data Storage
-- **Single responsibility** - only saves/loads user preferences to localStorage
-- **Device-specific keys** - separate settings per device type and screen resolution
-- **No business logic** - just persistent key-value storage
-- **Minimal surface** - only settings actually used by the application
+#### useUserSettings - Simplified Global State Wrapper
+- **Thin wrapper** around globalState for user settings
+- **No local persistence** - handled automatically by globalState
+- **No duplication** - single device key, single storage mechanism
+- **Clean API** - same interface, better implementation
 
 ---
 
-## DEVELOPMENT UTILITIES
+### 9. RESPONSIVE CHEVRON BUTTON SYSTEM
+**Location**: `src/App.tsx` + `src/App.css`
+**Pattern**: Multi-tier responsive chevron buttons that adapt to screen size and panel state
 
-### Test Data System
-**Location**: `src/testData.ts`
-- `testPageMetadata[]` - Clean test data for alphabetical sorting
-- `testPageContent` - Sample content for all test pages
-- Used by FakeSemanticApi for realistic testing
+```typescript
+// Wide screen chevrons - positioned in center content area
+<button className={`chevron-button chevron-wide-screen chevron-sidebar-theme ${collapsed ? 'closed' : 'open'}`}>
+  {collapsed ? <ChevronRight /> : <ChevronLeft />}
+</button>
 
----
-
-## KEY ARCHITECTURAL DECISIONS
-
-### What We ELIMINATED:
-- Complex HTTP client abstractions
-- Multiple API service layers  
-- Configuration ceremony
-- Network simulation in fake clients
-- Redundant React hook wrappers
-- Server health detection complexity
-- Component over-decomposition (kept FolderTree as single file)
-
-### What We BUILT:
-- **Direct semantic function calls** - no intermediate layers
-- **Immediate reactive state** - no batching or throttling
-- **Intelligent UI positioning** - hover-responsive scrolling and floating elements
-- **Device-aware persistence** - separate settings per device type
-- **Runtime CSS customization** - complete visual control without rebuilds
-- **Comprehensive test data** - realistic testing without server
-
-### Design Philosophy:
-> "Every unnecessary line of code is a bug"
-> 
-> - Minimal abstraction layers
-> - Immediate state updates (no async state reconciliation)
-> - Simple factory decisions
-> - No premature optimization
-> - Keep related functionality together (monolithic components when appropriate)
-
----
-
-## FILE ORGANIZATION
-
-```
-src/
-├── semanticApiInterface.ts    # Clean API contract
-├── realSemanticApi.ts         # Network implementation
-├── fakeSemanticApi.ts         # In-memory implementation  
-├── semanticApiFactory.ts      # One-line factory
-├── globalState.ts             # Immediate reactive state system
-├── pageTreeUtils.ts           # Tree building + drag/drop utilities
-├── themeUtils.ts              # CSS custom properties system
-├── adminSettings.ts           # Color scheme definitions
-├── testData.ts                # Comprehensive test data
-├── App.tsx                    # Main orchestrator
-├── FolderTree.tsx             # Complete tree visualization (monolithic)
-├── useUserSettings.ts         # Device-specific localStorage persistence
-└── ...other components
-```
-
-**CURRENT STATE**:
-- Clean semantic API with immediate global state updates
-- Advanced folder tree with intelligent scrolling and floating UI
-- Complete theme customization with runtime CSS variables
-- Device-aware settings persistence
-- Comprehensive drag/drop with visual validation
-- Zero compilation errors or warnings
-
-This architecture provides a clean, maintainable foundation with unique solutions for:
-- **API abstraction** without over-engineering
-- **Global state management** with immediate updates and property-path targeting
-- **Advanced tree UI** with intelligent scrolling and floating contextual actions
-- **Runtime theming** without CSS rebuilds
-- **Comprehensive testing** without server dependencies
+// Narrow screen chevrons - positioned on panel edges, slide with panels
+<button className={`chevron-button chevron-narrow-screen sidebar-chevron chevron-sidebar-theme`}
 */

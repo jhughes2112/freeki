@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 import type { ISemanticApi } from './semanticApiInterface'
+import { useGlobalState, globalState } from './globalState'
 
 export interface UserInfo {
   accountId: string
@@ -10,14 +11,11 @@ export interface UserInfo {
   gravatarUrl?: string
 }
 
+// User settings - everything that should be persisted per device
 export interface UserSettings {
+  // Theme preference
   theme: 'light' | 'dark' | 'auto'
-  companyName: 'Your Company'
-  wikiTitle: 'FreeKi Wiki'
-  visiblePageIds: string[]  // Track which page IDs should be visible
-  expandedFolderPaths: string[]  // Track which folder paths are expanded (independent of content)
-  lastSelectedPageId?: string
-  showMetadataPanel: boolean
+  
   // Search configuration - persistent across sessions
   searchConfig: {
     titles: boolean
@@ -25,142 +23,90 @@ export interface UserSettings {
     author: boolean
     content: boolean
   }
+  
   // Layout settings for different screen modes
   wideScreenLayout: {
-    sidebarCollapsed: boolean
-    metadataCollapsed: boolean
+    showFolderPanel: boolean
     sidebarWidth: number
     metadataWidth: number
+    showMetadataPanel: boolean
   }
   narrowScreenLayout: {
-    sidebarCollapsed: boolean
-    metadataCollapsed: boolean
-  }
-}
-
-const DEFAULT_SETTINGS: UserSettings = {
-  theme: 'light',
-  companyName: 'Your Company',
-  wikiTitle: 'FreeKi Wiki',
-  visiblePageIds: [],  // Start with no pages visible (all folders collapsed)
-  expandedFolderPaths: [],  // Start with no folders expanded
-  showMetadataPanel: true,
-  searchConfig: {
-    titles: true,
-    tags: false,
-    author: false,
-    content: false
-  },
-  wideScreenLayout: {
-    sidebarCollapsed: false,
-    metadataCollapsed: false,
-    sidebarWidth: 300,
-    metadataWidth: 280
-  },
-  narrowScreenLayout: {
-    sidebarCollapsed: true,
-    metadataCollapsed: true
-  }
-}
-
-function getDeviceKey(): string {
-  const screen = `${window.screen.width}x${window.screen.height}`
-  const isMobile = window.innerWidth <= 768
-  const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024
-  
-  let deviceType = 'desktop'
-  if (isMobile) deviceType = 'mobile'
-  else if (isTablet) deviceType = 'tablet'
-  
-  const ua = navigator.userAgent
-  let hash = 0
-  for (let i = 0; i < ua.length; i++) {
-    const char = ua.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash = hash & hash
+    showFolderPanel: boolean
+    showMetadataPanel: boolean
   }
   
-  return `freeki-settings-${deviceType}-${screen}-${Math.abs(hash).toString(36)}`
+  // Which folder paths are expanded - THIS IS PERSISTENT USER STATE
+  expandedFolderPaths: string[]
 }
 
+// Hook to work with user settings now stored in globalState
 export function useUserSettings(semanticApi?: ISemanticApi | null) {
-  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
-  const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const userSettings = useGlobalState('userSettings') as UserSettings
+  const userInfo = useGlobalState('currentUser') as UserInfo | null
   
-  // Memoize deviceKey to prevent recalculation on every render
-  const deviceKey = useMemo(() => getDeviceKey(), [])
-  
-  useEffect(() => {
-    async function loadData() {
-      try {
-        // Load settings from localStorage
-        const savedSettings = localStorage.getItem(deviceKey)
-        if (savedSettings) {
-          const parsed = JSON.parse(savedSettings) as Partial<UserSettings>
-          setSettings({ ...DEFAULT_SETTINGS, ...parsed })
-        }
-        
-        // Try to fetch current user info if semantic API is provided
-        if (semanticApi) {
-          try {
-            const user = await semanticApi.getCurrentUser()
-            setUserInfo(user)
-          } catch (error) {
-            console.warn('Failed to fetch current user:', error)
-            setUserInfo(null)
-          }
-        }
-        
-      } catch (error) {
-        console.warn('Failed to load user data:', error)
-      } finally {
-        setIsLoaded(true)
-      }
-    }
-    
-    loadData()
-  }, [deviceKey, semanticApi])
-  
-  const saveSettings = useCallback((newSettings: Partial<UserSettings>) => {
-    try {
-      const updatedSettings = { ...settings, ...newSettings }
-      setSettings(updatedSettings)
-      localStorage.setItem(deviceKey, JSON.stringify(updatedSettings))
-    } catch (error) {
-      console.warn('Failed to save user settings:', error)
-    }
-  }, [settings, deviceKey])
-  
+  // Update specific setting in global state
   const updateSetting = useCallback(<K extends keyof UserSettings>(
     key: K, 
     value: UserSettings[K]
   ) => {
-    try {
-      const updatedSettings = { ...settings, [key]: value }
-      setSettings(updatedSettings)
-      localStorage.setItem(deviceKey, JSON.stringify(updatedSettings))
-    } catch (error) {
-      console.warn('Failed to save user setting:', error)
-    }
-  }, [settings, deviceKey]) // Made this more stable by inlining the logic
+    globalState.setProperty(`userSettings.${key}`, value)
+  }, [])
   
+  // Update multiple settings at once
+  const saveSettings = useCallback((newSettings: Partial<UserSettings>) => {
+    const updatedSettings = { ...userSettings, ...newSettings }
+    globalState.set('userSettings', updatedSettings)
+  }, [userSettings])
+  
+  // Reset to defaults
   const resetSettings = useCallback(() => {
-    try {
-      setSettings(DEFAULT_SETTINGS)
-      localStorage.removeItem(deviceKey)
-    } catch (error) {
-      console.warn('Failed to reset user settings:', error)
+    const DEFAULT_SETTINGS: UserSettings = {
+      theme: 'auto',
+      searchConfig: {
+        titles: true,
+        tags: false,
+        author: false,
+        content: false
+      },
+      wideScreenLayout: {
+        showFolderPanel: true,
+        sidebarWidth: 300,
+        metadataWidth: 280,
+        showMetadataPanel: true
+      },
+      narrowScreenLayout: {
+        showFolderPanel: false,
+        showMetadataPanel: false
+      },
+      expandedFolderPaths: []
     }
-  }, [deviceKey])
+    globalState.set('userSettings', DEFAULT_SETTINGS)
+  }, [])
+  
+  // Fetch user info from API and store in global state
+  const fetchUserInfo = useCallback(async () => {
+    if (!semanticApi) return
+    
+    try {
+      globalState.set('isLoadingUser', true)
+      const user = await semanticApi.getCurrentUser()
+      globalState.set('currentUser', user)
+    } catch (error) {
+      console.warn('Failed to fetch current user:', error)
+      globalState.set('currentUser', null)
+    } finally {
+      globalState.set('isLoadingUser', false)
+    }
+  }, [semanticApi])
   
   return {
-    settings,
+    settings: userSettings,
     userInfo,
-    isLoaded,
+    isLoaded: true, // Always loaded since it comes from global state
     updateSetting,
     saveSettings,
     resetSettings,
-    deviceKey
+    fetchUserInfo
   }
 }

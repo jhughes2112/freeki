@@ -1,5 +1,5 @@
 import { AdminSettings, DEFAULT_ADMIN_SETTINGS } from './adminSettings'
-import type { UserInfo } from './useUserSettings'
+import type { UserInfo, UserSettings } from './useUserSettings'
 
 // Server-side page metadata - exactly matches the C# PageMetadata class
 export interface PageMetadata {
@@ -26,6 +26,9 @@ export interface AppState {
   // Current user information and auth status
   currentUser: UserInfo | null
   
+  // Complete user settings stored in global state for consistency
+  userSettings: UserSettings
+  
   // All page metadata from server - flat list (this is the raw server data)
   pageMetadata: PageMetadata[]
   
@@ -38,23 +41,66 @@ export interface AppState {
   // Current edit state
   isEditing: boolean
   
-  // Search state
+  // Search state - transient UI state, not persisted
   searchQuery: string
   searchResults: PageMetadata[]
-  
-  // Folder expansion state - which folder paths are expanded
-  expandedFolderPaths: string[]
-  
-  // UI state
-  theme: 'light' | 'dark' | 'auto'
-  sidebarCollapsed: boolean
-  metadataCollapsed: boolean
   
   // Loading states
   isLoadingAdminSettings: boolean
   isLoadingPages: boolean
   isLoadingUser: boolean
   isLoadingPageContent: boolean
+}
+
+// Default user settings
+const DEFAULT_USER_SETTINGS: UserSettings = {
+  theme: 'auto',
+  searchConfig: {
+    titles: true,
+    tags: false,
+    author: false,
+    content: false
+  },
+  wideScreenLayout: {
+    showFolderPanel: true,
+    sidebarWidth: 300,
+    metadataWidth: 280,
+    showMetadataPanel: true
+  },
+  narrowScreenLayout: {
+    showFolderPanel: false,
+    showMetadataPanel: false
+  },
+  expandedFolderPaths: []
+}
+
+// Utility functions to derive current UI state from user settings
+export function isWideScreen(): boolean {
+  return window.innerWidth > 900
+}
+
+export function getCurrentTheme(userSettings: UserSettings): 'light' | 'dark' {
+  if (userSettings.theme === 'auto') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+  return userSettings.theme === 'dark' ? 'dark' : 'light'
+}
+
+export function getCurrentLayoutState(userSettings: UserSettings): {
+  showFolderPanel: boolean
+  sidebarWidth: number
+  metadataWidth: number
+  showMetadataPanel: boolean
+} {
+  const wide = isWideScreen()
+  const layout = wide ? userSettings.wideScreenLayout : userSettings.narrowScreenLayout
+  
+  return {
+    showFolderPanel: layout.showFolderPanel,
+    showMetadataPanel: layout.showMetadataPanel,
+    sidebarWidth: wide ? userSettings.wideScreenLayout.sidebarWidth : 300,
+    metadataWidth: wide ? userSettings.wideScreenLayout.metadataWidth : 280
+  }
 }
 
 // Type for property path strings (e.g., 'adminSettings.colorSchemes.light.appBarBackground')
@@ -96,16 +142,13 @@ class GlobalStateManager {
     const initialState: AppState = {
       adminSettings: DEFAULT_ADMIN_SETTINGS,
       currentUser: null,
+      userSettings: DEFAULT_USER_SETTINGS,
       pageMetadata: [],
       currentPageMetadata: null,
       currentPageContent: null,
       isEditing: false,
       searchQuery: '',
       searchResults: [],
-      expandedFolderPaths: [], // Start with no folders expanded (root will be added by FolderTree)
-      theme: 'light',
-      sidebarCollapsed: false,
-      metadataCollapsed: false,
       isLoadingAdminSettings: true,
       isLoadingPages: false,
       isLoadingUser: false,
@@ -251,65 +294,73 @@ class GlobalStateManager {
 // Create and export global state manager instance
 export const globalState = new GlobalStateManager()
 
-// Persistence manager for automatically saving certain state to localStorage
+// Device key utility function
+function getDeviceKey(): string {
+  const screen = `${window.screen.width}x${window.screen.height}`
+  const isMobile = window.innerWidth <= 768
+  const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024
+  
+  let deviceType = 'desktop'
+  if (isMobile) deviceType = 'mobile'
+  else if (isTablet) deviceType = 'tablet'
+  
+  const ua = navigator.userAgent
+  let hash = 0
+  for (let i = 0; i < ua.length; i++) {
+    const char = ua.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash
+  }
+  
+  return `freeki-settings-${deviceType}-${screen}-${Math.abs(hash).toString(36)}`
+}
+
+// Persistence manager for automatically saving user settings to localStorage
 class StatePersistenceManager {
   private deviceKey: string
   
   constructor() {
-    this.deviceKey = this.getDeviceKey()
+    this.deviceKey = getDeviceKey()
     this.setupObservers()
     this.loadInitialState()
   }
   
-  private getDeviceKey(): string {
-    const screen = `${window.screen.width}x${window.screen.height}`
-    const isMobile = window.innerWidth <= 768
-    const isTablet = window.innerWidth > 768 && window.innerWidth <= 1024
-    
-    let deviceType = 'desktop'
-    if (isMobile) deviceType = 'mobile'
-    else if (isTablet) deviceType = 'tablet'
-    
-    const ua = navigator.userAgent
-    let hash = 0
-    for (let i = 0; i < ua.length; i++) {
-      const char = ua.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    
-    return `freeki-settings-${deviceType}-${screen}-${Math.abs(hash).toString(36)}`
-  }
-  
   private setupObservers(): void {
-    // Auto-save expandedFolderPaths when it changes
-    globalState.subscribe('expandedFolderPaths', (path, newValue) => {
-      if (Array.isArray(newValue)) {
-        this.saveExpandedFolders(newValue)
-      }
+    // Auto-save userSettings when ANY nested property changes
+    globalState.subscribe('userSettings', (path) => {
+      console.log(`[Persistence] UserSettings changed at path: ${path}`)
+      const state = globalState.getState()
+      this.saveUserSettings(state.userSettings)
     })
   }
   
   private loadInitialState(): void {
-    // Load expanded folders from localStorage
+    // Load user settings from localStorage (includes expanded folders)
     try {
-      const saved = localStorage.getItem(`${this.deviceKey}-expandedFolders`)
+      const saved = localStorage.getItem(`${this.deviceKey}-userSettings`)
+      console.log(`[Persistence] Loading from key: ${this.deviceKey}-userSettings`)
+      console.log(`[Persistence] Loaded raw data:`, saved)
       if (saved) {
-        const expandedFolders = JSON.parse(saved) as string[]
-        if (Array.isArray(expandedFolders)) {
-          globalState.set('expandedFolderPaths', expandedFolders)
-        }
+        const userSettings = JSON.parse(saved) as Partial<UserSettings>
+        console.log(`[Persistence] Parsed user settings:`, userSettings)
+        const mergedSettings = { ...DEFAULT_USER_SETTINGS, ...userSettings }
+        console.log(`[Persistence] Merged with defaults:`, mergedSettings)
+        globalState.set('userSettings', mergedSettings)
+      } else {
+        console.log(`[Persistence] No saved settings found, using defaults`)
       }
     } catch (error) {
-      console.warn('Failed to load expanded folders:', error)
+      console.warn('Failed to load user settings:', error)
     }
   }
   
-  private saveExpandedFolders(expandedFolders: string[]): void {
+  private saveUserSettings(userSettings: UserSettings): void {
     try {
-      localStorage.setItem(`${this.deviceKey}-expandedFolders`, JSON.stringify(expandedFolders))
+      console.log(`[Persistence] Saving user settings:`, userSettings)
+      localStorage.setItem(`${this.deviceKey}-userSettings`, JSON.stringify(userSettings))
+      console.log(`[Persistence] Settings saved to key: ${this.deviceKey}-userSettings`)
     } catch (error) {
-      console.warn('Failed to save expanded folders:', error)
+      console.warn('Failed to save user settings:', error)
     }
   }
 }
@@ -368,3 +419,6 @@ export function useGlobalStateListener(
     return globalState.subscribe(path, listener)
   }, deps)
 }
+
+// Export device key utility for use in other components if needed
+export { getDeviceKey }

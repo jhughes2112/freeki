@@ -1,61 +1,49 @@
-import { globalState } from './globalState'
+import { globalState, getCurrentTheme } from './globalState'
 import { applyTheme } from './themeUtils'
 import type { ColorScheme } from './adminSettings'
-
-// Theme type to match the global state
-type ThemeMode = 'light' | 'dark' | 'auto'
+import type { UserSettings } from './useUserSettings'
 
 // Theme service that automatically applies theme changes when global state changes
 class ThemeService {
   private initialized = false
   private lastAppliedTheme: string | null = null
-  private lastAppliedColorSchemes: { light: ColorScheme; dark: ColorScheme } | null = null
 
   // Initialize the theme service to listen for state changes
   initialize() {
     if (this.initialized) return
 
-    // Debounced theme application to prevent excessive DOM updates
-    let applyThemeTimeoutId: number | null = null
-    
-    const debouncedApplyTheme = (colorSchemes: { light: ColorScheme; dark: ColorScheme }, theme: ThemeMode) => {
-      if (applyThemeTimeoutId) {
-        clearTimeout(applyThemeTimeoutId)
-      }
+    // Function to apply theme changes immediately (no debouncing bullshit)
+    const applyCurrentTheme = () => {
+      const state = globalState.getState()
+      const userSettings = state.userSettings
+      const actualTheme = getCurrentTheme(userSettings)
+      const colorSchemes = state.adminSettings.colorSchemes
       
-      applyThemeTimeoutId = setTimeout(() => {
-        // Only apply if values actually changed
-        const themeKey = `${theme}-${JSON.stringify(colorSchemes)}`
-        if (themeKey !== this.lastAppliedTheme) {
-          console.log('Applying theme changes...')
-          applyTheme(colorSchemes, theme)
-          this.lastAppliedTheme = themeKey
-        }
-        applyThemeTimeoutId = null
-      }, 16) // ~60fps throttling
+      // Only apply if values actually changed
+      const themeKey = `${actualTheme}-${JSON.stringify(colorSchemes)}`
+      if (themeKey !== this.lastAppliedTheme) {
+        console.log(`Applying theme: ${actualTheme}`)
+        applyTheme(colorSchemes, actualTheme)
+        this.lastAppliedTheme = themeKey
+      }
     }
 
-    // Listen specifically for color scheme changes (deeply nested)
-    globalState.subscribe('adminSettings.colorSchemes', (path, newValue, oldValue) => {
-      const state = globalState.getState()
-      // Use the full colorSchemes from state, not the newValue which might be a partial update
-      debouncedApplyTheme(state.adminSettings.colorSchemes, state.theme)
+    // Listen for color scheme changes (admin can change themes)
+    globalState.subscribe('adminSettings.colorSchemes', () => {
+      applyCurrentTheme()
     })
 
-    // Listen for theme mode changes
-    globalState.subscribe('theme', (path, newTheme, oldTheme) => {
-      console.log(`Theme mode changed from ${oldTheme} to ${newTheme}`)
-      const state = globalState.getState()
-      debouncedApplyTheme(state.adminSettings.colorSchemes, newTheme as ThemeMode)
+    // Listen for user theme preference changes
+    globalState.subscribe('userSettings.theme', () => {
+      console.log('User theme preference changed')
+      applyCurrentTheme()
     })
 
     // Apply initial theme once
-    const state = globalState.getState()
-    applyTheme(state.adminSettings.colorSchemes, state.theme)
-    this.lastAppliedTheme = `${state.theme}-${JSON.stringify(state.adminSettings.colorSchemes)}`
+    applyCurrentTheme()
 
     this.initialized = true
-    console.log('Theme service initialized with optimized listeners')
+    console.log('Theme service initialized with proper user settings integration')
   }
 }
 

@@ -31,13 +31,13 @@ export interface UserSettings {
   }
   // Layout settings for different screen modes
   wideScreenLayout: {
-    sidebarCollapsed: boolean
+    showFolderPanel: boolean
     metadataCollapsed: boolean
     sidebarWidth: number
     metadataWidth: number
   }
   narrowScreenLayout: {
-    sidebarCollapsed: boolean
+    showFolderPanel: boolean
     metadataCollapsed: boolean
   }
 }
@@ -60,13 +60,13 @@ const DEFAULT_SETTINGS: UserSettings = {
     content: false
   },
   wideScreenLayout: {
-    sidebarCollapsed: false,
+    showFolderPanel: false,
     metadataCollapsed: false,
     sidebarWidth: 300,
     metadataWidth: 280
   },
   narrowScreenLayout: {
-    sidebarCollapsed: true,
+    showFolderPanel: true,
     metadataCollapsed: true
   }
 }
