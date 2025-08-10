@@ -126,7 +126,7 @@ export default function FolderTree({
   const [showNewPageDialog, setShowNewPageDialog] = useState(false)
   const [newPageTitle, setNewPageTitle] = useState('')
   const [newPageTargetFolder, setNewPageTargetFolder] = useState('')
-  
+
   // New Folder Dialog state
   const [showNewFolderDialog, setShowNewFolderDialog] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
@@ -148,13 +148,11 @@ export default function FolderTree({
     }
   }, [externalSearchQuery])
 
-  // Smart text positioning on row hover - scroll to show long text
+  // Smart text positioning on row hover - simple logic: check if ALL content fits, otherwise show icon at left
   const handleRowHover = (listItem: HTMLElement, textContent: string) => {
     if (!containerRef.current) return
     
     const container = containerRef.current
-    const textElement = listItem.querySelector('.folder-tree-text') as HTMLElement
-    if (!textElement) return
     
     // Check if this is a folder or file for debugging
     const isFolder = listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderIcon"]') || listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderOpenIcon"]')
@@ -162,65 +160,61 @@ export default function FolderTree({
     
     console.log(`?? ${itemType} ROW_HOVER: "${textContent}"`)
     
-    // Get current container and element bounds
+    // Check if ANY visible rows are too wide for the container
+    const allListItems = container.querySelectorAll('.MuiListItem-root')
     const containerRect = container.getBoundingClientRect()
-    const elementRect = listItem.getBoundingClientRect()
-    const iconElement = listItem.querySelector('.MuiListItemIcon-root') as HTMLElement
-    
-    if (!iconElement) return
-    
-    // Create a measurement element to get the actual text width
-    const measurer = document.createElement('span')
-    measurer.style.position = 'absolute'
-    measurer.style.visibility = 'hidden'
-    measurer.style.whiteSpace = 'nowrap'
-    const textStyle = window.getComputedStyle(textElement)
-    measurer.style.fontSize = textStyle.fontSize
-    measurer.style.fontFamily = textStyle.fontFamily
-    measurer.style.fontWeight = textStyle.fontWeight
-    measurer.textContent = textContent
-    document.body.appendChild(measurer)
-    
-    const fullTextWidth = measurer.getBoundingClientRect().width
-    document.body.removeChild(measurer)
-    
-    // Calculate positions relative to container
-    const iconWidth = 20 + 6 // Icon + margin
-    const paddingLeft = parseFloat(window.getComputedStyle(listItem).paddingLeft) || 0
-    const textStartX = elementRect.left - containerRect.left + paddingLeft + iconWidth
-    const textEndX = textStartX + fullTextWidth
-    
-    // Use actual visible panel width, not inflated container width
     const actualVisibleWidth = containerRect.width - 200 // Subtract the extra 200px
     
-    console.log(`?? ${itemType}: textWidth=${fullTextWidth}, containerWidth=${containerRect.width}, visibleWidth=${actualVisibleWidth}, textStart=${textStartX}, textEnd=${textEndX}`)
+    let anyRowTooWide = false
     
-    // Check if text is already fully visible in the ACTUAL visible area
-    if (textStartX >= 0 && textEndX <= actualVisibleWidth) {
-      console.log(`? ${itemType}: Text already fully visible in panel, no action needed`)
-      return
+    for (const item of allListItems) {
+      const itemElement = item as HTMLElement
+      const itemStyle = window.getComputedStyle(itemElement)
+      if (itemStyle.display === 'none') continue // Skip hidden items
+      
+      const textEl = itemElement.querySelector('.folder-tree-text') as HTMLElement
+      const iconEl = itemElement.querySelector('.MuiListItemIcon-root') as HTMLElement
+      
+      if (!textEl || !iconEl) continue
+      
+      // Create measurement element for this item's text
+      const measurer = document.createElement('span')
+      measurer.style.position = 'absolute'
+      measurer.style.visibility = 'hidden'
+      measurer.style.whiteSpace = 'nowrap'
+      const textStyle = window.getComputedStyle(textEl)
+      measurer.style.fontSize = textStyle.fontSize
+      measurer.style.fontFamily = textStyle.fontFamily
+      measurer.style.fontWeight = textStyle.fontWeight
+      measurer.textContent = textEl.textContent || ''
+      document.body.appendChild(measurer)
+      
+      const textWidth = measurer.getBoundingClientRect().width
+      document.body.removeChild(measurer)
+      
+      const iconWidth = iconEl.getBoundingClientRect().width + 6
+      const paddingLeft = parseFloat(window.getComputedStyle(itemElement).paddingLeft) || 0
+      const totalContentWidth = paddingLeft + iconWidth + textWidth
+      
+      if (totalContentWidth > actualVisibleWidth) {
+        anyRowTooWide = true
+        console.log(`?? ${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
+        break
+      }
     }
     
-    // Scroll to show the text properly
-    if (fullTextWidth > actualVisibleWidth) {
-      // Text is too long for visible area - scroll to show icon at left edge
-      const iconRect = iconElement.getBoundingClientRect()
-      const scrollAmount = iconRect.left - containerRect.left
-      container.scrollLeft += scrollAmount
-      console.log(`? ${itemType}: Large text, scrolled by ${scrollAmount}px to show icon at left`)
-    } else {
-      // Text fits but is clipped - scroll to show all text
-      if (textEndX > actualVisibleWidth) {
-        // Text is cut off on the right - scroll right to show the end
-        const scrollAmount = textEndX - actualVisibleWidth + 10 // 10px buffer
-        container.scrollLeft += scrollAmount
-        console.log(`? ${itemType}: Scrolled right by ${scrollAmount}px to show text end`)
-      } else if (textStartX < 0) {
-        // Text is cut off on the left - scroll left to show the beginning
-        const scrollAmount = Math.abs(textStartX) + 10 // 10px buffer
-        container.scrollLeft -= scrollAmount
-        console.log(`? ${itemType}: Scrolled left by ${scrollAmount}px to show text start`)
+    if (anyRowTooWide) {
+      // At least one row is too wide - scroll to show icons at left edge
+      const iconElement = listItem.querySelector('.MuiListItemIcon-root') as HTMLElement
+      if (iconElement) {
+        const paddingLeft = parseFloat(window.getComputedStyle(listItem).paddingLeft) || 0
+        console.log(`? ${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
+        container.scrollLeft = paddingLeft
       }
+    } else {
+      // All content fits - reset to natural position
+      console.log(`? ${itemType}: All content fits, resetting to scroll=0`)
+      container.scrollLeft = 0
     }
   }
 
@@ -568,6 +562,7 @@ export default function FolderTree({
     } finally {
       setIsDragging(false)
       setDragHoverFolder('')
+
       setCurrentDraggedPath('')
       
       // Clear hover timer
