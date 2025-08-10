@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Box,
   Typography,
@@ -16,7 +16,8 @@ import {
   Menu,
   MenuItem,
   Checkbox,
-  FormControlLabel
+  FormControlLabel,
+  Tooltip
 } from '@mui/material'
 import {
   Clear,
@@ -140,6 +141,7 @@ export default function FolderTree({
   const containerRef = useRef<HTMLDivElement>(null)
   const selectedItemRef = useRef<HTMLLIElement>(null)
   const searchTimeoutRef = useRef<number | null>(null)
+  const buttonOverlayRef = useRef<HTMLDivElement>(null)
 
   // Update search text from external changes
   useEffect(() => {
@@ -148,50 +150,67 @@ export default function FolderTree({
     }
   }, [externalSearchQuery])
 
-  // Update button positions when container scrolls or resizes
+  // Position floating buttons at the right edge of the target row
+  const positionFloatingButtons = (targetRowElement: HTMLElement | null) => {
+    if (!buttonOverlayRef.current) return
+    
+    const overlay = buttonOverlayRef.current
+    
+    if (!targetRowElement) {
+      // Hide buttons when no target
+      overlay.style.display = 'none'
+      return
+    }
+    
+    // Show and position the overlay at the target row
+    overlay.style.display = 'block'
+    const rowRect = targetRowElement.getBoundingClientRect()
+    const containerRect = containerRef.current?.getBoundingClientRect()
+    
+    if (containerRect) {
+      // Position relative to container
+      const topOffset = rowRect.top - containerRect.top
+      overlay.style.top = `${topOffset}px`
+      overlay.style.height = `${rowRect.height}px`
+    }
+  }
+
+  // Update button positioning when relevant elements change
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
+    // Find the target row for buttons (current page folder or drag hover folder)
+    let targetElement: HTMLElement | null = null
     
-    const updateButtonPositions = () => {
-      const containerRect = container.getBoundingClientRect()
-      const scrollLeft = container.scrollLeft
-      const actualVisibleWidth = containerRect.width - 200 // Subtract the extra 200px buffer
-      const rightEdgePosition = scrollLeft + actualVisibleWidth - 40 // 40px from right edge to account for button width
-      
-      // Update all New Page buttons - ALWAYS at right edge
-      const newPageButtons = container.querySelectorAll('.new-page-button')
-      newPageButtons.forEach((button) => {
-        const buttonElement = button as HTMLElement
-        buttonElement.style.left = `${rightEdgePosition}px`
-      })
-      
-      // Update all New Folder drop zones - ALWAYS at right edge
-      const newFolderZones = container.querySelectorAll('.new-folder-zone')
-      newFolderZones.forEach((zone) => {
-        const zoneElement = zone as HTMLElement
-        zoneElement.style.left = `${rightEdgePosition - 10}px` // Slightly more left to account for wider drop zone
-      })
+    if (isDragging && dragHoverFolder) {
+      // During drag - position at hover folder
+      const hoverElements = containerRef.current?.querySelectorAll('.MuiListItem-root')
+      if (hoverElements) {
+        for (const element of hoverElements) {
+          const pathData = element.getAttribute('data-folder-path')
+          if (pathData === dragHoverFolder) {
+            targetElement = element as HTMLElement
+            break
+          }
+        }
+      }
+    } else if (!isDragging) {
+      // Normal mode - position at current page folder
+      const currentFolder = getCurrentPageFolder()
+      if (currentFolder !== null) {
+        const folderElements = containerRef.current?.querySelectorAll('.MuiListItem-root')
+        if (folderElements) {
+          for (const element of folderElements) {
+            const pathData = element.getAttribute('data-folder-path')
+            if (pathData === currentFolder) {
+              targetElement = element as HTMLElement
+              break
+            }
+          }
+        }
+      }
     }
     
-    // Update on scroll
-    container.addEventListener('scroll', updateButtonPositions)
-    // Update on resize (when panel size changes)
-    const resizeObserver = new ResizeObserver(updateButtonPositions)
-    resizeObserver.observe(container)
-    // Update immediately and whenever anything changes
-    updateButtonPositions()
-    
-    // Also update when dragging state changes to ensure buttons stay at right edge
-    const mutationObserver = new MutationObserver(updateButtonPositions)
-    mutationObserver.observe(container, { childList: true, subtree: true })
-    
-    return () => {
-      container.removeEventListener('scroll', updateButtonPositions)
-      resizeObserver.disconnect()
-      mutationObserver.disconnect()
-    }
-  }, [pageTree, expandedFolderPaths, isDragging, dragHoverFolder]) // Re-run when anything changes
+    positionFloatingButtons(targetElement)
+  }, [isDragging, dragHoverFolder, selectedPageMetadata, pageTree, expandedFolderPaths])
 
   // Smart text positioning on row hover - simple logic: check if ALL content fits, otherwise show icon at left
   const handleRowHover = (listItem: HTMLElement, textContent: string) => {
@@ -203,7 +222,7 @@ export default function FolderTree({
     const isFolder = listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderIcon"]') || listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderOpenIcon"]')
     const itemType = isFolder ? 'FOLDER' : 'FILE'
     
-    console.log(`?? ${itemType} ROW_HOVER: "${textContent}"`)
+    console.log(`🔍 ${itemType} ROW_HOVER: "${textContent}"`)
     
     // Check if ANY visible rows are too wide for the container
     const allListItems = container.querySelectorAll('.MuiListItem-root')
@@ -243,7 +262,7 @@ export default function FolderTree({
       
       if (totalContentWidth > actualVisibleWidth) {
         anyRowTooWide = true
-        console.log(`?? ${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
+        console.log(`📏 ${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
         break
       }
     }
@@ -253,12 +272,12 @@ export default function FolderTree({
       const iconElement = listItem.querySelector('.MuiListItemIcon-root') as HTMLElement
       if (iconElement) {
         const paddingLeft = parseFloat(window.getComputedStyle(listItem).paddingLeft) || 0
-        console.log(`? ${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
+        console.log(`✅ ${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
         container.scrollLeft = paddingLeft
       }
     } else {
       // All content fits - reset to natural position
-      console.log(`? ${itemType}: All content fits, resetting to scroll=0`)
+      console.log(`✅ ${itemType}: All content fits, resetting to scroll=0`)
       container.scrollLeft = 0
     }
   }
@@ -430,7 +449,7 @@ export default function FolderTree({
     
     // Can't drop a parent folder into any of its children or descendants
     if (targetPath.startsWith(dragPath + '/')) {
-      console.log(`? Illegal drop: Cannot move parent folder '${dragPath}' into its child '${targetPath}'`)
+      console.log(`⛔ Illegal drop: Cannot move parent folder '${dragPath}' into its child '${targetPath}'`)
       return false
     }
     
@@ -518,7 +537,7 @@ export default function FolderTree({
     
     // Validate the drop operation
     if (!isValidDropTarget(dragData.path, targetFolderPath)) {
-      console.log(`? Drop rejected: Invalid target for '${dragData.path}' -> '${targetFolderPath}'`)
+      console.log(`⛔ Drop rejected: Invalid target for '${dragData.path}' -> '${targetFolderPath}'`)
       return
     }
     
@@ -529,7 +548,7 @@ export default function FolderTree({
         position: 'inside'
       }
       
-      console.log(`? Dropping ${dragData.path} into ${targetFolderPath}`)
+      console.log(`✅ Dropping ${dragData.path} into ${targetFolderPath}`)
       await onDragDrop(dragData, dropTarget)
       
       // Auto-expand the target folder and restore child folder expansion state
@@ -561,7 +580,7 @@ export default function FolderTree({
     
     // Validate the drop operation first
     if (!isValidDropTarget(draggedData.path, targetFolderPath)) {
-      console.log(`? Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`)
+      console.log(`⛔ Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`)
       return
     }
     
@@ -579,7 +598,7 @@ export default function FolderTree({
     
     // Final validation before creating folder
     if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
-      console.log(`? Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
+      console.log(`⛔ Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
       return
     }
     
@@ -591,7 +610,7 @@ export default function FolderTree({
         position: 'inside'
       }
       
-      console.log(`? Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
+      console.log(`✅ Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
       await onDragDrop(newFolderDragData, dropTarget)
       
       // Auto-expand the new folder and restore child folder expansion state
@@ -663,7 +682,6 @@ export default function FolderTree({
     const isExpanded = node.isFolder && (isSearchActive || expandedFolders.has(node.metadata.path))
     const isSelected = selectedPageMetadata?.pageId === node.metadata.pageId
     const hasChildren = node.children && node.children.length > 0
-    const isCurrentPageFolder = node.isFolder && node.metadata.path === getCurrentPageFolder()
     
     const isBeingDragged = isDragging && currentDraggedPath === node.metadata.path
     const isDraggedIntoItself = isDragging && currentDraggedPath === node.metadata.path
@@ -673,8 +691,7 @@ export default function FolderTree({
     
     // Drag styling - only show hover effects for valid targets
     const isDragHover = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself && isValidTarget
-    const showNewFolderZone = isDragging && dragHoverFolder === node.metadata.path && !isDraggedIntoItself && isValidTarget
-    
+
     const itemStyles = {
       pl: 1 + level * 1.5,
       pr: 0, // Remove right padding to extend to edge
@@ -717,6 +734,7 @@ export default function FolderTree({
         <ListItem
           ref={isSelected ? selectedItemRef : null}
           draggable={!('ontouchstart' in window)}
+          data-folder-path={node.metadata.path}
           onClick={() => {
             if (node.isFolder) {
               toggleFolder(node.metadata.path)
@@ -806,68 +824,6 @@ export default function FolderTree({
               {node.metadata.title}
             </Typography>
           </Box>
-
-          {/* New Page button for current page's folder */}
-          {isCurrentPageFolder && !isDragging && !isBeingDragged && (
-            <IconButton
-              className="new-page-button"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleNewPageClick(node.metadata.path)
-              }}
-              sx={{
-                position: 'absolute',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                left: 0, // Will be dynamically updated by scroll listener
-                p: 0.25,
-                color: 'var(--freeki-primary)',
-                backgroundColor: 'white',
-                border: '1px solid var(--freeki-primary)',
-                zIndex: 10,
-                '&:hover': { backgroundColor: 'var(--freeki-primary)', color: 'white' }
-              }}
-            >
-              <Add fontSize="small" />
-            </IconButton>
-          )}
-
-          {/* New Folder drop zone during drag - only for valid targets */}
-          {showNewFolderZone && (
-            <Box
-              className="new-folder-zone"
-              sx={{
-                position: 'absolute',
-                left: 0, // Will be dynamically updated by scroll listener
-                top: '50%',
-                transform: 'translateY(-50%)',
-                padding: '4px 8px',
-                backgroundColor: 'var(--freeki-primary)',
-                color: 'white',
-                borderRadius: '4px',
-                fontSize: '12px',
-                zIndex: 10,
-                cursor: 'pointer'
-              }}
-              onDragOver={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-              }}
-              onDrop={async (e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                
-                const dragDataString = e.dataTransfer.getData('application/json')
-                if (!dragDataString) return
-                
-                const dragData = JSON.parse(dragDataString)
-                await handleCreateFolderDrop(node.metadata.path, dragData)
-              }}
-            >
-              <CreateNewFolder fontSize="small" />
-            </Box>
-          )}
         </ListItem>
         
         {/* Children */}
@@ -922,35 +878,120 @@ export default function FolderTree({
         />
       </Box>
       
-      {/* Tree content - Make container wider than parent to prevent gaps when translating */}
-      <Box 
-        ref={containerRef} 
-        sx={{ 
-          flex: 1, 
-          overflow: 'hidden', // Enable horizontal scrolling
-          scrollbarWidth: 'none', // Firefox
-          msOverflowStyle: 'none', // IE/Edge
-          '&::-webkit-scrollbar': { // Chrome/Safari/WebKit
-            display: 'none'
-          },
-          // Remove any padding that creates gutters
-          padding: 0,
-          margin: 0,
-          // Make container wider than parent to prevent gaps when translating
-          width: 'calc(100% + 200px)', // Extra 200px to cover translation gaps
-          minWidth: 'calc(100% + 200px)',
-          boxSizing: 'border-box'
-        }}
-      >
-        {enhancedPageTree.length === 0 ? (
-          <Typography variant="body2" sx={{ p: 3, textAlign: 'center', opacity: 0.6 }}>
-            No pages found
-          </Typography>
-        ) : (
-          <List dense disablePadding sx={{ width: 'calc(100% + 200px)', minWidth: 'calc(100% + 200px)' }}>
-            {enhancedPageTree.map((node) => renderNode(node, 0))}
-          </List>
-        )}
+      {/* Tree content with floating button overlay */}
+      <Box sx={{ position: 'relative', flex: 1 }}>
+        {/* Invisible floating button overlay - tracks Y position, ignores X scroll */}
+        <Box 
+          ref={buttonOverlayRef}
+          sx={{
+            position: 'absolute',
+            top: 0,
+            right: 8, // Always 8px from right edge of visible area
+            width: 'auto',
+            height: 32,
+            display: 'none', // Hidden by default
+            zIndex: 20,
+            pointerEvents: 'none', // Allow clicks to pass through empty areas
+            gap: 1,
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            flexDirection: 'row'
+          }}
+        >
+          {/* New Page button for current page's folder */}
+          {!isDragging && (
+            <Tooltip title="New Page" placement="left" arrow>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const currentFolder = getCurrentPageFolder()
+                  if (currentFolder !== null) {
+                    handleNewPageClick(currentFolder)
+                  }
+                }}
+                sx={{
+                  p: 0.25,
+                  color: 'var(--freeki-primary)',
+                  backgroundColor: 'white',
+                  border: '1px solid var(--freeki-primary)',
+                  pointerEvents: 'auto', // Enable clicks on the button
+                  '&:hover': { backgroundColor: 'var(--freeki-primary)', color: 'white' }
+                }}
+              >
+                <Add fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* New Folder drop zone during drag */}
+          {isDragging && dragHoverFolder && (
+            <Tooltip title="Drop here to create new folder" placement="left" arrow>
+              <IconButton
+                size="small"
+                sx={{
+                  p: 0.25,
+                  color: 'white',
+                  backgroundColor: 'var(--freeki-primary)',
+                  border: '1px solid var(--freeki-primary)',
+                  pointerEvents: 'auto', // Enable drag events on the drop zone
+                  '&:hover': { 
+                    backgroundColor: 'white', 
+                    color: 'var(--freeki-primary)',
+                    borderColor: 'var(--freeki-primary)'
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  
+                  const dragDataString = e.dataTransfer.getData('application/json')
+                  if (!dragDataString) return
+                  
+                  const dragData = JSON.parse(dragDataString)
+                  await handleCreateFolderDrop(dragHoverFolder, dragData)
+                }}
+              >
+                <CreateNewFolder fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </Box>
+
+        {/* Tree container - scrolls horizontally */}
+        <Box 
+          ref={containerRef} 
+          sx={{ 
+            flex: 1, 
+            overflow: 'hidden', // Enable horizontal scrolling
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE/Edge
+            '&::-webkit-scrollbar': { // Chrome/Safari/WebKit
+              display: 'none'
+            },
+            // Remove any padding that creates gutters
+            padding: 0,
+            margin: 0,
+            // Make container wider than parent to prevent gaps when translating
+            width: 'calc(100% + 200px)', // Extra 200px to cover translation gaps
+            minWidth: 'calc(100% + 200px)',
+            boxSizing: 'border-box'
+          }}
+        >
+          {enhancedPageTree.length === 0 ? (
+            <Typography variant="body2" sx={{ p: 3, textAlign: 'center', opacity: 0.6 }}>
+              No pages found
+            </Typography>
+          ) : (
+            <List dense disablePadding sx={{ width: 'calc(100% + 200px)', minWidth: 'calc(100% + 200px)' }}>
+              {enhancedPageTree.map((node) => renderNode(node, 0))}
+            </List>
+          )}
+        </Box>
       </Box>
 
       {/* Search config menu */}
@@ -1014,43 +1055,131 @@ export default function FolderTree({
           setNewPageTargetFolder('')
         }}
         disableRestoreFocus
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 'var(--freeki-border-radius)',
+            boxShadow: '0 8px 32px var(--freeki-shadow-color)',
+            backdropFilter: 'blur(8px)',
+            backgroundColor: 'var(--freeki-view-background)',
+            border: '1px solid var(--freeki-border-color)'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
       >
-        <DialogTitle>Create New Page</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Page Title"
-            fullWidth
-            variant="outlined"
-            value={newPageTitle}
-            onChange={(e) => setNewPageTitle(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newPageTitle.trim()) {
-                handleNewPageConfirm()
-              }
-            }}
-            slotProps={{
-              input: {
-                ref: (input: HTMLInputElement) => {
-                  if (input && showNewPageDialog) {
-                    setTimeout(() => {
-                      input.focus()
-                      input.select()
-                    }, 100)
+        <DialogTitle sx={{ 
+          color: 'var(--freeki-h2-font-color)',
+          fontSize: 'var(--freeki-h2-font-size)',
+          fontWeight: 600,
+          pb: 1
+        }}>
+          Create New Page
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            mb: 2,
+            p: 2,
+            backgroundColor: 'var(--freeki-style-box-bg)',
+            borderRadius: 'var(--freeki-border-radius)',
+            border: '1px solid var(--freeki-input-border)'
+          }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'var(--freeki-style-row-font-color)',
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              /{newPageTargetFolder ? `${newPageTargetFolder}/` : ''}
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              variant="outlined"
+              size="small"
+              placeholder="page-title"
+              value={newPageTitle}
+              onChange={(e) => setNewPageTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newPageTitle.trim()) {
+                  handleNewPageConfirm()
+                }
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 'var(--freeki-border-radius)',
+                  backgroundColor: 'var(--freeki-view-background)',
+                  borderColor: 'var(--freeki-input-border)',
+                  fontFamily: 'monospace',
+                  fontSize: '0.9rem'
+                }
+              }}
+              slotProps={{
+                input: {
+                  ref: (input: HTMLInputElement) => {
+                    if (input && showNewPageDialog) {
+                      setTimeout(() => {
+                        input.focus()
+                        input.select()
+                      }, 100)
+                    }
                   }
                 }
+              }}
+            />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'var(--freeki-style-row-font-color)',
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              .md
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={() => {
+              setShowNewPageDialog(false)
+              setNewPageTitle('')
+              setNewPageTargetFolder('')
+            }}
+            sx={{ 
+              borderRadius: 'var(--freeki-border-radius)',
+              color: 'var(--freeki-style-row-font-color)' 
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleNewPageConfirm} 
+            disabled={!newPageTitle.trim()} 
+            variant="contained"
+            sx={{ 
+              borderRadius: 'var(--freeki-border-radius)',
+              backgroundColor: 'var(--freeki-primary)',
+              '&:hover': { 
+                backgroundColor: 'var(--freeki-primary)',
+                filter: 'brightness(90%)'
               }
             }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setShowNewPageDialog(false)
-            setNewPageTitle('')
-            setNewPageTargetFolder('')
-          }}>Cancel</Button>
-          <Button onClick={handleNewPageConfirm} disabled={!newPageTitle.trim()} variant="contained">
+          >
             Create
           </Button>
         </DialogActions>
@@ -1075,58 +1204,141 @@ export default function FolderTree({
           setHoverExpandFolder('')
         }}
         disableRestoreFocus
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 'var(--freeki-border-radius)',
+            boxShadow: '0 8px 32px var(--freeki-shadow-color)',
+            backdropFilter: 'blur(8px)',
+            backgroundColor: 'var(--freeki-view-background)',
+            border: '1px solid var(--freeki-border-color)'
+          }
+        }}
+        BackdropProps={{
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)'
+          }
+        }}
       >
-        <DialogTitle>Create New Folder</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Folder Name"
-            fullWidth
-            variant="outlined"
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && newFolderName.trim()) {
-                handleNewFolderConfirm()
-              }
-            }}
-            slotProps={{
-              input: {
-                ref: (input: HTMLInputElement) => {
-                  if (input && showNewFolderDialog) {
-                    setTimeout(() => {
-                      input.focus()
-                      input.select()
-                    }, 100)
+        <DialogTitle sx={{ 
+          color: 'var(--freeki-h2-font-color)',
+          fontSize: 'var(--freeki-h2-font-size)',
+          fontWeight: 600,
+          pb: 1
+        }}>
+          Create New Folder
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1,
+            mb: 2,
+            p: 2,
+            backgroundColor: 'var(--freeki-style-box-bg)',
+            borderRadius: 'var(--freeki-border-radius)',
+            border: '1px solid var(--freeki-input-border)'
+          }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'var(--freeki-style-row-font-color)',
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              /{newFolderTargetPath ? `${newFolderTargetPath}/` : ''}
+            </Typography>
+            <TextField
+              autoFocus
+              fullWidth
+              variant="outlined"
+              size="small"
+              placeholder="folder-name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newFolderName.trim()) {
+                  handleNewFolderConfirm()
+                }
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 'var(--freeki-border-radius)',
+                  backgroundColor: 'var(--freeki-view-background)',
+                  borderColor: 'var(--freeki-input-border)',
+                  fontFamily: 'monospace',
+                  fontSize: '0.9rem'
+                }
+              }}
+              slotProps={{
+                input: {
+                  ref: (input: HTMLInputElement) => {
+                    if (input && showNewFolderDialog) {
+                      setTimeout(() => {
+                        input.focus()
+                        input.select()
+                      }, 100)
+                    }
                   }
                 }
+              }}
+            />
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                color: 'var(--freeki-style-row-font-color)',
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                fontWeight: 500,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              /
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, pt: 1 }}>
+          <Button 
+            onClick={() => {
+              setShowNewFolderDialog(false)
+              setNewFolderName('')
+              setNewFolderTargetPath('')
+              setNewFolderDragData(null)
+              setIsDragging(false)
+              setDragHoverFolder('')
+              setCurrentDraggedPath('')
+            
+              if (hoverExpandTimer) {
+                clearTimeout(hoverExpandTimer)
+                setHoverExpandTimer(null)
+              }
+              setHoverExpandFolder('')
+            }}
+            sx={{ 
+              borderRadius: 'var(--freeki-border-radius)',
+              color: 'var(--freeki-style-row-font-color)' 
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleNewFolderConfirm} 
+            disabled={!newFolderName.trim()} 
+            variant="contained"
+            sx={{ 
+              borderRadius: 'var(--freeki-border-radius)',
+              backgroundColor: 'var(--freeki-primary)',
+              '&:hover': { 
+                backgroundColor: 'var(--freeki-primary)',
+                filter: 'brightness(90%)'
               }
             }}
-          />
-          {newFolderTargetPath && (
-            <Typography variant="caption" sx={{ mt: 1, display: 'block', opacity: 0.7 }}>
-              Creating in: {newFolderTargetPath || 'Root'}
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setShowNewFolderDialog(false)
-            setNewFolderName('')
-            setNewFolderTargetPath('')
-            setNewFolderDragData(null)
-            setIsDragging(false)
-            setDragHoverFolder('')
-            setCurrentDraggedPath('')
-            
-            if (hoverExpandTimer) {
-              clearTimeout(hoverExpandTimer)
-              setHoverExpandTimer(null)
-            }
-            setHoverExpandFolder('')
-          }}>Cancel</Button>
-          <Button onClick={handleNewFolderConfirm} disabled={!newFolderName.trim()} variant="contained">
+          >
             Create Folder
           </Button>
         </DialogActions>
