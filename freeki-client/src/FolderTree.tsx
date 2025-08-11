@@ -31,6 +31,15 @@ import type { TreeNode, DropTarget } from './pageTreeUtils'
 import { useGlobalState, globalState } from './globalState'
 import SearchPipButton from './SearchPipButton'
 
+// Define SearchConfiguration type inline for UI usage
+// (If not already imported, define it here)
+type SearchConfiguration = {
+  titles: boolean
+  tags: boolean
+  author: boolean
+  content: boolean
+}
+
 // Extended DragData interface with expanded folder state
 interface DragData {
   pageId: string
@@ -39,18 +48,11 @@ interface DragData {
   expandedChildFolders?: string[]
 }
 
-interface SearchConfiguration {
-  titles: boolean
-  tags: boolean
-  author: boolean
-  content: boolean
-}
-
 interface FolderTreeProps {
   pageTree: TreeNode[]
   selectedPageMetadata: PageMetadata | null
   onPageSelect: (metadata: PageMetadata) => void
-  onSearch?: (query: string, searchConfig: SearchConfiguration) => Promise<void>
+  onSearch?: (query: string) => void
   searchQuery?: string
   pageMetadata: PageMetadata[]
   onDragDrop?: (dragData: DragData, dropTarget: DropTarget) => Promise<void>
@@ -85,7 +87,7 @@ export default function FolderTree({
   pageTree, 
   selectedPageMetadata, 
   onPageSelect, 
-  onSearch, 
+  onSearch, // will be setSearchQueryForFolderTree
   searchQuery: externalSearchQuery, 
   pageMetadata, 
   onDragDrop,
@@ -101,14 +103,33 @@ export default function FolderTree({
     return set
   }, [expandedFolderPaths])
   
+  // SOURCE OF TRUTH: searchText is the only search query state
   const [searchText, setSearchText] = useState(externalSearchQuery || '')
-  const [searchConfig, setSearchConfig] = useState<SearchConfiguration>(userSettings.searchConfig || {
-    titles: true,
-    tags: false,
-    author: false,
-    content: false
-  })
-  
+
+  // Keep input in sync with prop (for tag/author clicks)
+  useEffect(() => {
+    if (externalSearchQuery !== undefined && externalSearchQuery !== searchText) {
+      setSearchText(externalSearchQuery)
+    }
+  }, [externalSearchQuery])
+
+  // Call onSearch (setSearchQuery) when searchText changes
+  useEffect(() => {
+    if (onSearch && searchText !== externalSearchQuery) {
+      onSearch(searchText)
+    }
+  }, [searchText])
+
+  // Input change handler
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchText(event.target.value)
+  }
+
+  // Clear button handler
+  const handleClear = () => {
+    setSearchText('')
+  }
+
   // Dialog state
   const [showNewPageDialog, setShowNewPageDialog] = useState(false)
   const [newPageTitle, setNewPageTitle] = useState('')
@@ -139,12 +160,22 @@ export default function FolderTree({
   const searchTimeoutRef = useRef<number | null>(null)
   const buttonOverlayRef = useRef<HTMLDivElement>(null)
 
-  // Update search text from external changes
+  // Auto-trigger search when searchText changes
   useEffect(() => {
-    if (externalSearchQuery !== undefined) {
-      setSearchText(externalSearchQuery)
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
     }
-  }, [externalSearchQuery])
+    
+    if (onSearch) {
+      if (searchText.trim().length === 0) {
+        onSearch(searchText)
+      } else if (searchText.trim().length >= 3) {
+        searchTimeoutRef.current = setTimeout(() => {
+          onSearch(searchText)
+        }, 1000)
+      }
+    }
+  }, [searchText, onSearch]) // Trigger when text changes
 
   // Position floating buttons at the right edge of the target row
   const positionFloatingButtons = (targetRowElement: HTMLElement | null) => {
@@ -387,40 +418,6 @@ export default function FolderTree({
       }
     }
   }, [selectedPageMetadata?.pageId, expandedFolderPaths])
-
-  // Handle search
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.value
-    setSearchText(newValue)
-    
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-    
-    if (onSearch) {
-      if (searchConfig.content) {
-        if (newValue.trim().length === 0) {
-          onSearch(newValue, searchConfig)
-        } else if (newValue.trim().length >= 3) {
-          searchTimeoutRef.current = setTimeout(() => {
-            onSearch(newValue, searchConfig)
-          }, 1000)
-        }
-      } else {
-        onSearch(newValue, searchConfig)
-      }
-    }
-  }
-
-  // Handle search config changes
-  const handleSearchConfigChange = (newConfig: SearchConfiguration) => {
-    setSearchConfig(newConfig)
-    globalState.setProperty('userSettings.searchConfig', newConfig)
-    
-    if (searchText.trim() && onSearch) {
-      onSearch(searchText, newConfig)
-    }
-  }
 
   // Drag handlers
   const handleDragStart = (draggedPath: string) => {
@@ -870,6 +867,12 @@ export default function FolderTree({
     )
   }
 
+  // Restore searchConfig and handleSearchConfigChange for UI only
+  const searchConfig = userSettings.searchConfig
+  const handleSearchConfigChange = (newConfig: SearchConfiguration) => {
+    globalState.setProperty('userSettings.searchConfig', newConfig)
+  }
+
   return (
     <Box sx={{ 
       height: '100%', 
@@ -893,7 +896,10 @@ export default function FolderTree({
             endAdornment: (
               <>
                 {searchText && (
-                  <IconButton size="small" onClick={() => setSearchText('')}>
+                  <IconButton 
+                    size="small" 
+                    onClick={handleClear}
+                  >
                     <Clear fontSize="small" />
                   </IconButton>
                 )}

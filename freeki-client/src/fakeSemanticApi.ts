@@ -189,29 +189,24 @@ export class FakeSemanticApi implements ISemanticApi {
   }
 
   async searchPagesWithContent(searchTerm: string): Promise<string[]> {
+    if (!searchTerm || searchTerm.length < 3) {
+      return [];
+    }
     const startTime = performance.now()
     this.logRequest('searchPagesWithContent', { searchTerm })
-    
     try {
       const results: string[] = []
       const term = searchTerm.toLowerCase()
-
       console.log(`?? FakeSemanticApi: Searching for "${term}" in page content only (not metadata)`)
-
       this.fakePages.forEach(page => {
         const content = this.fakeContent[page.pageId] || ''
-        
-        // ONLY search in content - do not search titles, tags, or other metadata
         const contentMatch = content.toLowerCase().includes(term)
-        
         if (contentMatch) {
           console.log(`? Found content match in page "${page.title}"`)
           results.push(page.pageId)
         }
       })
-
       console.log(`?? FakeSemanticApi: Found ${results.length} content-only results for "${term}"`)
-
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('searchPagesWithContent', results, duration)
       return results

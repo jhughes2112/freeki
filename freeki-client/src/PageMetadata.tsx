@@ -1,10 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Box, Typography, Paper, Chip, Stack, Tooltip, TextField, IconButton, Collapse, Button, List, ListItem, ListItemText } from '@mui/material'
-import { Close, Add, ExpandMore, ExpandLess } from '@mui/icons-material'
+import { Close, ExpandMore, ExpandLess } from '@mui/icons-material'
 import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
 import { createSemanticApi } from './semanticApiFactory'
-import { globalState } from './globalState'
 
 interface PageMetadataComponentProps {
   metadata: PageMetadata
@@ -12,6 +11,7 @@ interface PageMetadataComponentProps {
   onTagClick?: (tag: string) => void
   onTagAdd?: (tag: string) => void
   onTagRemove?: (tag: string) => void
+  onAuthorClick?: (author: string) => void
 }
 
 // Helper function to format time ago in a human-readable way
@@ -48,7 +48,7 @@ const countWords = (content: string): number => {
 const revisionCache = new Map<string, PageMetadata[]>()
 const versionCache = new Map<string, { metadata: PageMetadata; content: string }>()
 
-export default function PageMetadataComponent({ metadata, content, onTagClick, onTagAdd, onTagRemove }: PageMetadataComponentProps) {
+export default function PageMetadataComponent({ metadata, content, onTagClick, onTagAdd, onTagRemove, onAuthorClick }: PageMetadataComponentProps) {
   const [newTagInput, setNewTagInput] = useState('')
   const [showRevisions, setShowRevisions] = useState(false)
   const [revisions, setRevisions] = useState<PageMetadata[]>([])
@@ -86,13 +86,11 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
     }
   }
 
-  // Handle author click - enable author search and search for this author
+  // Handle author click - use callback to parent instead of direct global state
   const handleAuthorClick = () => {
-    // Enable author search in the search config
-    globalState.setProperty('userSettings.searchConfig.author', true)
-    
-    // Set the search query to the author name
-    globalState.set('searchQuery', metadata.author)
+    if (onAuthorClick) {
+      onAuthorClick(metadata.author)
+    }
   }
 
   // Measure container width and adjust title font size accordingly
@@ -385,6 +383,7 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
               </IconButton>
             </Box>
           ))}
+
         </Stack>
 
         {/* Add new tag input - full width, no + button */}
@@ -636,7 +635,7 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
                         overflow: 'hidden'
                       }}>
                         <span style={{ fontWeight: 600, flexShrink: 0 }}>V{revision.version}</span>
-                        <span style={{ color: 'var(--freeki-border-color)', flexShrink: 0 }}>•</span>
+                        <span style={{ color: 'var(--freeki-border-color)', flexShrink: 0 }}>ï¿½</span>
                         <span style={{ 
                           overflow: 'hidden', 
                           textOverflow: 'ellipsis', 
@@ -646,7 +645,7 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
                         }} title={revision.author}>
                           {revision.author}
                         </span>
-                        <span style={{ color: 'var(--freeki-border-color)', flexShrink: 0 }}>•</span>
+                        <span style={{ color: 'var(--freeki-border-color)', flexShrink: 0 }}>ï¿½</span>
                         <span style={{ flexShrink: 0 }} title={formatTimeAgo(revision.lastModified)}>
                           {formatTimeAgo(revision.lastModified)}
                         </span>

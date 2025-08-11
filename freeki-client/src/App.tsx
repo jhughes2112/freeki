@@ -79,7 +79,6 @@ export default function App() {
   const currentPageMetadata = useGlobalState('currentPageMetadata')
   const currentPageContent = useGlobalState('currentPageContent')
   const isEditing = useGlobalState('isEditing')
-  const searchQuery = useGlobalState('searchQuery')
   const searchResults = useGlobalState('searchResults')
   const isLoadingPages = useGlobalState('isLoadingPages')
   
@@ -88,15 +87,18 @@ export default function App() {
   // Derive current layout state - READ-ONLY
   const currentLayout = React.useMemo(() => getCurrentLayoutState(settings), [settings, isNarrowScreen])
 
+  // Remove searchQuery from globalState, use local state for searchQueryForFolderTree
+  const [searchQueryForFolderTree, setSearchQueryForFolderTree] = React.useState<string>('') // SOURCE OF TRUTH
+
   // Use search results if active, otherwise all pages
   const effectivePageMetadata = React.useMemo(() => {
-    const hasQuery = searchQuery.trim().length > 0
+    const hasQuery = searchQueryForFolderTree.trim().length > 0
     return hasQuery ? searchResults : pageMetadata
-  }, [searchResults, pageMetadata, searchQuery])
-  
+  }, [searchResults, pageMetadata, searchQueryForFolderTree])
+
   // Page tree
   const pageTree = React.useMemo(() => buildPageTree(effectivePageMetadata), [effectivePageMetadata])
-  
+
   const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<boolean>(false)
 
@@ -158,14 +160,15 @@ export default function App() {
   }, [semanticApi, fetchUserInfo])
 
   // Search function
-  const performSearch = async (query: string, searchConfig: { titles: boolean; tags: boolean; author: boolean; content: boolean }) => {
-    globalState.set('searchQuery', query)
-    
+  const performSearch = async () => {
+    const query = searchQueryForFolderTree
+    const searchConfig = settings.searchConfig
     if (!query.trim()) {
       globalState.set('searchResults', [])
       return
     }
     
+    // Check if any search type is enabled
     if (!searchConfig.titles && !searchConfig.tags && !searchConfig.author && !searchConfig.content) {
       globalState.set('searchResults', [])
       return
@@ -276,8 +279,27 @@ export default function App() {
   }
 
   const handleTagClick = (tag: string) => {
-    globalState.set('searchQuery', tag)
-    performSearch(tag, { titles: false, tags: true, author: false, content: false })
+    // Set the search query and config - let FolderTree react and trigger search
+    globalState.setProperty('userSettings.searchConfig', { 
+      titles: false, 
+      tags: true, 
+      author: false, 
+      content: false 
+    })
+    setSearchQueryForFolderTree(tag)
+    // No direct performSearch() call - let the reactive system handle it
+  }
+
+  const handleAuthorClick = (author: string) => {
+    // Set the search query and config - let FolderTree react and trigger search
+    globalState.setProperty('userSettings.searchConfig', { 
+      titles: false, 
+      tags: false, 
+      author: true, 
+      content: false 
+    })
+    setSearchQueryForFolderTree(author)
+    // No direct performSearch() call - let the reactive system handle it
   }
 
   const handleTagAdd = async (tagToAdd: string) => {
@@ -706,6 +728,12 @@ export default function App() {
     return 'Switch to Light Mode'
   }
 
+  // Call performSearch when searchQueryForFolderTree or searchConfig changes
+  useEffect(() => {
+    performSearch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQueryForFolderTree, settings.searchConfig, semanticApi, pageMetadata])
+
   if (!isLoaded || !semanticApi) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -927,8 +955,8 @@ export default function App() {
                 pageTree={pageTree}
                 selectedPageMetadata={currentPageMetadata}
                 onPageSelect={handlePageSelect}
-                onSearch={performSearch}
-                searchQuery={searchQuery}
+                onSearch={setSearchQueryForFolderTree} // Only updates the query, not config
+                searchQuery={searchQueryForFolderTree} // SOURCE OF TRUTH
                 pageMetadata={effectivePageMetadata}
                 onDragDrop={handleDragDrop}
                 onCreatePage={handleCreatePage}
@@ -1034,6 +1062,7 @@ export default function App() {
                 onTagClick={handleTagClick}
                 onTagAdd={handleTagAdd}
                 onTagRemove={handleTagRemove}
+                onAuthorClick={handleAuthorClick}
               />
             ) : (
               <Box sx={{ 

@@ -193,9 +193,11 @@ export class RealSemanticApi implements ISemanticApi {
   }
 
   async searchPagesWithContent(searchTerm: string): Promise<string[]> {
+    if (!searchTerm || searchTerm.length < 3) {
+      return [];
+    }
     const startTime = performance.now()
     this.logRequest('searchPagesWithContent', { searchTerm })
-    
     try {
       const result = await this.makeRequest<string[]>(`/api/pages?q=${encodeURIComponent(searchTerm)}`)
       const duration = Math.round(performance.now() - startTime)
