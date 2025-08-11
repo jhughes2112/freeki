@@ -158,6 +158,28 @@ export function injectGlobalStyles() {
       color: var(--freeki-primary) !important;
       backgroundColor: rgba(var(--freeki-primary-rgb), 0.1) !important;
     }
+
+    /* Hover highlighting for folder tree navigation */
+    .MuiListItem-root:hover:not(.Mui-selected) {
+      background-color: rgba(var(--freeki-primary-rgb), 0.08) !important;
+    }
+    
+    /* Stronger hover highlighting for folder tree rows */
+    .MuiListItem-root:hover {
+      background-color: rgba(var(--freeki-primary-rgb), 0.12) !important;
+      transition: background-color 0.15s ease !important;
+    }
+    
+    /* Selected state should override hover */
+    .MuiListItem-root.Mui-selected {
+      background-color: var(--freeki-folders-selected-background) !important;
+    }
+    
+    /* Selected + hover combination */
+    .MuiListItem-root.Mui-selected:hover {
+      background-color: var(--freeki-folders-selected-background) !important;
+      filter: brightness(1.05) !important;
+    }
   `
   document.head.appendChild(style)
 }

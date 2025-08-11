@@ -932,7 +932,6 @@ export default function App() {
                 pageMetadata={effectivePageMetadata}
                 onDragDrop={handleDragDrop}
                 onCreatePage={handleCreatePage}
-                semanticApi={semanticApi}
               />
             )}
           </FadePanelContent>

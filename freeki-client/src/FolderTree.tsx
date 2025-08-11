@@ -29,7 +29,6 @@ import {
 } from '@mui/icons-material'
 import type { PageMetadata } from './globalState'
 import type { TreeNode, DropTarget } from './pageTreeUtils'
-import type { ISemanticApi } from './semanticApiInterface'
 import { useGlobalState, globalState } from './globalState'
 import SearchPipButton from './SearchPipButton'
 
@@ -55,7 +54,6 @@ interface FolderTreeProps {
   onSearch?: (query: string, searchConfig: SearchConfiguration) => Promise<void>
   searchQuery?: string
   pageMetadata: PageMetadata[]
-  semanticApi: ISemanticApi | null
   onDragDrop?: (dragData: DragData, dropTarget: DropTarget) => Promise<void>
   onCreatePage?: (title: string, content: string, filepath: string, tags: string[]) => Promise<void>
 }
@@ -91,7 +89,6 @@ export default function FolderTree({
   onSearch, 
   searchQuery: externalSearchQuery, 
   pageMetadata, 
-  semanticApi, 
   onDragDrop,
   onCreatePage
 }: FolderTreeProps) {
@@ -731,6 +728,14 @@ export default function FolderTree({
       maxWidth: '100%',
       display: 'flex',
       boxSizing: 'border-box',
+      // Add smooth transitions for all interactive states
+      transition: 'background-color 0.15s ease, opacity 0.15s ease, filter 0.15s ease',
+      // Apply selection class for CSS hover rules
+      ...(isSelected && {
+        '&.Mui-selected': {
+          backgroundColor: 'var(--freeki-folders-selected-background)'
+        }
+      }),
       ...(isDragHover && {
         backgroundColor: 'rgba(var(--freeki-primary-rgb), 0.1)',
         borderLeft: '3px solid var(--freeki-primary)'
@@ -753,6 +758,7 @@ export default function FolderTree({
       <React.Fragment key={node.metadata.pageId}>
         <ListItem
           ref={isSelected ? selectedItemRef : null}
+          className={isSelected ? 'Mui-selected' : ''}
           draggable={!('ontouchstart' in window)}
           data-folder-path={node.metadata.path}
           onClick={() => {
