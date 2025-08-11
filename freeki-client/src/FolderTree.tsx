@@ -16,7 +16,6 @@ import {
   Menu,
   MenuItem,
   Checkbox,
-  FormControlLabel,
   Tooltip
 } from '@mui/material'
 import {
@@ -1084,50 +1083,69 @@ export default function FolderTree({
         anchorEl={searchMenuAnchor}
         open={Boolean(searchMenuAnchor)}
         onClose={() => setSearchMenuAnchor(null)}
+        PaperProps={{
+          sx: {
+            minWidth: 120,
+            borderRadius: 'var(--freeki-border-radius)',
+            boxShadow: '0 4px 12px var(--freeki-shadow-color)',
+            border: '1px solid var(--freeki-border-color)',
+            py: 0.25
+          }
+        }}
+        transformOrigin={{ horizontal: 'left', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={searchConfig.titles}
-                onChange={(e) => handleSearchConfigChange({ ...searchConfig, titles: e.target.checked })}
-              />
-            }
-            label="Titles"
+        <MenuItem 
+          onClick={() => handleSearchConfigChange({ ...searchConfig, titles: !searchConfig.titles })}
+          sx={{ py: 0.25, px: 1, minHeight: 'auto', gap: 0.75 }}
+        >
+          <Checkbox
+            size="small"
+            checked={searchConfig.titles}
+            sx={{ p: 0 }}
           />
+          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+            Titles
+          </Typography>
         </MenuItem>
-        <MenuItem>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={searchConfig.tags}
-                onChange={(e) => handleSearchConfigChange({ ...searchConfig, tags: e.target.checked })}
-              />
-            }
-            label="Tags"
+        <MenuItem 
+          onClick={() => handleSearchConfigChange({ ...searchConfig, tags: !searchConfig.tags })}
+          sx={{ py: 0.25, px: 1, minHeight: 'auto', gap: 0.75 }}
+        >
+          <Checkbox
+            size="small"
+            checked={searchConfig.tags}
+            sx={{ p: 0 }}
           />
+          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+            Tags
+          </Typography>
         </MenuItem>
-        <MenuItem>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={searchConfig.author}
-                onChange={(e) => handleSearchConfigChange({ ...searchConfig, author: e.target.checked })}
-              />
-            }
-            label="Author"
+        <MenuItem 
+          onClick={() => handleSearchConfigChange({ ...searchConfig, author: !searchConfig.author })}
+          sx={{ py: 0.25, px: 1, minHeight: 'auto', gap: 0.75 }}
+        >
+          <Checkbox
+            size="small"
+            checked={searchConfig.author}
+            sx={{ p: 0 }}
           />
+          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+            Author
+          </Typography>
         </MenuItem>
-        <MenuItem>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={searchConfig.content}
-                onChange={(e) => handleSearchConfigChange({ ...searchConfig, content: e.target.checked })}
-              />
-            }
-            label="Content"
+        <MenuItem 
+          onClick={() => handleSearchConfigChange({ ...searchConfig, content: !searchConfig.content })}
+          sx={{ py: 0.25, px: 1, minHeight: 'auto', gap: 0.75 }}
+        >
+          <Checkbox
+            size="small"
+            checked={searchConfig.content}
+            sx={{ p: 0 }}
           />
+          <Typography variant="body2" sx={{ fontSize: '0.875rem' }}>
+            Content
+          </Typography>
         </MenuItem>
       </Menu>
 
