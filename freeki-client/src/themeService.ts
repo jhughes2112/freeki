@@ -12,7 +12,7 @@ class ThemeService {
   initialize() {
     if (this.initialized) return
 
-    // Function to apply theme changes immediately (no debouncing bullshit)
+    // Function to apply theme changes immediately (no debouncing BS)
     const applyCurrentTheme = () => {
       const state = globalState.getState()
       const userSettings = state.userSettings

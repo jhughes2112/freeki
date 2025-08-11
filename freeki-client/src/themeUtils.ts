@@ -10,39 +10,39 @@ export function injectGlobalStyles() {
   const style = document.createElement('style')
   style.id = 'freeki-global-styles'
   style.textContent = `
-    /* Apply consistent border radius to all MUI components */
-    .MuiTextField-root .MuiOutlinedInput-root,
-    .MuiButton-root,
-    .MuiPaper-root,
-    .MuiDialog-paper,
-    .MuiCard-root,
-    .MuiChip-root,
-    .MuiAlert-root,
-    .MuiAutocomplete-paper,
-    .MuiMenu-paper,
-    .MuiPopover-paper,
-    .MuiSnackbar-root .MuiPaper-root,
-    .MuiAccordion-root,
-    .MuiDrawer-paper,
-    .MuiTabs-root .MuiTab-root,
-    .MuiAvatar-root,
-    .MuiTooltip-tooltip,
-    .MuiLinearProgress-root,
-    .MuiSkeleton-root {
-      border-radius: var(--freeki-border-radius) !important;
+    /* Apply consistent border radius - use higher specificity selectors instead of !important */
+    html body .MuiTextField-root .MuiOutlinedInput-root,
+    html body .MuiButton-root,
+    html body .MuiPaper-root,
+    html body .MuiDialog-paper,
+    html body .MuiCard-root,
+    html body .MuiChip-root,
+    html body .MuiAlert-root,
+    html body .MuiAutocomplete-paper,
+    html body .MuiMenu-paper,
+    html body .MuiPopover-paper,
+    html body .MuiSnackbar-root .MuiPaper-root,
+    html body .MuiAccordion-root,
+    html body .MuiDrawer-paper,
+    html body .MuiTabs-root .MuiTab-root,
+    html body .MuiAvatar-root,
+    html body .MuiTooltip-tooltip,
+    html body .MuiLinearProgress-root,
+    html body .MuiSkeleton-root {
+      border-radius: var(--freeki-border-radius);
     }
 
     /* Special cases for smaller border radius on small elements */
-    .MuiSlider-thumb,
-    .MuiCheckbox-root,
-    .MuiRadio-root,
-    .MuiSwitch-thumb {
-      border-radius: calc(var(--freeki-border-radius) * 0.7) !important;
+    html body .MuiSlider-thumb,
+    html body .MuiCheckbox-root,
+    html body .MuiRadio-root,
+    html body .MuiSwitch-thumb {
+      border-radius: calc(var(--freeki-border-radius) * 0.7);
     }
 
     /* Switch track uses larger border radius for pill shape */
-    .MuiSwitch-track {
-      border-radius: calc(var(--freeki-border-radius) * 3) !important;
+    html body .MuiSwitch-track {
+      border-radius: calc(var(--freeki-border-radius) * 3);
     }
 
     /* Apply to custom elements with freeki classes */
@@ -53,132 +53,156 @@ export function injectGlobalStyles() {
       border-radius: var(--freeki-border-radius);
     }
 
-    /* Consistent shadow for elevated elements using theme variable */
-    /* Only apply shadows to elevation1+ Papers that don't have the flat class */
-    .MuiPaper-elevation1:not(.freeki-flat),
-    .MuiPopover-paper,
-    .MuiMenu-paper {
-      box-shadow: 0 2px 8px var(--freeki-shadow-color) !important;
+    /* Consistent shadow for elevated elements - higher specificity beats MUI defaults */
+    html body .MuiPaper-elevation1:not(.freeki-flat),
+    html body .MuiPopover-paper,
+    html body .MuiMenu-paper {
+      box-shadow: 0 2px 8px var(--freeki-shadow-color);
     }
 
-    .MuiPaper-elevation2:not(.freeki-flat) {
-      box-shadow: 0 4px 12px var(--freeki-shadow-color) !important;
+    html body .MuiPaper-elevation2:not(.freeki-flat) {
+      box-shadow: 0 4px 12px var(--freeki-shadow-color);
     }
 
-    .MuiPaper-elevation3:not(.freeki-flat) {
-      box-shadow: 0 6px 16px var(--freeki-shadow-color) !important;
+    html body .MuiPaper-elevation3:not(.freeki-flat) {
+      box-shadow: 0 6px 16px var(--freeki-shadow-color);
     }
 
-    /* Enhanced shadows for dialogs and large popups */
-    .MuiDialog-paper {
-      box-shadow: 0 8px 32px var(--freeki-shadow-color) !important;
+    html body .MuiDialog-paper {
+      box-shadow: 0 8px 32px var(--freeki-shadow-color);
     }
 
     /* Enhanced tooltip styling */
-    .MuiTooltip-tooltip {
-      background-color: var(--freeki-app-bar-background) !important;
-      color: var(--freeki-app-bar-text-color) !important;
-      font-size: 0.75rem !important;
-      font-weight: 500 !important;
-      padding: 8px 12px !important;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25) !important;
-      backdrop-filter: blur(8px) !important;
-      border: 1px solid var(--freeki-app-bar-divider) !important;
-      max-width: 300px !important;
+    html body .MuiTooltip-tooltip {
+      background-color: var(--freeki-app-bar-background);
+      color: var(--freeki-app-bar-text-color);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 8px 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--freeki-app-bar-divider);
+      max-width: 300px;
     }
 
-    .MuiTooltip-arrow {
-      color: var(--freeki-app-bar-background) !important;
+    html body .MuiTooltip-arrow {
+      color: var(--freeki-app-bar-background);
     }
 
     /* Flat papers with no shadow or border */
     .freeki-flat {
-      box-shadow: none !important;
-      border: none !important;
+      box-shadow: none;
+      border: none;
     }
 
-    /* Page content typography styling */
+    /* Page content typography styling - scope to content class for higher specificity */
     .freeki-page-content h1 {
-      color: var(--freeki-h1-font-color) !important;
-      font-size: var(--freeki-h1-font-size) !important;
+      color: var(--freeki-h1-font-color);
+      font-size: var(--freeki-h1-font-size);
     }
 
     .freeki-page-content h2 {
-      color: var(--freeki-h2-font-color) !important;
-      font-size: var(--freeki-h2-font-size) !important;
+      color: var(--freeki-h2-font-color);
+      font-size: var(--freeki-h2-font-size);
     }
 
     .freeki-page-content h3 {
-      color: var(--freeki-h3-font-color) !important;
-      font-size: var(--freeki-h3-font-size) !important;
+      color: var(--freeki-h3-font-color);
+      font-size: var(--freeki-h3-font-size);
     }
 
     .freeki-page-content p {
-      color: var(--freeki-p-font-color) !important;
-      font-size: var(--freeki-p-font-size) !important;
+      color: var(--freeki-p-font-color);
+      font-size: var(--freeki-p-font-size);
     }
 
     .freeki-page-content li {
-      color: var(--freeki-p-font-color) !important;
-      font-size: var(--freeki-p-font-size) !important;
+      color: var(--freeki-p-font-color);
+      font-size: var(--freeki-p-font-size);
     }
 
-    /* Search field styling - use folder panel colors for consistency */
-    .MuiTextField-root .MuiOutlinedInput-root {
-      background-color: var(--freeki-folders-background) !important;
-      color: var(--freeki-folders-font-color) !important;
+    /* Search field styling - specific selectors beat MUI defaults */
+    html body .MuiTextField-root .MuiOutlinedInput-root {
+      background-color: var(--freeki-folders-background);
+      color: var(--freeki-folders-font-color);
     }
 
-    .MuiTextField-root .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline {
-      border-color: var(--freeki-border-color) !important;
+    html body .MuiTextField-root .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline {
+      border-color: var(--freeki-border-color);
     }
 
-    .MuiTextField-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-      border-color: var(--freeki-primary) !important;
+    html body .MuiTextField-root .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+      border-color: var(--freeki-primary);
     }
 
-    .MuiTextField-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-      border-color: var(--freeki-primary) !important;
+    html body .MuiTextField-root .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+      border-color: var(--freeki-primary);
     }
 
-    .MuiTextField-root .MuiOutlinedInput-input {
-      color: var(--freeki-folders-font-color) !important;
+    html body .MuiTextField-root .MuiOutlinedInput-input {
+      color: var(--freeki-folders-font-color);
     }
 
-    .MuiTextField-root .MuiOutlinedInput-input::placeholder {
-      opacity: 0.6 !important;
+    html body .MuiTextField-root .MuiOutlinedInput-input::placeholder {
+      opacity: 0.6;
     }
 
     /* Fix invisible clear button and other icons in search field */
-    .MuiTextField-root .MuiIconButton-root {
-      color: var(--freeki-folders-font-color) !important;
+    html body .MuiTextField-root .MuiIconButton-root {
+      color: var(--freeki-folders-font-color);
     }
 
-    .MuiTextField-root .MuiIconButton-root:hover {
-      color: var(--freeki-primary) !important;
-      backgroundColor: rgba(var(--freeki-primary-rgb), 0.1) !important;
+    html body .MuiTextField-root .MuiIconButton-root:hover {
+      color: var(--freeki-primary);
+      background-color: rgba(var(--freeki-primary-rgb), 0.1);
     }
 
     /* Hover highlighting for folder tree navigation */
-    .MuiListItem-root:hover:not(.Mui-selected) {
-      background-color: rgba(var(--freeki-primary-rgb), 0.08) !important;
+    html body .MuiListItem-root:hover:not(.Mui-selected) {
+      background-color: rgba(var(--freeki-primary-rgb), 0.08);
     }
     
-    /* Stronger hover highlighting for folder tree rows */
-    .MuiListItem-root:hover {
-      background-color: rgba(var(--freeki-primary-rgb), 0.12) !important;
-      transition: background-color 0.15s ease !important;
+    html body .MuiListItem-root:hover {
+      background-color: rgba(var(--freeki-primary-rgb), 0.12);
+      transition: background-color 0.15s ease;
     }
     
-    /* Selected state should override hover */
-    .MuiListItem-root.Mui-selected {
-      background-color: var(--freeki-folders-selected-background) !important;
+    html body .MuiListItem-root.Mui-selected {
+      background-color: var(--freeki-folders-selected-background);
     }
     
-    /* Selected + hover combination */
-    .MuiListItem-root.Mui-selected:hover {
-      background-color: var(--freeki-folders-selected-background) !important;
-      filter: brightness(1.05) !important;
+    html body .MuiListItem-root.Mui-selected:hover {
+      background-color: var(--freeki-folders-selected-background);
+      filter: brightness(1.05);
+    }
+
+    /* Chevron button styling - scoped to specific buttons */
+    html body .chevron-button {
+      border: 1px solid var(--freeki-border-color);
+      border-radius: var(--freeki-border-radius);
+    }
+
+    html body .chevron-button.chevron-sidebar-theme,
+    html body .chevron-button.sidebar-chevron {
+      border-color: var(--freeki-border-color);
+    }
+
+    html body .chevron-button.chevron-metadata-theme,
+    html body .chevron-button.metadata-chevron {
+      border-color: var(--freeki-border-color);
+    }
+
+    /* Search pip button styling - attribute selector has high specificity */
+    html body .MuiIconButton-root[aria-label="Search configuration"] {
+      padding: 0;
+      background-color: var(--freeki-border-color);
+      border: 1px solid var(--freeki-border-color);
+      border-radius: var(--freeki-border-radius);
+    }
+
+    html body .MuiIconButton-root[aria-label="Search configuration"]:hover {
+      background-color: var(--freeki-border-color);
+      filter: brightness(95%);
     }
   `
   document.head.appendChild(style)
@@ -368,6 +392,7 @@ export const themeStyles = {
     borderRadius: 'var(--freeki-border-radius)',
     borderColor: 'var(--freeki-border-color)',
     boxShadow: '0 2px 8px var(--freeki-shadow-color)'
+
   },
   dialog: {
     borderRadius: 'var(--freeki-border-radius)',

@@ -45,8 +45,8 @@ const SearchPipButton: React.FC<SearchPipButtonProps> = ({ searchConfig, onClick
           gap: 0.25,
           width: 14,
           height: 14,
-          padding: 0.25,
-          backgroundColor: 'var(--freeki-view-background)',
+          padding: 0, // Remove the padding that ruins everything
+          backgroundColor: 'var(--freeki-border-color)',
           border: '1px solid var(--freeki-border-color)',
           borderRadius: '3px'
         }}>
@@ -58,6 +58,7 @@ const SearchPipButton: React.FC<SearchPipButtonProps> = ({ searchConfig, onClick
                 height: 5,
                 borderRadius: '50%',
                 backgroundColor: searchConfig[key] ? 'var(--freeki-primary)' : 'var(--freeki-border-color)',
+                filter: searchConfig[key] ? 'none' : 'brightness(0.9)', // Make inactive pips darker shade
                 transition: 'all 0.15s ease'
               }}
               title={pipLabels[index]}

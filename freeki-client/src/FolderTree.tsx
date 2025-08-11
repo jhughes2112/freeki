@@ -325,6 +325,13 @@ export default function FolderTree({
   // Check if search is active
   const isSearchActive = searchText.trim().length > 0
 
+  // Reset scroll position when tree becomes empty (search fails, etc.)
+  useEffect(() => {
+    if (enhancedPageTree.length === 0 && containerRef.current) {
+      containerRef.current.scrollLeft = 0
+    }
+  }, [enhancedPageTree.length])
+
   // Toggle folder expansion - update global state directly
   const toggleFolder = (folderPath: string) => {
     if (folderPath === '') return // Root can't be collapsed
@@ -1037,10 +1044,34 @@ export default function FolderTree({
           }}
         >
           {enhancedPageTree.length === 0 ? (
-            <Typography variant="body2" sx={{ p: 3, textAlign: 'center', opacity: 0.6 }}>
-              No pages found
-            </Typography>
-          ) : (
+            <Box 
+              sx={{ 
+                width: '100%',
+                maxWidth: '300px', // Limit message container to reasonable width
+                padding: 3,
+                display: 'flex',
+                alignItems: 'flex-start', // Top align instead of center
+                justifyContent: 'flex-start' // Left align instead of center
+              }}
+              onLoad={() => {
+                // Reset horizontal scroll when showing error message
+                if (containerRef.current) {
+                  containerRef.current.scrollLeft = 0
+                }
+              }}
+            >
+              <Typography 
+                variant="body2" 
+                sx={{ 
+                  opacity: 0.6,
+                  textAlign: 'left' // Left justified text
+                }}
+              >
+                No pages found
+              </Typography>
+            </Box>
+          ) :
+          (
             <List dense disablePadding sx={{ width: 'calc(100% + 200px)', minWidth: 'calc(100% + 200px)' }}>
               {enhancedPageTree.map((node) => renderNode(node, 0))}
             </List>
