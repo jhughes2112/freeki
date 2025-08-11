@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Box, Typography, Paper, Chip, Stack, Tooltip, TextField, IconButton, Collapse, Button, List, ListItem, ListItemText } from '@mui/material'
 import { Close, Add, ExpandMore, ExpandLess } from '@mui/icons-material'
 import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
 import { createSemanticApi } from './semanticApiFactory'
+import { globalState } from './globalState'
 
 interface PageMetadataComponentProps {
   metadata: PageMetadata
@@ -33,35 +34,6 @@ const formatTimeAgo = (timestamp: number): string => {
   }
 }
 
-// Helper function to truncate file path from the beginning, showing end
-const truncatePathFromStart = (path: string, maxLength: number = 30): string => {
-  if (path.length <= maxLength) {
-    return path
-  }
-  
-  // Always show the last part (filename)
-  const pathParts = path.split('/')
-  const filename = pathParts[pathParts.length - 1]
-  
-  // If even the filename is too long, just truncate it
-  if (filename.length >= maxLength - 3) {
-    return '...' + filename.slice(filename.length - (maxLength - 3))
-  }
-  
-  // Build path from the end until we hit the limit
-  let result = filename
-  for (let i = pathParts.length - 2; i >= 0; i--) {
-    const testPath = pathParts[i] + '/' + result
-    if (testPath.length + 3 > maxLength) { // +3 for "..."
-      result = '...' + result
-      break
-    }
-    result = testPath
-  }
-  
-  return result
-}
-
 // Helper function to count words in content (strip HTML/markdown and count words)
 const countWords = (content: string): number => {
   return content
@@ -83,6 +55,15 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
   const [loadingRevisions, setLoadingRevisions] = useState(false)
   const [currentRevisionIndex, setCurrentRevisionIndex] = useState(-1)
   const [viewingRevision, setViewingRevision] = useState<{ metadata: PageMetadata; content: string } | null>(null)
+  
+  // Refs for measuring actual panel widths
+  const containerRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLDivElement>(null)
+  const pathRef = useRef<HTMLDivElement>(null)
+  
+  // State for dynamic sizing based on actual panel width
+  const [availableWidth, setAvailableWidth] = useState(280) // Default metadata panel width
+  const [titleFontSize, setTitleFontSize] = useState(18)
 
   const handleAddTag = () => {
     const tag = newTagInput.trim()
@@ -104,6 +85,114 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
       onTagRemove(tagToRemove)
     }
   }
+
+  // Handle author click - enable author search and search for this author
+  const handleAuthorClick = () => {
+    // Enable author search in the search config
+    globalState.setProperty('userSettings.searchConfig.author', true)
+    
+    // Set the search query to the author name
+    globalState.set('searchQuery', metadata.author)
+  }
+
+  // Measure container width and adjust title font size accordingly
+  const measureAndAdjustSizing = () => {
+    if (!containerRef.current || !titleRef.current) return
+    
+    const containerWidth = containerRef.current.getBoundingClientRect().width
+    const usableWidth = containerWidth - 32 // Account for padding
+    
+    setAvailableWidth(usableWidth)
+    
+    // Measure title width at different font sizes to find the best fit
+    const title = metadata.title
+    const tempSpan = document.createElement('span')
+    tempSpan.style.position = 'absolute'
+    tempSpan.style.visibility = 'hidden'
+    tempSpan.style.whiteSpace = 'nowrap'
+    tempSpan.style.fontWeight = '600'
+    tempSpan.style.lineHeight = '1.2'
+    tempSpan.textContent = title
+    document.body.appendChild(tempSpan)
+    
+    // Try different font sizes from 18px down to 14px
+    let bestSize = 14
+    for (let size = 18; size >= 14; size--) {
+      tempSpan.style.fontSize = `${size}px`
+      const width = tempSpan.getBoundingClientRect().width
+      if (width <= usableWidth) {
+        bestSize = size
+        break
+      }
+    }
+    
+    document.body.removeChild(tempSpan)
+    setTitleFontSize(bestSize)
+  }
+
+  // Smart path truncation based on actual available width
+  const getSmartTruncatedPath = (path: string): string => {
+    if (!pathRef.current) return path
+    
+    const tempSpan = document.createElement('span')
+    tempSpan.style.position = 'absolute'
+    tempSpan.style.visibility = 'hidden'
+    tempSpan.style.fontFamily = 'monospace'
+    tempSpan.style.fontSize = 'var(--freeki-page-details-font-size)'
+    tempSpan.style.whiteSpace = 'nowrap'
+    tempSpan.textContent = path
+    document.body.appendChild(tempSpan)
+    
+    const fullWidth = tempSpan.getBoundingClientRect().width
+    const maxWidth = availableWidth - 20 // Leave some margin
+    
+    if (fullWidth <= maxWidth) {
+      document.body.removeChild(tempSpan)
+      return path
+    }
+    
+    // Path is too long, need to truncate from the start
+    const pathParts = path.split('/')
+    const filename = pathParts[pathParts.length - 1]
+    
+    // Try to fit as much as possible, prioritizing the filename
+    tempSpan.textContent = '...' + filename
+    let result = '...' + filename
+    
+    if (tempSpan.getBoundingClientRect().width <= maxWidth) {
+      // Try to add more path components from the end
+      for (let i = pathParts.length - 2; i >= 0; i--) {
+        const testPath = '.../' + pathParts.slice(i).join('/')
+        tempSpan.textContent = testPath
+        if (tempSpan.getBoundingClientRect().width <= maxWidth) {
+          result = testPath
+        } else {
+          break
+        }
+      }
+    }
+    
+    document.body.removeChild(tempSpan)
+    return result
+  }
+
+  // Set up resize observer to watch for panel width changes
+  useEffect(() => {
+    if (!containerRef.current) return
+    
+    const resizeObserver = new ResizeObserver(() => {
+      measureAndAdjustSizing()
+    })
+    
+    resizeObserver.observe(containerRef.current)
+    
+    // Initial measurement
+    setTimeout(measureAndAdjustSizing, 0)
+    
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [metadata.title]) // Re-run when title changes
 
   const handleRevisionsToggle = async () => {
     if (!showRevisions && revisions.length === 0) {
@@ -196,15 +285,21 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
     }
   }, [viewingRevision, handleKeyDown])
 
+  // Sort tags alphabetically
+  const sortedTags = [...metadata.tags].sort((a, b) => a.localeCompare(b))
+
   return (
-    <Box sx={{ 
-      p: 2, 
-      height: '100%', 
-      overflow: 'auto',
-      backgroundColor: 'var(--freeki-page-details-background)',
-      color: 'var(--freeki-page-details-font-color)'
-    }}>
-      {/* Tags Section - always show with title */}
+    <Box 
+      ref={containerRef}
+      sx={{ 
+        p: 2, 
+        height: '100%', 
+        overflow: 'auto',
+        backgroundColor: 'var(--freeki-page-details-background)',
+        color: 'var(--freeki-page-details-font-color)'
+      }}
+    >
+      {/* Tags Section */}
       <Paper sx={{ 
         ...themeStyles.paper,
         p: 2, 
@@ -226,7 +321,7 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
         </Typography>
         
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 2 }}>
-          {metadata.tags.map((tag: string) => (
+          {sortedTags.map((tag: string) => (
             <Box 
               key={tag} 
               sx={{ 
@@ -245,6 +340,13 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
                   cursor: 'pointer',
                   transition: 'box-shadow 0.2s',
                   boxShadow: 'none',
+                  // Handle overflow with ellipsis
+                  maxWidth: '200px',
+                  '& .MuiChip-label': {
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  },
                   '&:hover': {
                     boxShadow: '0 0 0 2px var(--freeki-border-color)',
                     backgroundColor: 'var(--freeki-folders-selected-background)',
@@ -285,53 +387,38 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
           ))}
         </Stack>
 
-        {/* Add new tag input */}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          <TextField
-            size="small"
-            placeholder="Add tag..."
-            value={newTagInput}
-            onChange={(e) => setNewTagInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            sx={{
-              flex: 1,
-              '& .MuiOutlinedInput-root': {
-                backgroundColor: 'var(--freeki-view-background)',
-                borderRadius: 'var(--freeki-border-radius)',
-                fontSize: 'var(--freeki-page-details-font-size)',
-                '& fieldset': {
-                  borderColor: 'var(--freeki-border-color)'
-                },
-                '&:hover fieldset': {
-                  borderColor: 'var(--freeki-border-color)'
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'var(--freeki-app-bar-background)'
-                }
+        {/* Add new tag input - full width, no + button */}
+        <TextField
+          size="small"
+          placeholder="Add tag..."
+          value={newTagInput}
+          onChange={(e) => setNewTagInput(e.target.value)}
+          onKeyPress={handleKeyPress}
+          fullWidth
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              backgroundColor: 'var(--freeki-view-background)',
+              borderRadius: 'var(--freeki-border-radius)',
+              fontSize: 'var(--freeki-page-details-font-size)',
+              '& fieldset': {
+                borderColor: 'var(--freeki-border-color)'
               },
-              '& .MuiInputBase-input': {
-                color: 'var(--freeki-p-font-color)',
-                fontSize: 'var(--freeki-page-details-font-size)'
+              '&:hover fieldset': {
+                borderColor: 'var(--freeki-border-color)'
+              },
+              '&.Mui-focused fieldset': {
+                borderColor: 'var(--freeki-app-bar-background)'
               }
-            }}
-          />
-          <IconButton
-            onClick={handleAddTag}
-            disabled={!newTagInput.trim() || metadata.tags.includes(newTagInput.trim())}
-            sx={{
-              color: 'var(--freeki-app-bar-background)',
-              '&:disabled': {
-                color: 'var(--freeki-border-color)'
-              }
-            }}
-            aria-label="Add tag"
-          >
-            <Add />
-          </IconButton>
-        </Box>
+            },
+            '& .MuiInputBase-input': {
+              color: 'var(--freeki-p-font-color)',
+              fontSize: 'var(--freeki-page-details-font-size)'
+            }
+          }}
+        />
       </Paper>
 
-      {/* Page Info Section - compact format without labels */}
+      {/* Page Details Section - responsive title sizing based on actual panel width */}
       <Paper sx={{ 
         ...themeStyles.paper,
         p: 2, 
@@ -340,42 +427,141 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'
       }}>
-        <Stack spacing={1}>
-          {/* Path with tooltip */}
+        <Stack spacing={0.75} sx={{ alignItems: 'flex-end' }}>
+          {/* Title with dynamic sizing based on actual panel width */}
+          <Typography 
+            ref={titleRef}
+            sx={{ 
+              color: 'var(--freeki-page-details-font-color)',
+              fontSize: `${titleFontSize}px`,
+              fontWeight: 600,
+              textAlign: 'right',
+              lineHeight: 1.2,
+              wordBreak: 'break-word',
+              hyphens: 'auto',
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical'
+            }}
+            title={metadata.title}
+          >
+            {metadata.title}
+          </Typography>
+          
+          {/* Path with smart truncation based on actual panel width */}
           <Tooltip title={metadata.path} arrow placement="top">
             <Typography 
+              ref={pathRef}
               variant="body2" 
               sx={{ 
                 color: 'var(--freeki-page-details-font-color)',
                 fontSize: 'var(--freeki-page-details-font-size)',
+                textAlign: 'right',
+                fontFamily: 'monospace',
                 cursor: 'help',
-                fontFamily: 'monospace'
+                lineHeight: 1.2,
+                opacity: 0.8,
+                maxWidth: '100%',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
               }}
             >
-              {truncatePathFromStart(metadata.path)}
+              {getSmartTruncatedPath(metadata.path)}
             </Typography>
           </Tooltip>
           
-          {/* Last modified with author */}
+          {/* By author name - clickable */}
           <Typography 
+            component="span"
             variant="body2" 
             sx={{ 
               color: 'var(--freeki-page-details-font-color)',
-              fontSize: 'var(--freeki-page-details-font-size)'
+              fontSize: 'var(--freeki-page-details-font-size)',
+              textAlign: 'right',
+              lineHeight: 1.2,
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
             }}
+            title={`By ${metadata.author}`}
           >
-            Last modified by {metadata.author} {formatTimeAgo(metadata.lastModified)}
+            By{' '}
+            <Typography
+              component="span"
+              onClick={handleAuthorClick}
+              sx={{
+                color: 'var(--freeki-app-bar-background)',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                textDecorationColor: 'transparent',
+                transition: 'text-decoration-color 0.2s ease',
+                '&:hover': {
+                  textDecorationColor: 'var(--freeki-app-bar-background)'
+                }
+              }}
+              title={`Click to search for pages by ${metadata.author}`}
+            >
+              {metadata.author}
+            </Typography>
           </Typography>
           
-          {/* Version and word count on same line */}
+          {/* Time ago with overflow handling */}
           <Typography 
             variant="body2" 
             sx={{ 
               color: 'var(--freeki-page-details-font-color)',
-              fontSize: 'var(--freeki-page-details-font-size)'
+              fontSize: 'var(--freeki-page-details-font-size)',
+              textAlign: 'right',
+              lineHeight: 1.2,
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
             }}
+            title={formatTimeAgo(metadata.lastModified)}
           >
-            V{metadata.version} - {countWords(content.content)} words
+            {formatTimeAgo(metadata.lastModified)}
+          </Typography>
+          
+          {/* Version with overflow handling */}
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: 'var(--freeki-page-details-font-color)',
+              fontSize: 'var(--freeki-page-details-font-size)',
+              textAlign: 'right',
+              lineHeight: 1.2,
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+            title={`Version ${metadata.version}`}
+          >
+            Version {metadata.version}
+          </Typography>
+          
+          {/* Word count with overflow handling */}
+          <Typography 
+            variant="body2" 
+            sx={{ 
+              color: 'var(--freeki-page-details-font-color)',
+              fontSize: 'var(--freeki-page-details-font-size)',
+              textAlign: 'right',
+              lineHeight: 1.2,
+              maxWidth: '100%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap'
+            }}
+            title={`Word Count ${countWords(content.content)}`}
+          >
+            Word Count {countWords(content.content)}
           </Typography>
         </Stack>
       </Paper>
@@ -446,13 +632,24 @@ export default function PageMetadataComponent({ metadata, content, onTagClick, o
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1,
-                        flexWrap: 'wrap'
+                        flexWrap: 'wrap',
+                        overflow: 'hidden'
                       }}>
-                        <span style={{ fontWeight: 600 }}>V{revision.version}</span>
-                        <span style={{ color: 'var(--freeki-border-color)' }}>•</span>
-                        <span>{revision.author}</span>
-                        <span style={{ color: 'var(--freeki-border-color)' }}>•</span>
-                        <span>{formatTimeAgo(revision.lastModified)}</span>
+                        <span style={{ fontWeight: 600, flexShrink: 0 }}>V{revision.version}</span>
+                        <span style={{ color: 'var(--freeki-border-color)', flexShrink: 0 }}>•</span>
+                        <span style={{ 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                          flex: 1
+                        }} title={revision.author}>
+                          {revision.author}
+                        </span>
+                        <span style={{ color: 'var(--freeki-border-color)', flexShrink: 0 }}>•</span>
+                        <span style={{ flexShrink: 0 }} title={formatTimeAgo(revision.lastModified)}>
+                          {formatTimeAgo(revision.lastModified)}
+                        </span>
                       </Typography>
                     }
                   />
