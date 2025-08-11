@@ -224,6 +224,29 @@ export function buildPageTree(pageMetadata: PageMetadata[]): TreeNode[] {
     }
   }
 
+  // CRITICAL FIX: Sort all levels to ensure files before folders
+  const sortTreeLevel = (nodes: TreeNode[]): void => {
+    // Sort this level: files first (by title), then folders (by title)
+    nodes.sort((a, b) => {
+      // Files before folders
+      if (!a.isFolder && b.isFolder) return -1
+      if (a.isFolder && !b.isFolder) return 1
+      
+      // Same type - sort by title
+      return a.metadata.title.localeCompare(b.metadata.title)
+    })
+    
+    // Recursively sort all child levels
+    for (const node of nodes) {
+      if (node.isFolder && node.children.length > 0) {
+        sortTreeLevel(node.children)
+      }
+    }
+  }
+  
+  // Apply sorting to the entire tree
+  sortTreeLevel(rootNodes)
+
   return rootNodes
 }
 
