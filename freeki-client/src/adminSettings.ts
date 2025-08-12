@@ -67,6 +67,7 @@ export interface ColorScheme {
   // New: tag colors
   tagColor: string; // NEW: for tag text color
   tagBackground: string; // NEW: for tag background color
+  toolbarIconColor: string; // NEW: for editor toolbar icon color (required)
 }
 
 const DEFAULT_LIGHT_SCHEME: ColorScheme = {
@@ -108,6 +109,7 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   hoverBackground: '#e3ecfa', // NEW: default hover for light theme (matches tags block bg)
   tagColor: '#26324a', // NEW: default tag text color (dark)
   tagBackground: '#e3ecfa', // NEW: default tag background (matches tags block bg)
+  toolbarIconColor: '#888', // More gray for light mode
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
@@ -149,6 +151,7 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   hoverBackground: '#26324a', // NEW: default hover for dark theme (matches tags block bg)
   tagColor: '#b0b6c3', // Faded down
   tagBackground: '#313a4a', // NEW: default tag background (lighter blue-gray)
+  toolbarIconColor: '#b0b6c3', // Less white, more gray for dark mode
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {

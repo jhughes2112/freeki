@@ -521,7 +521,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
               p: 0,
             }}>
               {/* System Elements */}
-				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden', color: style.color }}>
                 <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>System Elements</Typography>
                 {SYSTEM_ELEMENT_ROWS.map((row) => (
                   <SettingRow
@@ -537,7 +537,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                 ))}
               </Paper>
               {/* Typography & Page BGs */}
-				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden', color: style.color }}>
                 <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>Typography & Page Backgrounds</Typography>
                 {TYPOGRAPHY_ROWS.map((row) => {
                   const fontSize = row.fontSize && typeof adminSettings.colorSchemes.light[row.fontSize] === 'number'
@@ -560,7 +560,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                 })}
               </Paper>
               {/* Folders */}
-				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden', color: style.color }}>
                 <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>Folders</Typography>
                 {FOLDERS_ROWS.map((row) => {
                   const fontSize = row.fontSize && typeof adminSettings.colorSchemes.light[row.fontSize] === 'number'
@@ -583,7 +583,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                 })}
               </Paper>
               {/* Page Details */}
-              <Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+              <Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden', color: style.color }}>
                 <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>Page Details</Typography>
                 {PAGE_DETAILS_ROWS.map((row) => {
                   const fontSize = row.fontSize && typeof adminSettings.colorSchemes.light[row.fontSize] === 'number'
@@ -641,6 +641,7 @@ const TYPOGRAPHY_ROWS: ColorRow[] = [
   { label: 'H2 Font', light: 'h2FontColor', dark: 'h2FontColor', fontSize: 'h2FontSize' },
   { label: 'H3 Font', light: 'h3FontColor', dark: 'h3FontColor', fontSize: 'h3FontSize' },
   { label: 'Text Font', light: 'pFontColor', dark: 'pFontColor', fontSize: 'pFontSize' },
+  { label: 'Toolbar Icon', light: 'toolbarIconColor', dark: 'toolbarIconColor' }, // Expose toolbarIconColor
   { label: 'Page View BG', light: 'viewBackground', dark: 'viewBackground' },
   { label: 'Page Edit BG', light: 'editBackground', dark: 'editBackground' },
 ];

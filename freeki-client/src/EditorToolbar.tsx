@@ -4,7 +4,7 @@ import {
   FormatBold, FormatItalic, FormatUnderlined, StrikethroughS,
   FormatAlignLeft, FormatAlignCenter, FormatAlignRight,
   FormatListNumbered, FormatListBulleted, Link, InsertLink,
-  FormatQuote, HorizontalRule, Image, Title, LooksOne, LooksTwo, Looks3
+  FormatQuote, HorizontalRule, Image, Title
 } from '@mui/icons-material';
 
 interface EditorToolbarProps {
@@ -12,9 +12,9 @@ interface EditorToolbarProps {
 }
 
 const actions = [
-  { key: 'h1', icon: <LooksOne />, label: 'Heading 1' },
-  { key: 'h2', icon: <LooksTwo />, label: 'Heading 2' },
-  { key: 'h3', icon: <Looks3 />, label: 'Heading 3' },
+  { key: 'h1', icon: <span className="toolbar-heading-icon">H1</span>, label: 'Heading 1' },
+  { key: 'h2', icon: <span className="toolbar-heading-icon">H2</span>, label: 'Heading 2' },
+  { key: 'h3', icon: <span className="toolbar-heading-icon">H3</span>, label: 'Heading 3' },
   { key: 'text', icon: <Title />, label: 'Normal Text' },
   { divider: true },
   { key: 'bold', icon: <FormatBold />, label: 'Bold' },
@@ -57,7 +57,19 @@ export default function EditorToolbar({ onFormat }: EditorToolbarProps) {
         boxShadow: '0 2px 8px var(--freeki-shadow-color, #22222233)',
         overflowX: 'auto',
         overflowY: 'hidden',
-        width: '100%'
+        width: '100%',
+        '& .MuiSvgIcon-root, & .toolbar-heading-icon': {
+          color: 'var(--freeki-toolbar-icon-color, #888)'
+        },
+        '& .toolbar-heading-icon': {
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          fontSize: 18,
+          display: 'inline-block',
+          minWidth: 24,
+          textAlign: 'center',
+          lineHeight: 1.2
+        }
       }}
       role="toolbar"
       aria-label="Editor formatting toolbar"

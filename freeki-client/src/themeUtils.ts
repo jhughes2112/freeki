@@ -284,6 +284,9 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   document.body.style.backgroundColor = colorScheme.viewBackground || '#ffffff';
   document.documentElement.style.backgroundColor = colorScheme.viewBackground || '#ffffff';
 
+  // Set toolbar icon color from theme (required, do not check existence)
+  root.style.setProperty('--freeki-toolbar-icon-color', colorScheme.toolbarIconColor);
+
   // Use direct color values, fallback to hardcoded if missing
   root.style.setProperty('--freeki-app-bar-background', colorScheme.appBarBackground || '#1976d2');
   root.style.setProperty('--freeki-app-bar-text-color', colorScheme.appBarTextColor || '#ffffff');
@@ -479,6 +482,7 @@ export const themeStyles = {
   paper: {
     borderRadius: 'var(--freeki-border-radius)',
     boxShadow: '0 2px 8px var(--freeki-shadow-color)'
+
   },
   card: {
     borderRadius: 'var(--freeki-border-radius)',
