@@ -118,7 +118,7 @@ export default function FolderTree({
     if (onSearch && searchText !== externalSearchQuery) {
       onSearch(searchText)
     }
-  }, [searchText])
+  }, [searchText, onSearch])
 
   // Input change handler
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,7 +148,6 @@ export default function FolderTree({
   const [isDragging, setIsDragging] = useState(false)
   const [dragHoverFolder, setDragHoverFolder] = useState('')
   const [currentDraggedPath, setCurrentDraggedPath] = useState('')
-  const [newFolderButtonHover, setNewFolderButtonHover] = useState(false) // Track drag hover state for button
 
   // Hover-to-expand during drag
   const [hoverExpandTimer, setHoverExpandTimer] = useState<number | null>(null)
@@ -245,12 +244,6 @@ export default function FolderTree({
     
     const container = containerRef.current
     
-    // Check if this is a folder or file for debugging
-    const isFolder = listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderIcon"]') || listItem.querySelector('.MuiSvgIcon-root[data-testid="FolderOpenIcon"]')
-    const itemType = isFolder ? 'FOLDER' : 'FILE'
-    
-    console.log(`${itemType} ROW_HOVER: "${textContent}"`)
-    
     // Check if ANY visible rows are too wide for the container
     const allListItems = container.querySelectorAll('.MuiListItem-root')
     const containerRect = container.getBoundingClientRect()
@@ -289,7 +282,7 @@ export default function FolderTree({
           
       if (totalContentWidth > actualVisibleWidth) {
         anyRowTooWide = true
-        console.log(`${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
+        // console.log(`${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
         break
       }
     }
@@ -299,12 +292,12 @@ export default function FolderTree({
       const iconElement = listItem.querySelector('.MuiListItemIcon-root') as HTMLElement
       if (iconElement) {
         const paddingLeft = parseFloat(window.getComputedStyle(listItem).paddingLeft) || 0
-        console.log(`${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
+        // console.log(`${itemType}: Some content too wide, scrolling to show icons at left edge (${paddingLeft}px)`)
         container.scrollLeft = paddingLeft
       }
     } else {
       // All content fits - reset to natural position
-      console.log(`${itemType}: All content fits, resetting to scroll=0`)
+      // console.log(`${itemType}: All content fits, resetting to scroll=0`)
       container.scrollLeft = 0
     }
   }
@@ -446,14 +439,6 @@ export default function FolderTree({
     setIsDragging(false)
     setDragHoverFolder('__NONE__')
     setCurrentDraggedPath('')
-    setNewFolderButtonHover(false) // Reset button hover state
-    
-    // Clear hover-to-expand timer
-    if (hoverExpandTimer) {
-      clearTimeout(hoverExpandTimer)
-      setHoverExpandTimer(null)
-    }
-    setHoverExpandFolder('')
   }
 
   // Validate that a drop operation is legal - prevent parent folders from being dropped into their own children
@@ -889,6 +874,9 @@ export default function FolderTree({
     globalState.setProperty('userSettings.searchConfig', newConfig)
   }
 
+  // Restore newFolderButtonHover state for drag hover effect
+  const [newFolderButtonHover, setNewFolderButtonHover] = useState(false)
+
   return (
     <Box sx={{ 
       height: '100%', 
@@ -965,13 +953,16 @@ export default function FolderTree({
                     handleNewPageClick(currentFolder)
                   }
                 }}
+                className="freeki-create-icon"
                 sx={{
                   p: 0.25,
-                  color: 'var(--freeki-primary)',
-                  backgroundColor: 'white',
-                  border: '1px solid var(--freeki-primary)',
-                  pointerEvents: 'auto',
-                  '&:hover': { backgroundColor: 'var(--freeki-primary)', color: 'white' }
+                  color: 'var(--freeki-create-icon)',
+                  backgroundColor: 'var(--freeki-folders-background)',
+                  border: '1px solid var(--freeki-create-icon)',
+                  '&:hover': {
+                    backgroundColor: 'var(--freeki-create-icon)',
+                    color: 'var(--freeki-folders-background)',
+                  }
                 }}
               >
                 <Add fontSize="small" />
@@ -987,7 +978,6 @@ export default function FolderTree({
                 onClick={async (e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  
                   // Simulate a drop event
                   const dragData = {
                     pageId: currentDraggedPath,
@@ -1000,41 +990,40 @@ export default function FolderTree({
                   e.preventDefault()
                   e.stopPropagation()
                   setNewFolderButtonHover(true)
-                  console.log('NEW FOLDER BUTTON: Drag enter detected')
                 }}
                 onDragLeave={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
                   setNewFolderButtonHover(false)
-                  console.log('NEW FOLDER BUTTON: Drag leave detected')
                 }}
                 onDragOver={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
                   setNewFolderButtonHover(true)
-                  console.log('NEW FOLDER BUTTON: Drag over detected')
                 }}
                 onDrop={async (e) => {
                   e.preventDefault()
                   e.stopPropagation()
                   setNewFolderButtonHover(false)
-                  
                   const dragDataString = e.dataTransfer.getData('application/json')
                   if (!dragDataString) return
-                  
                   const dragData = JSON.parse(dragDataString)
                   await handleCreateFolderDrop(dragHoverFolder, dragData)
                 }}
+                className={`freeki-create-icon${newFolderButtonHover ? ' freeki-create-icon-hover' : ''}`}
                 sx={{
                   p: 0.25,
-                  color: newFolderButtonHover ? 'white' : 'var(--freeki-primary)',
-                  backgroundColor: newFolderButtonHover ? 'var(--freeki-primary)' : 'white',
-                  border: '1px solid var(--freeki-primary)',
-                  pointerEvents: 'auto',
+                  color: newFolderButtonHover ? 'var(--freeki-folders-background)' : 'var(--freeki-create-icon)',
+                  backgroundColor: newFolderButtonHover ? 'var(--freeki-create-icon)' : 'var(--freeki-folders-background)',
+                  border: '1px solid var(--freeki-create-icon)',
                   transition: 'all 0.15s ease',
-                  '&:hover': { 
-                    backgroundColor: 'var(--freeki-primary)', 
-                    color: 'white'
+                  boxShadow: newFolderButtonHover ? '0 0 0 2px var(--freeki-primary)' : undefined,
+                  outline: newFolderButtonHover ? '2px solid var(--freeki-primary)' : undefined,
+                  '&:hover, &.freeki-create-icon-hover': {
+                    backgroundColor: 'var(--freeki-create-icon)',
+                    color: 'var(--freeki-folders-background)',
+                    boxShadow: '0 0 0 2px var(--freeki-primary)',
+                    outline: '2px solid var(--freeki-primary)'
                   }
                 }}
               >

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Paper } from '@mui/material';
+import React, { useEffect, useRef, useState } from 'react';
+import { Paper, Button, Box, TextField } from '@mui/material';
 import type { PageContent } from './globalState';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -13,7 +13,6 @@ interface PageEditorProps {
 }
 
 export default function PageEditor({ content, onContentChange, onEditingComplete }: PageEditorProps) {
-  // Only set initial content once
   const initialContent = useRef(content.content);
   const editor = useEditor({
     extensions: [
@@ -26,6 +25,64 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
     },
     editable: true,
   });
+
+  // Popup state
+  const [popup, setPopup] = useState<{ x: number; y: number; show: boolean }>({ x: 0, y: 0, show: false });
+  const [textValue, setTextValue] = useState('');
+
+  // Show popup on selection
+  useEffect(() => {
+    if (!editor) return;
+    const handleMouseUp = (e: MouseEvent) => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        setPopup(p => ({ ...p, show: false }));
+        return;
+      }
+      // Only show if selection is inside the editor
+      const anchorNode = selection.anchorNode;
+      if (anchorNode && editor.view.dom.contains(anchorNode)) {
+        setPopup({ x: e.clientX, y: e.clientY, show: true });
+      } else {
+        setPopup(p => ({ ...p, show: false }));
+      }
+    };
+    const handleClick = (e: MouseEvent) => {
+      // Hide popup if clicking outside
+      if (!(e.target && (editor.view.dom.contains(e.target as Node)))) {
+        setPopup(p => ({ ...p, show: false }));
+      }
+    };
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('mousedown', handleClick);
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [editor]);
+
+  // Copy as HTML
+  const handleCopyHtml = () => {
+    if (!editor) return;
+    const html = editor.getHTML();
+    navigator.clipboard.writeText(html);
+    setPopup(p => ({ ...p, show: false }));
+  };
+
+  // Copy as Markdown
+  const handleCopyMarkdown = () => {
+    if (!editor) return;
+    let markdown = '';
+    try {
+      // @ts-expect-error tiptap/markdown types are incomplete
+      const serializer = new MarkdownSerializer();
+      markdown = serializer.serialize(editor.state.doc);
+    } catch {
+      markdown = editor.getText();
+    }
+    navigator.clipboard.writeText(markdown);
+    setPopup(p => ({ ...p, show: false }));
+  };
 
   // Expose a save/complete handler (e.g. Ctrl+S or blur)
   useEffect(() => {
@@ -55,7 +112,11 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
       color: 'var(--freeki-p-font-color)',
       height: '100%',
       m: 0,
-      borderRadius: 0 // Set border radius to 0px for page Paper
+      borderRadius: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      border: 'none',
+      boxShadow: 'none',
     }}>
       <div style={{
         width: '100%',
@@ -89,11 +150,58 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
             default: break;
           }
         }} />
-        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0 }}>
-          <div className="freeki-page-content">
+        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div className="freeki-page-content" style={{ flex: '0 0 auto' }}>
             <EditorContent editor={editor} />
           </div>
         </div>
+        {/* Virtual space for clicking below content */}
+        <div
+          style={{ flex: 1, minHeight: 120, cursor: 'text', background: 'none', border: 'none' }}
+          onMouseDown={() => {
+            if (editor) {
+              editor.commands.focus('end');
+            }
+          }}
+          aria-label="Click to focus editor"
+        />
+        {/* Selection popup */}
+        {popup.show && (
+          <Box
+            sx={{
+              position: 'fixed',
+              left: popup.x,
+              top: popup.y + 8,
+              zIndex: 9999,
+              background: 'white',
+              border: '1px solid #ccc',
+              borderRadius: 2,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              p: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              minWidth: 220,
+              maxWidth: 320,
+            }}
+          >
+            <Button variant="outlined" size="small" onClick={handleCopyHtml} sx={{ mb: 1 }}>
+              Copy as HTML
+            </Button>
+            <Button variant="outlined" size="small" onClick={handleCopyMarkdown} sx={{ mb: 1 }}>
+              Copy as Markdown
+            </Button>
+            <TextField
+              multiline
+              minRows={2}
+              maxRows={6}
+              value={textValue}
+              onChange={e => setTextValue(e.target.value)}
+              placeholder="Type here..."
+              sx={{ mt: 1 }}
+            />
+          </Box>
+        )}
       </div>
     </Paper>
   );

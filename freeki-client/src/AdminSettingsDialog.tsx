@@ -650,6 +650,8 @@ const TYPOGRAPHY_ROWS: ColorRow[] = [
 const FOLDERS_ROWS: ColorRow[] = [
   { label: 'Folders BG', light: 'foldersBackground', dark: 'foldersBackground' },
   { label: 'Folders Font', light: 'foldersFontColor', dark: 'foldersFontColor', fontSize: 'foldersFontSize' },
+  // Expose Create Icons color control (foreground)
+  { label: 'Create Icons', light: 'createIconColor', dark: 'createIconColor' }
 ];
 
 // --- PAGE DETAILS ---

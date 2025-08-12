@@ -131,6 +131,12 @@ export function injectGlobalStyles() {
       font-size: var(--freeki-p-font-size);
     }
 
+    /* Remove outline and box-shadow from ProseMirror when focused to eliminate focus ring/outline */
+    .freeki-page-content .ProseMirror-focused {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
     /* Search field styling - specific selectors beat MUI defaults */
     html body .freeki-folder-search .MuiTextField-root .MuiOutlinedInput-root {
       background-color: var(--freeki-folders-background);
@@ -262,6 +268,19 @@ export function injectGlobalStyles() {
     html body .MuiChip-root .MuiChip-label {
       color: var(--freeki-tag-color, inherit);
     }
+
+    /* Create icon button styling for New Page/New Folder */
+    html body .freeki-create-icon {
+      color: var(--freeki-create-icon);
+      background-color: var(--freeki-folders-background);
+      border: 1px solid var(--freeki-create-icon);
+      border-radius: var(--freeki-border-radius);
+      transition: background-color 0.15s, color 0.15s;
+    }
+    html body .freeki-create-icon:hover {
+      background-color: var(--freeki-create-icon);
+      color: var(--freeki-folders-background);
+    }
   `
   document.head.appendChild(style)
 }
@@ -354,6 +373,10 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   // Tag button background and color for visibility
   root.style.setProperty('--freeki-tag-bg', colorScheme.tagBackground || (currentTheme === 'dark' ? '#313a4a' : '#e3ecfa'));
   root.style.setProperty('--freeki-tag-color', colorScheme.tagColor || (currentTheme === 'dark' ? '#e0e0e0' : '#26324a'));
+  // Create icon button color (use createIconColor for foreground)
+  root.style.setProperty('--freeki-create-icon', colorScheme.createIconColor || colorScheme.foldersFontColor || '#2979FF');
+  // Create icon button background (default to foldersBackground)
+  root.style.setProperty('--freeki-create-icon-bg', colorScheme.foldersBackground || '#fafafa');
 
   // Admin panel text field colors (set dynamically by theme)
   if (currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {

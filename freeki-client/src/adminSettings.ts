@@ -21,6 +21,7 @@ export interface ColorScheme {
   foldersFontSize: number;
   foldersBackground: string;
   selectionBackground: string; // Renamed from foldersSelectedBackground
+  createIconColor: string; // for create page/folder button foreground (icon) color
 
   // Page view fonts
   h1FontColor: string;
@@ -110,6 +111,7 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   tagColor: '#26324a', // NEW: default tag text color (dark)
   tagBackground: '#e3ecfa', // NEW: default tag background (matches tags block bg)
   toolbarIconColor: '#888', // More gray for light mode
+  createIconColor: '#B8C2CC', 
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
@@ -152,6 +154,7 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   tagColor: '#b0b6c3', // Faded down
   tagBackground: '#313a4a', // NEW: default tag background (lighter blue-gray)
   toolbarIconColor: '#b0b6c3', // Less white, more gray for dark mode
+  createIconColor: '#3a4250',
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
@@ -161,7 +164,7 @@ export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
   colorSchemes: {
     light: DEFAULT_LIGHT_SCHEME,
     dark: DEFAULT_DARK_SCHEME
-  }
+  },
 }
 
 function deepMergeDefaults<T>(defaults: T, source: Partial<T>, path: string = ''): T {
