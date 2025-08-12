@@ -21,7 +21,7 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({ content }) =
   // Update content if it changes
   useEffect(() => {
     if (editor && content !== lastContent.current) {
-      editor.commands.setContent(content, false);
+		editor.commands.setContent(content, { emitUpdate: false });
       lastContent.current = content;
     }
   }, [content, editor]);
