@@ -1,37 +1,39 @@
-import { Box, Typography, Button } from '@mui/material'
-import type { PageMetadata, PageContent } from './globalState'
+import React, { useState, useEffect } from 'react';
+import { Box } from '@mui/material';
+import type { PageContent } from './globalState';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
 
 interface PageEditorProps {
-  metadata: PageMetadata
-  content: PageContent
-  onSave: (content: string) => void
-  onCancel: () => void
+  content: PageContent;
+  onContentChange?: (content: string) => void;
 }
 
-export default function PageEditor({ metadata, content, onSave, onCancel }: PageEditorProps) {
+export default function PageEditor({ content, onContentChange }: PageEditorProps) {
+  const [editorContent, setEditorContent] = useState(content.content);
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: editorContent,
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      setEditorContent(html);
+      if (onContentChange) onContentChange(html);
+    },
+    editable: true,
+  });
+
+  // Keep editor in sync if content changes from outside
+  useEffect(() => {
+    if (editor && content.content !== editorContent) {
+      editor.commands.setContent(content.content, false);
+      setEditorContent(content.content);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content.content]);
+
   return (
-    <Box sx={{ 
-      p: 3,
-      backgroundColor: 'var(--freeki-edit-background)',
-      color: 'var(--freeki-p-font-color)',
-      height: '100%'
-    }}>
-      <Typography 
-        variant="h4" 
-        sx={{ 
-          color: 'var(--freeki-h1-font-color)', 
-          fontSize: 'var(--freeki-h1-font-size)',
-          mb: 2 
-        }}
-      >
-        Editing: {metadata.title}
-      </Typography>
-      <Button onClick={() => onSave(content.content)} variant="contained" sx={{ mr: 1 }}>
-        Save
-      </Button>
-      <Button onClick={onCancel} variant="outlined">
-        Cancel
-      </Button>
+    <Box sx={{ p: 0, backgroundColor: 'var(--freeki-edit-background)', color: 'var(--freeki-p-font-color)', height: '100%' }}>
+      <EditorContent editor={editor} />
     </Box>
-  )
+  );
 }

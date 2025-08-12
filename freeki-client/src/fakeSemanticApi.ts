@@ -131,7 +131,7 @@ export class FakeSemanticApi implements ISemanticApi {
       }
 
       this.fakePages.push(newPage)
-      this.fakeContent[pageId] = request.content
+      this.fakeContent[`${pageId}:1`] = request.content
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('createPage', newPage, duration)
       return newPage
@@ -153,25 +153,34 @@ export class FakeSemanticApi implements ISemanticApi {
     })
     
     try {
-      const index = this.fakePages.findIndex(p => p.pageId === request.pageId)
-      if (index === -1) {
+      // Find the highest version for this pageId
+      let highestVersion = 0
+      let latestPage: PageMetadata | undefined = undefined
+      for (const page of this.fakePages) {
+        if (page.pageId === request.pageId && page.version > highestVersion) {
+          highestVersion = page.version
+          latestPage = page
+        }
+      }
+      if (!latestPage) {
         const duration = Math.round(performance.now() - startTime)
         this.logResponse('updatePage', null, duration)
         return null
       }
 
+      const newVersion = highestVersion + 1
       const updatedPage: PageMetadata = {
-        ...this.fakePages[index],
+        ...latestPage,
         title: request.title,
         author: 'Test User',
         path: request.filepath,
         tags: [...request.tags],
         lastModified: Date.now() / 1000,
-        version: this.fakePages[index].version + 1
+        version: newVersion
       }
 
-      this.fakePages[index] = updatedPage
-      this.fakeContent[request.pageId] = request.content
+      this.fakePages.push(updatedPage)
+      this.fakeContent[`${request.pageId}:${newVersion}`] = request.content
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('updatePage', updatedPage, duration)
       return updatedPage

@@ -34,13 +34,14 @@ import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState, getCurrentLayoutState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
 import { sortPagesByDisplayOrder } from './pageTreeUtils'
-import type { PageMetadata, PageContent } from './globalState'
+import type { PageMetadata } from './globalState'
 import type { DragData, DropTarget } from './pageTreeUtils'
 import { fetchAdminSettings } from './adminSettings'
 import { createSemanticApi } from './semanticApiFactory'
 import type { ISemanticApi } from './semanticApiInterface'
 import './themeService'
 import './App.css'
+import { revisionCache } from './PageMetadata'
 
 const FadePanelContent = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (
   <div className={`fade-panel${visible ? '' : ' hidden'}`}>
@@ -399,18 +400,21 @@ export default function App() {
     globalState.set('isEditing', false)
   }
 
-  // Handler to exit revision view
-  const handleExitRevisionView = () => {
-    setViewingRevision(null)
-  }
+  // Add state for tracking unsaved edits and cancel dialog
+  const [editorContent, setEditorContent] = React.useState<string | null>(null)
+  const [showCancelConfirm, setShowCancelConfirm] = React.useState(false)
 
   const handleEdit = () => {
+    setEditorContent(currentPageContent?.content || '')
     globalState.set('isEditing', true)
+  }
+
+  const handleEditorContentChange = (content: string) => {
+    setEditorContent(content)
   }
 
   const handleSave = async (content: string) => {
     if (!currentPageMetadata || !semanticApi) return
-    
     try {
       const updatedMetadata = await semanticApi.updatePage({
         pageId: currentPageMetadata.pageId,
@@ -419,18 +423,24 @@ export default function App() {
         filepath: currentPageMetadata.path,
         tags: currentPageMetadata.tags
       })
-      
       if (updatedMetadata) {
         globalState.set('currentPageContent', {
           pageId: currentPageMetadata.pageId,
           content: content
         })
         globalState.set('currentPageMetadata', updatedMetadata)
-        const updatedPageMetadata = pageMetadata.map(p => 
+        // Update pageMetadata list
+        const updatedPageMetadata = pageMetadata.map(p =>
           p.pageId === updatedMetadata.pageId ? updatedMetadata : p
         )
         globalState.set('pageMetadata', updatedPageMetadata)
+        // Update revision cache for this page (no need to fetch history)
+        const cached = revisionCache.get(currentPageMetadata.pageId) || []
+        // Remove any existing revision with the same version (shouldn't happen, but be safe)
+        const filtered = cached.filter((r: PageMetadata) => r.version !== updatedMetadata.version)
+        revisionCache.set(currentPageMetadata.pageId, [updatedMetadata, ...filtered])
         globalState.set('isEditing', false)
+        setEditorContent(null)
       }
     } catch (error) {
       console.error('Failed to save page:', error)
@@ -438,7 +448,22 @@ export default function App() {
   }
 
   const handleCancel = () => {
+    if (editorContent !== null && editorContent !== currentPageContent?.content) {
+      setShowCancelConfirm(true)
+    } else {
+      globalState.set('isEditing', false)
+      setEditorContent(null)
+    }
+  }
+
+  const handleConfirmCancel = () => {
+    setShowCancelConfirm(false)
     globalState.set('isEditing', false)
+    setEditorContent(null)
+  }
+
+  const handleCancelDialogClose = () => {
+    setShowCancelConfirm(false)
   }
 
   const handleCreatePage = async (title: string, content: string, filepath: string, tags: string[]) => {
@@ -829,60 +854,55 @@ export default function App() {
 
           {/* Right side - Action buttons */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, marginLeft: 'auto', zIndex: 2 }}>
-            {/* Edit/Save/Cancel buttons */}
-            {currentPageMetadata && (
-              <>
-                {isEditing ? (
-                  <>
-                    <EnhancedTooltip title="Save changes">
-                      <Button
-                        variant="contained"
-                        color="success"
-                        startIcon={<Save sx={{ color: 'white' }} />}
-                        onClick={() => handleSave(currentPageContent?.content || '')}
-                        sx={{ color: 'white' }}
-                        aria-label="Save changes"
-                        disabled={!!viewingRevision}
-                      >
-                        Save
-                      </Button>
-                    </EnhancedTooltip>
-                    <EnhancedTooltip title="Cancel editing">
-                      <Button
-                        variant="outlined"
-                        startIcon={<Cancel sx={{ color: 'var(--freeki-app-bar-text-color)' }} />}
-                        onClick={handleCancel}
-                        sx={{ 
-                          color: 'var(--freeki-app-bar-text-color)', 
-                          borderColor: 'var(--freeki-app-bar-text-color)',
-                          '&:hover': {
-                            backgroundColor: 'var(--freeki-app-bar-hover-background)',
-                            borderColor: 'var(--freeki-app-bar-text-color)'
-                          }
-                        }}
-                        aria-label="Cancel editing"
-                        disabled={!!viewingRevision}
-                      >
-                        Cancel
-                      </Button>
-                    </EnhancedTooltip>
-                  </>
-                ) : (
-                  <EnhancedTooltip title={viewingRevision ? "Cannot edit old revision" : "Edit page"}>
-                    <span>
-                      <IconButton 
-                        sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-                        onClick={handleEdit} 
-                        aria-label="Edit page"
-                        disabled={!!viewingRevision}
-                      >
-                        <Edit />
-                      </IconButton>
-                    </span>
-                  </EnhancedTooltip>
-                )}
-              </>
-            )}
+  {/* Save button (only in edit mode) */}
+  {currentPageMetadata && isEditing && (
+    <EnhancedTooltip title="Save changes">
+      <span>
+        <IconButton
+          color="success"
+          onClick={() => handleSave(editorContent ?? (currentPageContent?.content || ''))}
+          sx={{ color: 'var(--freeki-app-bar-text-color)', fontSize: 24 }}
+          aria-label="Save changes"
+          disabled={
+            !!viewingRevision ||
+            editorContent === null ||
+            editorContent === currentPageContent?.content
+          }
+        >
+          <Save sx={{ fontSize: 24 }} />
+        </IconButton>
+      </span>
+    </EnhancedTooltip>
+  )}
+  {/* Edit or Cancel button (same spot, rightmost) */}
+  {currentPageMetadata && (
+    isEditing ? (
+      <EnhancedTooltip title="Cancel editing">
+        <IconButton
+          color="error"
+          onClick={handleCancel}
+          sx={{ color: 'var(--freeki-app-bar-text-color)', fontSize: 24 }}
+          aria-label="Cancel editing"
+          disabled={!!viewingRevision}
+        >
+          <Cancel sx={{ fontSize: 24 }} />
+        </IconButton>
+      </EnhancedTooltip>
+    ) : (
+      <EnhancedTooltip title={viewingRevision ? "Cannot edit old revision" : "Edit page"}>
+        <span>
+          <IconButton
+            sx={{ color: 'var(--freeki-app-bar-text-color)', fontSize: 24 }}
+            onClick={handleEdit}
+            aria-label="Edit page"
+            disabled={!!viewingRevision}
+          >
+            <Edit sx={{ fontSize: 24 }} />
+          </IconButton>
+        </span>
+      </EnhancedTooltip>
+    )
+  )}
 
             {/* Delete button */}
             {currentPageMetadata && (
@@ -1052,23 +1072,17 @@ export default function App() {
                 <PageViewer
                   metadata={viewingRevision.metadata}
                   content={{ pageId: viewingRevision.metadata.pageId, content: viewingRevision.content }}
-                  isRevision={true}
-                  onExitRevision={handleExitRevisionView}
-                  currentContent={currentPageContent?.content}
                 />
               ) : (currentPageMetadata && currentPageContent && (
                 isEditing ? (
                   <PageEditor
-                    metadata={currentPageMetadata}
                     content={currentPageContent}
-                    onSave={handleSave}
-                    onCancel={handleCancel}
+                    onContentChange={handleEditorContentChange}
                   />
                 ) : (
                   <PageViewer
                     metadata={currentPageMetadata}
                     content={currentPageContent}
-                    isRevision={false}
                   />
                 )
               )))}
@@ -1175,6 +1189,19 @@ export default function App() {
         confirmText="Delete"
         cancelText="Cancel"
         confirmColor="error"
+        dangerous={true}
+      />
+
+      {/* Cancel Confirmation Dialog */}
+      <ConfirmDialog
+        open={showCancelConfirm}
+        onClose={handleCancelDialogClose}
+        onConfirm={handleConfirmCancel}
+        title="Discard Changes?"
+        message="You have unsaved changes. Are you sure you want to discard them?"
+        confirmText="Discard"
+        cancelText="Keep Editing"
+        confirmColor="warning"
         dangerous={true}
       />
     </Box>

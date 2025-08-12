@@ -61,7 +61,7 @@ const countWords = (content: string): number => {
 }
 
 // Revision cache to avoid repeated API calls
-const revisionCache = new Map<string, PageMetadata[]>()
+export const revisionCache = new Map<string, PageMetadata[]>()
 // Add a cache for revision content
 const revisionContentCache = new Map<string, string>()
 
