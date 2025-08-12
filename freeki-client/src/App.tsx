@@ -1095,6 +1095,7 @@ export default function App() {
               <PageMetadataPanel
                 metadata={currentPageMetadata}
                 content={currentPageContent}
+                semanticApi={semanticApi}
                 onTagClick={handleTagClick}
                 onTagAdd={handleTagAdd}
                 onTagRemove={handleTagRemove}

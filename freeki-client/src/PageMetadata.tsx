@@ -3,11 +3,11 @@ import { Box, Typography, Paper, Chip, Stack, Tooltip, TextField, IconButton, Co
 import { Close, ExpandMore, ExpandLess } from '@mui/icons-material'
 import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
-import { createSemanticApi } from './semanticApiFactory'
 import { useGlobalState } from './globalState'
 import type { UserSettings } from './globalState'
 import { ActiveTimeDelta, defaultFormatter } from './ActiveTimeDelta'
 import { globalState } from './globalState'
+import type { ISemanticApi } from './semanticApiInterface'
 
 // Move helpers to top-level scope
 function ensureCurrentRevisionInList(list: PageMetadata[], current: PageMetadata): PageMetadata[] {
@@ -69,6 +69,7 @@ const revisionContentCache = new Map<string, string>()
 interface PageMetadataComponentProps {
   metadata: PageMetadata
   content: PageContent
+  semanticApi: ISemanticApi
   onTagClick?: (tag: string) => void
   onTagAdd?: (tag: string) => void
   onTagRemove?: (tag: string) => void
@@ -78,7 +79,7 @@ interface PageMetadataComponentProps {
 
 
 export default function PageMetadataComponent(props: PageMetadataComponentProps) {
-  const { metadata, content, onTagClick, onTagAdd, onTagRemove, onAuthorClick } = props
+  const { metadata, content, semanticApi, onTagClick, onTagAdd, onTagRemove, onAuthorClick } = props
   const [newTagInput, setNewTagInput] = React.useState('')
   const [showRevisions, setShowRevisions] = React.useState(false)
   const [revisions, setRevisions] = React.useState<PageMetadata[]>([])
@@ -123,8 +124,7 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       if (revisionTabOpen && missing) {
         setLoadingRevisions(true)
         try {
-          const api = createSemanticApi()
-          const history = await api.getPageHistory(currentPageId)
+          const history = await semanticApi.getPageHistory(currentPageId)
           if (!cancelled) {
             const withCurrent = ensureCurrentRevisionInList(history, metadata)
             setRevisions(withCurrent)
@@ -142,7 +142,7 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
     // Always select the current version on page change
     setSelectedRevisionVersion(metadata.version)
     return () => { cancelled = true }
-  }, [currentPageId, revisionTabOpen, metadata.version])
+  }, [currentPageId, revisionTabOpen, metadata.version, semanticApi])
 
   // When user toggles the revision tab, update userSettings
   const handleRevisionsToggle = () => {
@@ -159,9 +159,8 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
           props.onViewRevision({ metadata: revision, content: revisionContentCache.get(cacheKey)! })
         }
       } else {
-        const api = createSemanticApi()
         try {
-          const result = await api.retrievePageVersion(revision.pageId, revision.version)
+          const result = await semanticApi.retrievePageVersion(revision.pageId, revision.version)
           if (result && result.content && props.onViewRevision) {
             revisionContentCache.set(cacheKey, result.content)
             props.onViewRevision({ metadata: revision, content: result.content })
@@ -760,3 +759,5 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
 const formatExactTime = (timestamp: number) => {
   return new Date(timestamp * 1000).toLocaleString()
 }
+
+export { default as PageMetadataPanel } from './PageMetadata'
