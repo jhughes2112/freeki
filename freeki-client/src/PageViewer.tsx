@@ -1,16 +1,59 @@
-import { Box, Typography, Paper, Divider } from '@mui/material'
+import { Box, Typography, Paper, Divider, Button } from '@mui/material'
 import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
 
 interface PageViewerProps {
   metadata: PageMetadata
   content: PageContent
-  onEdit: () => void
+  isRevision?: boolean
+  onExitRevision?: () => void
+  currentContent?: string
 }
 
-export default function PageViewer({ metadata, content }: PageViewerProps) {
+// Simple line-by-line diff algorithm
+function diffLines(oldStr: string, newStr: string) {
+  const oldLines = oldStr.split('\n')
+  const newLines = newStr.split('\n')
+  const diffs = []
+  let i = 0, j = 0
+  while (i < oldLines.length || j < newLines.length) {
+    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
+      diffs.push({ type: 'unchanged', text: oldLines[i] })
+      i++
+      j++
+    } else if (j < newLines.length && (i >= oldLines.length || !oldLines.includes(newLines[j]))) {
+      diffs.push({ type: 'added', text: newLines[j] })
+      j++
+    } else if (i < oldLines.length && (j >= newLines.length || !newLines.includes(oldLines[i]))) {
+      diffs.push({ type: 'removed', text: oldLines[i] })
+      i++
+    } else {
+      diffs.push({ type: 'changed', text: newLines[j] })
+      i++
+      j++
+    }
+  }
+  return diffs
+}
+
+export default function PageViewer({ metadata, content, isRevision, onExitRevision, currentContent }: PageViewerProps) {
   const isFolder = metadata.path.includes('/') && !metadata.path.endsWith('.md')
-  
+
+  // If viewing a revision, show diff
+  let diffBlocks = null
+  if (isRevision && currentContent !== undefined) {
+    const diffs = diffLines(content.content, currentContent)
+    diffBlocks = diffs.map((d, idx) => {
+      if (d.type === 'added') {
+        return <div key={idx} style={{ background: '#cce6ff', color: '#003366', padding: '2px 6px', borderRadius: 3, margin: '2px 0' }}>{d.text}</div>
+      } else if (d.type === 'removed') {
+        return <div key={idx} style={{ background: '#ffd6d6', color: '#660000', padding: '2px 6px', borderRadius: 3, margin: '2px 0', textDecoration: 'line-through' }}>{d.text}</div>
+      } else {
+        return <div key={idx}>{d.text}</div>
+      }
+    })
+  }
+
   return (
     <Box sx={{ 
       height: '100%', 
@@ -20,7 +63,7 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
       backgroundColor: 'var(--freeki-view-background)',
       color: 'var(--freeki-p-font-color)'
     }}>
-      <Box sx={{ mb: { xs: 2, sm: 2.5, md: 3 } }}>
+      <Box sx={{ mb: { xs: 2, sm: 2.5, md: 3 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Typography 
           variant="h4" 
           component="h1" 
@@ -32,6 +75,9 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
         >
           {metadata.title}
         </Typography>
+        {isRevision && onExitRevision && (
+          <Button onClick={onExitRevision} sx={{ ml: 2 }} variant="outlined" color="primary">Exit Revision View</Button>
+        )}
       </Box>
 
       <Divider sx={{ mb: { xs: 2, sm: 2.5, md: 3 }, borderColor: 'var(--freeki-border-color)' }} />
@@ -101,8 +147,9 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
                   mb: 0.5 
                 }
               }}
-              dangerouslySetInnerHTML={{ __html: content.content }} 
-            />
+            >
+              {isRevision && diffBlocks ? diffBlocks : <div dangerouslySetInnerHTML={{ __html: content.content }} />}
+            </Box>
           </Paper>
         )}
       </Box>

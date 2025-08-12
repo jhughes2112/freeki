@@ -5,6 +5,7 @@
 
 
 
+
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Box,
@@ -420,8 +421,8 @@ export default function AdvancedColorPicker({ value, onChange, label, disabled =
               boxShadow: `0 0 0 2px ${style.BORDER_COLOR}`
             }
           }}
-          title={`${label ? label + ': ' : ''}${typeof value === 'string' ? value.toUpperCase() : ''}`}
-          aria-label={`${label ? label + ': ' : ''}Edit color ${typeof value === 'string' ? value.toUpperCase() : ''}`}
+          title={label || ''}
+          aria-label={label ? `Edit color for ${label}` : 'Edit color'}
         />
         
         {label && (

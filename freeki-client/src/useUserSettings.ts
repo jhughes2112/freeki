@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { ISemanticApi } from './semanticApiInterface'
 import { useGlobalState, globalState } from './globalState'
+import type { UserSettings } from './globalState'
 
 export interface UserInfo {
   accountId: string
@@ -9,35 +10,6 @@ export interface UserInfo {
   roles: string[]
   isAdmin: boolean
   gravatarUrl?: string
-}
-
-// User settings - everything that should be persisted per device
-export interface UserSettings {
-  // Theme preference
-  theme: 'light' | 'dark' | 'auto'
-  
-  // Search configuration - persistent across sessions
-  searchConfig: {
-    titles: boolean
-    tags: boolean
-    author: boolean
-    content: boolean
-  }
-  
-  // Layout settings for different screen modes
-  wideScreenLayout: {
-    showFolderPanel: boolean
-    sidebarWidth: number
-    metadataWidth: number
-    showMetadataPanel: boolean
-  }
-  narrowScreenLayout: {
-    showFolderPanel: boolean
-    showMetadataPanel: boolean
-  }
-  
-  // Which folder paths are expanded - THIS IS PERSISTENT USER STATE
-  expandedFolderPaths: string[]
 }
 
 // Hook to work with user settings now stored in globalState
@@ -73,13 +45,16 @@ export function useUserSettings(semanticApi?: ISemanticApi | null) {
         showFolderPanel: true,
         sidebarWidth: 300,
         metadataWidth: 280,
-        showMetadataPanel: true
+        showMetadataPanel: true,
+        metadataCollapsed: false
       },
       narrowScreenLayout: {
         showFolderPanel: false,
-        showMetadataPanel: false
+        showMetadataPanel: false,
+        metadataCollapsed: false
       },
-      expandedFolderPaths: []
+      expandedFolderPaths: [],
+      revisionTabOpen: false
     }
     globalState.set('userSettings', DEFAULT_SETTINGS)
   }, [])

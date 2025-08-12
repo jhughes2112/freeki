@@ -122,7 +122,7 @@ export function injectGlobalStyles() {
     }
 
     /* Search field styling - specific selectors beat MUI defaults */
-    html body .MuiTextField-root .MuiOutlinedInput-root {
+    html body .freeki-folder-search .MuiTextField-root .MuiOutlinedInput-root {
       background-color: var(--freeki-folders-background);
       color: var(--freeki-folders-font-color);
     }
@@ -159,11 +159,11 @@ export function injectGlobalStyles() {
 
     /* Hover highlighting for folder tree navigation */
     html body .MuiListItem-root:hover:not(.Mui-selected) {
-      background-color: rgba(var(--freeki-primary-rgb), 0.08);
+      background-color: var(--freeki-hover-background, rgba(var(--freeki-primary-rgb), 0.08));
     }
     
     html body .MuiListItem-root:hover {
-      background-color: rgba(var(--freeki-primary-rgb), 0.12);
+      background-color: var(--freeki-hover-background, rgba(var(--freeki-primary-rgb), 0.12));
       transition: background-color 0.15s ease;
     }
     
@@ -204,6 +204,54 @@ export function injectGlobalStyles() {
       background-color: var(--freeki-border-color);
       filter: brightness(95%);
     }
+
+    /* Set font size for sidebar and metadata panels so all text inside inherits the correct size */
+    .sidebar-panel {
+      font-size: var(--freeki-folders-font-size);
+    }
+    .metadata-panel {
+      font-size: var(--freeki-page-details-font-size);
+    }
+
+    /* Admin panel text fields: use admin-specific font and background color, and fixed font size */
+    .admin-panel .MuiTextField-root .MuiOutlinedInput-root,
+    .admin-theme .MuiTextField-root .MuiOutlinedInput-root {
+      background-color: var(--freeki-admin-textfield-bg, #fffbe7);
+      color: var(--freeki-admin-textfield-font, #b71c1c);
+      font-size: 15px;
+    }
+    .admin-panel .MuiTextField-root .MuiOutlinedInput-input,
+    .admin-theme .MuiTextField-root .MuiOutlinedInput-input {
+      color: var(--freeki-admin-textfield-font, #b71c1c);
+      font-size: 15px;
+    }
+    .admin-panel .MuiTextField-root .MuiOutlinedInput-input::placeholder,
+    .admin-theme .MuiTextField-root .MuiOutlinedInput-input::placeholder {
+      color: var(--freeki-admin-textfield-font, #b71c1c);
+      opacity: 0.7;
+      font-size: 15px;
+    }
+
+    /* Force font size for all Typography in sidebar and metadata panels, override MUI's .MuiTypography-root */
+    .sidebar-panel .MuiTypography-root {
+      font-size: var(--freeki-folders-font-size) !important;
+    }
+    .metadata-panel .MuiTypography-root {
+      font-size: var(--freeki-page-details-font-size) !important;
+    }
+
+    /* Tag button styling for better visibility, especially in dark mode */
+    html body .MuiChip-root {
+      background-color: var(--freeki-tag-bg, #e3ecfa);
+      border: 1px solid var(--freeki-input-border, #b0c4de);
+      color: var(--freeki-tag-color, inherit);
+      border-radius: var(--freeki-border-radius);
+      font-weight: 500;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    html body .MuiChip-root .MuiChip-label {
+      color: var(--freeki-tag-color, inherit);
+    }
   `
   document.head.appendChild(style)
 }
@@ -232,7 +280,20 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   root.style.setProperty('--freeki-page-details-font-color', colorScheme.pageDetailsFontColor || '#222222');
   root.style.setProperty('--freeki-page-details-font-size', (colorScheme.pageDetailsFontSize || 12) + 'px');
   root.style.setProperty('--freeki-page-details-background', colorScheme.pageDetailsBackground || '#f9f9f9');
-	root.style.setProperty('--freeki-folders-selected-background', colorScheme.foldersSelectedBackground || '#d5e9fb');
+	root.style.setProperty('--freeki-selection-background', colorScheme.selectionBackground || '#d5e9fb');
+  // Derived backgrounds for details, tags, and revision blocks
+  // Light theme defaults
+  if (currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    // Dark theme
+    root.style.setProperty('--freeki-details-block-bg', colorScheme.detailsBlockBackground || '#23272b'); // slightly lighter than main bg
+    root.style.setProperty('--freeki-tags-block-bg', colorScheme.tagsBlockBackground || '#26324a'); // deep blue-gray, button-like
+    root.style.setProperty('--freeki-revision-block-bg', colorScheme.revisionBlockBackground || '#2a2320'); // muted warm gray
+  } else {
+    // Light theme
+    root.style.setProperty('--freeki-details-block-bg', colorScheme.detailsBlockBackground || '#f2f6fa'); // soft gray-blue
+    root.style.setProperty('--freeki-tags-block-bg', colorScheme.tagsBlockBackground || '#e3ecfa'); // filtered 0.8 of #f7fafd, button-like
+    root.style.setProperty('--freeki-revision-block-bg', colorScheme.revisionBlockBackground || '#fff9e3'); // gentle pale yellow
+  }
   root.style.setProperty('--freeki-h1-font-color', colorScheme.h1FontColor || '#222222');
   root.style.setProperty('--freeki-h1-font-size', (colorScheme.h1FontSize || 32) + 'px');
   root.style.setProperty('--freeki-h2-font-color', colorScheme.h2FontColor || '#333333');
@@ -271,6 +332,20 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
   root.style.setProperty('--freeki-input-border', colorScheme.inputBorder || '#b0c4de');
   root.style.setProperty('--freeki-row-even-bg', colorScheme.rowEvenBg || '#f7fafd');
   root.style.setProperty('--freeki-row-odd-bg', colorScheme.rowOddBg || '#eaf3fb');
+  root.style.setProperty('--freeki-revision-list-background', colorScheme.revisionListBackground || '#f0f6ff'); // NEW
+  root.style.setProperty('--freeki-hover-background', colorScheme.hoverBackground || '#e3ecfa'); // NEW
+  // Tag button background and color for visibility
+  root.style.setProperty('--freeki-tag-bg', colorScheme.tagBackground || (currentTheme === 'dark' ? '#313a4a' : '#e3ecfa'));
+  root.style.setProperty('--freeki-tag-color', colorScheme.tagColor || (currentTheme === 'dark' ? '#e0e0e0' : '#26324a'));
+
+  // Admin panel text field colors (set dynamically by theme)
+  if (currentTheme === 'dark' || (currentTheme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    root.style.setProperty('--freeki-admin-textfield-bg', '#23272b'); // dark gray
+    root.style.setProperty('--freeki-admin-textfield-font', '#f0f2f4'); // near white
+  } else {
+    root.style.setProperty('--freeki-admin-textfield-bg', '#ffffff'); // white for light mode
+    root.style.setProperty('--freeki-admin-textfield-font', '#222c36'); // deep blue-gray
+  }
 }
 
 // Get current theme CSS values for real-time preview
@@ -285,7 +360,7 @@ export function getCurrentThemeColors(): Record<string, string> {
     foldersFontColor: computedStyle.getPropertyValue('--freeki-folders-font-color').trim(),
     foldersFontSize: computedStyle.getPropertyValue('--freeki-folders-font-size').trim(),
     foldersBackground: computedStyle.getPropertyValue('--freeki-folders-background').trim(),
-    foldersSelectedBackground: computedStyle.getPropertyValue('--freeki-folders-selected-background').trim(),
+    selectionBackground: computedStyle.getPropertyValue('--freeki-selection-background').trim(),
     pageDetailsFontColor: computedStyle.getPropertyValue('--freeki-page-details-font-color').trim(),
     pageDetailsFontSize: computedStyle.getPropertyValue('--freeki-page-details-font-size').trim(),
     pageDetailsBackground: computedStyle.getPropertyValue('--freeki-page-details-background').trim(),
@@ -309,7 +384,8 @@ export function getCurrentThemeColors(): Record<string, string> {
     styleBoxBg: computedStyle.getPropertyValue('--freeki-style-box-bg').trim(),
     inputBorder: computedStyle.getPropertyValue('--freeki-input-border').trim(),
     rowEvenBg: computedStyle.getPropertyValue('--freeki-row-even-bg').trim(),
-    rowOddBg: computedStyle.getPropertyValue('--freeki-row-odd-bg').trim()
+    rowOddBg: computedStyle.getPropertyValue('--freeki-row-odd-bg').trim(),
+    revisionListBackground: computedStyle.getPropertyValue('--freeki-revision-list-background').trim() // NEW
   }
 }
 
@@ -327,6 +403,7 @@ export function getCurrentThemeColors(): Record<string, string> {
 //
 // 3. Apply freeki classes in HTML:
 //    <div className="freeki-rounded freeki-card">Content</div>
+//    <div className="freeki-button">Button</div>
 //
 // All MUI components will automatically inherit the border radius via global CSS injection
 export const themeStyles = {
@@ -345,10 +422,11 @@ export const themeStyles = {
     color: 'var(--freeki-folders-font-color)',
     borderRadius: 'var(--freeki-border-radius)',
     '&:hover': {
+      backgroundColor: 'var(--freeki-selection-background)',
       filter: 'brightness(95%)'
     },
     '&.selected': {
-      backgroundColor: 'var(--freeki-folders-selected-background)'
+      backgroundColor: 'var(--freeki-selection-background)'
     }
   },
   viewMode: {

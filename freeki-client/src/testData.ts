@@ -4,123 +4,77 @@
 
 import type { PageMetadata } from './globalState'
 
-// Clean test data without sortOrder - alphabetical sorting with files before folders
-export const testPageMetadata: PageMetadata[] = [
-  // Root level pages - will be sorted alphabetically
-  {
-    pageId: 'home',
-    title: 'Home Page',
-    author: 'Alice Smith',
-    path: 'home.md',
-    tags: ['wiki', 'home', 'intro'],
-    lastModified: 1705149000,
-    version: 1
-  },
-  {
-    pageId: 'overview',
-    title: 'System Overview',
-    author: 'Bob Johnson',
-    path: 'overview.md',
-    tags: ['overview', 'system'],
-    lastModified: 1705148000,
-    version: 1
-  },
-  {
-    pageId: 'welcome',
-    title: 'Welcome Guide',
-    author: 'Carol Davis',
-    path: 'welcome.md',
-    tags: ['guide', 'intro'],
-    lastModified: 1705148500,
-    version: 1
-  },
+// Simulate different timestamps for each revision
+const now = Math.floor(Date.now() / 1000)
 
-  // Documentation folder - multiple levels deep
+// Multiple revisions for each page (simulate history)
+export const testPageMetadata: PageMetadata[] = [
+  // Welcome Page revisions
   {
-    pageId: 'doc-intro',
-    title: 'Documentation Introduction',
-    author: 'David Wilson',
-    path: 'documentation/intro.md',
-    tags: ['documentation', 'intro'],
-    lastModified: 1705147000,
+    pageId: 'page-1',
+    title: 'Welcome to FreeKi',
+    author: 'Alice Smith',
+    path: 'welcome.md',
+    tags: ['intro', 'start'],
+    lastModified: now - 3600 * 24 * 3, // 3 days ago
     version: 1
   },
   {
-    pageId: 'doc-advanced',
-    title: 'Advanced Documentation',
-    author: 'Eve Brown',
-    path: 'documentation/advanced.md',
-    tags: ['documentation', 'advanced'],
-    lastModified: 1705146000,
+    pageId: 'page-1',
+    title: 'Welcome to FreeKi',
+    author: 'Alice Smith',
+    path: 'welcome.md',
+    tags: ['intro', 'start', 'updated'],
+    lastModified: now - 3600 * 24 * 2, // 2 days ago
     version: 2
   },
   {
-    pageId: 'doc-basic',
-    title: 'Basic Documentation',
-    author: 'Frank Miller',
-    path: 'documentation/basic.md',
-    tags: ['documentation', 'basic'],
-    lastModified: 1705145000,
-    version: 1
+    pageId: 'page-1',
+    title: 'Welcome to FreeKi',
+    author: 'Bob Johnson',
+    path: 'welcome.md',
+    tags: ['intro', 'start', 'updated', 'final'],
+    lastModified: now - 3600 * 24, // 1 day ago
+    version: 3
   },
-
-  // Deep nested documentation subfolder
+  // Getting Started revisions
   {
-    pageId: 'api-overview',
-    title: 'API Overview',
-    author: 'Grace Lee',
-    path: 'documentation/api/overview.md',
-    tags: ['api', 'documentation'],
-    lastModified: 1705144000,
-    version: 1
-  },
-  {
-    pageId: 'api-getting-started',
-    title: 'API Getting Started',
-    author: 'Henry Taylor',
-    path: 'documentation/api/getting-started.md',
-    tags: ['api', 'documentation', 'getting-started'],
-    lastModified: 1705143000,
-    version: 1
-  },
-
-  // Edge cases folder
-  {
-    pageId: 'edge-case-1',
-    title: 'Empty Content Test',
-    author: 'System',
-    path: 'edge-cases/empty.md',
-    tags: [],
-    lastModified: 1705142000,
+    pageId: 'page-2',
+    title: 'Getting Started',
+    author: 'Carol Lee',
+    path: 'getting-started.md',
+    tags: ['guide'],
+    lastModified: now - 3600 * 12, // 12 hours ago
     version: 1
   },
   {
-    pageId: 'edge-case-2',
-    title: 'Special Characters Test ñáéíóúü',
-    author: 'Isabel García',
-    path: 'edge-cases/special-chars.md',
-    tags: ['edge-case', 'unicode', 'special-characters'],
-    lastModified: 1705141000,
-    version: 1
+    pageId: 'page-2',
+    title: 'Getting Started',
+    author: 'Carol Lee',
+    path: 'getting-started.md',
+    tags: ['guide', 'update'],
+    lastModified: now - 3600 * 6, // 6 hours ago
+    version: 2
+  },
+  {
+    pageId: 'page-2',
+    title: 'Getting Started',
+    author: 'Dan Miller',
+    path: 'getting-started.md',
+    tags: ['guide', 'update', 'final'],
+    lastModified: now - 3600 * 2, // 2 hours ago
+    version: 3
   }
 ]
 
-// Sample content for all test pages and fallback content
+// Sample content for all test pages and fallback content, keyed by pageId and version
 export const testPageContent: Record<string, string> = {
-  // Clean test content - no sortOrder references
-  'home': '# Home Page\n\nWelcome to the FreeKi Wiki.',
-  'welcome': '# Welcome Guide\n\nYour getting started guide.',
-  'overview': '# System Overview\n\nHigh-level system overview.',
-  'doc-intro': '# Documentation Introduction\n\nIntroduction to documentation.',
-  'doc-basic': '# Basic Documentation\n\nBasic concepts and setup.',
-  'doc-advanced': '# Advanced Documentation\n\nAdvanced topics and configuration.',
-  'api-getting-started': '# API Getting Started\n\nGetting started with the API.',
-  'api-overview': '# API Overview\n\nOverview of available APIs.',
-  'edge-case-1': '# Empty Content Test\n\nTesting empty content handling.',
-  'edge-case-2': '# Special Characters Test ñáéíóúü\n\nTesting Unicode support.',
-
-  // Additional fallback content
-  'getting-started': '# Getting Started\n\nQuick start guide for new users.',
-  'advanced-features': '# Advanced Features\n\nAdvanced functionality guide.',
-  'meeting-notes': '# Daily Standup Notes\n\nDaily team meeting notes.'
+  // Welcome Page revisions
+  'page-1:1': `# Welcome to FreeKi\n\nWelcome to FreeKi, the open-source knowledge base for teams that want to get things done without the bloat.\n\n## Why FreeKi?\n\n- Simple markdown editing\n- Fast search\n- Git-powered versioning\n- No vendor lock-in\n\nThis is the very first version.\n\n## Getting Started\n\nTo create your first page, click the "+ New Page" button in the sidebar.\n\n---\n\nHappy collaborating!`,
+  'page-1:2': `# Welcome to FreeKi\n\nWelcome to FreeKi, the open-source knowledge base for teams that want to get things done without the bloat.\n\n## Why FreeKi?\n\n- Simple markdown editing\n- Fast search\n- Git-powered versioning\n- No vendor lock-in\n- Real-time collaboration\n\nThis is the second version. Added more info.\n\n## Getting Started\n\nTo create your first page, click the "+ New Page" button in the sidebar.\n\nYou can also import existing markdown files.\n\n---\n\nHappy collaborating!`,
+  'page-1:3': `# Welcome to FreeKi\n\nWelcome to FreeKi, the open-source knowledge base for teams that want to get things done without the bloat.\n\n## Why FreeKi?\n\n- Simple markdown editing\n- Fast search\n- Git-powered versioning\n- No vendor lock-in\n- Real-time collaboration\n- Customizable themes\n\nThis is the final version. All done!\n\n## Getting Started\n\nTo create your first page, click the "+ New Page" button in the sidebar.\n\nYou can also import existing markdown files, or drag and drop images.\n\n---\n\nHappy collaborating!`,
+  // Getting Started revisions
+  'page-2:1': `# Getting Started\n\nWelcome to the FreeKi getting started guide.\n\n## Step 1: Do this\n\n- Open the sidebar\n- Click "+ New Page"\n- Enter a title and some content\n\n## Step 2: Organize\n\n- Drag pages into folders\n- Use tags to group related content\n\n---\n\nNeed help? Check the documentation.`,
+  'page-2:2': `# Getting Started\n\nWelcome to the FreeKi getting started guide.\n\n## Step 1: Do this\n\n- Open the sidebar\n- Click "+ New Page"\n- Enter a title and some content\n\n## Step 2: Organize\n\n- Drag pages into folders\n- Use tags to group related content\n- Pin important pages\n\n## Step 3: Share\n\n- Invite your team\n- Set permissions\n\n---\n\nNeed help? Check the documentation.`,
+  'page-2:3': `# Getting Started\n\nWelcome to the FreeKi getting started guide.\n\n## Step 1: Do this\n\n- Open the sidebar\n- Click "+ New Page"\n- Enter a title and some content\n\n## Step 2: Organize\n\n- Drag pages into folders\n- Use tags to group related content\n- Pin important pages\n\n## Step 3: Share\n\n- Invite your team\n- Set permissions\n- Export to markdown\n\n---\n\nNeed help? Check the documentation or contact support.`
 }

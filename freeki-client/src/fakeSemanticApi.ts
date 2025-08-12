@@ -54,9 +54,15 @@ export class FakeSemanticApi implements ISemanticApi {
   async listAllPages(): Promise<PageMetadata[]> {
     const startTime = performance.now()
     this.logRequest('listAllPages')
-    
     try {
-      const result = [...this.fakePages]
+      // Only return the highest version for each pageId
+      const pageMap: Record<string, PageMetadata> = {}
+      for (const page of this.fakePages) {
+        if (!pageMap[page.pageId] || page.version > pageMap[page.pageId].version) {
+          pageMap[page.pageId] = page
+        }
+      }
+      const result = Object.values(pageMap)
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('listAllPages', result, duration)
       return result
@@ -70,16 +76,28 @@ export class FakeSemanticApi implements ISemanticApi {
   async getSinglePage(pageId: string): Promise<PageWithContent | null> {
     const startTime = performance.now()
     this.logRequest('getSinglePage', { pageId })
-    
     try {
-      const metadata = this.fakePages.find(p => p.pageId === pageId)
-      if (!metadata) {
+      // Find the highest version for this pageId
+      let metadata: PageMetadata | undefined = undefined
+      for (let i = 0; i < this.fakePages.length; i++)
+      {
+        if (this.fakePages[i].pageId === pageId)
+        {
+          if (!metadata || this.fakePages[i].version > metadata.version)
+          {
+            metadata = this.fakePages[i]
+          }
+        }
+      }
+      if (!metadata)
+      {
         const duration = Math.round(performance.now() - startTime)
         this.logResponse('getSinglePage', null, duration)
         return null
       }
-
-      const content = this.fakeContent[pageId] || `# ${metadata.title}\n\nContent not found.`
+      // Use key format pageId:version for content
+      const contentKey = pageId + ':' + metadata.version
+      const content = this.fakeContent[contentKey] || `# ${metadata.title}\n\nContent not found.`
       const result = { metadata, content }
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('getSinglePage', result, duration)
@@ -220,19 +238,16 @@ export class FakeSemanticApi implements ISemanticApi {
   async getPageHistory(pageId: string): Promise<PageMetadata[]> {
     const startTime = performance.now()
     this.logRequest('getPageHistory', { pageId })
-    
     try {
-      const page = this.fakePages.find(p => p.pageId === pageId)
-      if (!page) {
-        const duration = Math.round(performance.now() - startTime)
-        this.logResponse('getPageHistory', [], duration)
-        return []
+      // Return all revisions for this pageId, unsorted
+      const result: PageMetadata[] = []
+      for (let i = 0; i < this.fakePages.length; i++)
+      {
+        if (this.fakePages[i].pageId === pageId)
+        {
+          result.push(this.fakePages[i])
+        }
       }
-
-      const result = [
-        { ...page, version: page.version },
-        { ...page, version: Math.max(1, page.version - 1), lastModified: page.lastModified - 3600 }
-      ]
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('getPageHistory', result, duration)
       return result
@@ -246,20 +261,26 @@ export class FakeSemanticApi implements ISemanticApi {
   async retrievePageVersion(pageId: string, version: number): Promise<PageWithContent | null> {
     const startTime = performance.now()
     this.logRequest('retrievePageVersion', { pageId, version })
-    
     try {
-      const page = this.fakePages.find(p => p.pageId === pageId)
-      if (!page) {
+      // Find the revision with both pageId and version
+      let page: PageMetadata | undefined = undefined
+      for (let i = 0; i < this.fakePages.length; i++)
+      {
+        if (this.fakePages[i].pageId === pageId && this.fakePages[i].version === version)
+        {
+          page = this.fakePages[i]
+        }
+      }
+      if (!page)
+      {
         const duration = Math.round(performance.now() - startTime)
         this.logResponse('retrievePageVersion', null, duration)
         return null
       }
-
-      const content = this.fakeContent[pageId] || `# ${page.title}\n\nOld version content.`
-      const result = {
-        metadata: { ...page, version },
-        content
-      }
+      // Use key format pageId:version for content
+      const contentKey = pageId + ':' + version
+      const content = this.fakeContent[contentKey] || `# ${page.title}\n\nOld version content.`
+      const result = { metadata: page, content }
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('retrievePageVersion', result, duration)
       return result

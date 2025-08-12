@@ -34,7 +34,7 @@ import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState, getCurrentLayoutState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
 import { sortPagesByDisplayOrder } from './pageTreeUtils'
-import type { PageMetadata } from './globalState'
+import type { PageMetadata, PageContent } from './globalState'
 import type { DragData, DropTarget } from './pageTreeUtils'
 import { fetchAdminSettings } from './adminSettings'
 import { createSemanticApi } from './semanticApiFactory'
@@ -361,6 +361,7 @@ export default function App() {
       return
     }
     
+    setViewingRevision(null)
     globalState.set('currentPageMetadata', metadata)
     globalState.set('isEditing', false)
     
@@ -387,6 +388,20 @@ export default function App() {
     } finally {
       globalState.set('isLoadingPageContent', false)
     }
+  }
+
+  // Add state for viewing a revision
+  const [viewingRevision, setViewingRevision] = React.useState<{ metadata: PageMetadata; content: string } | null>(null)
+
+  // Handler for viewing a revision
+  const handleViewRevision = (revision: { metadata: PageMetadata; content: string }) => {
+    setViewingRevision(revision)
+    globalState.set('isEditing', false)
+  }
+
+  // Handler to exit revision view
+  const handleExitRevisionView = () => {
+    setViewingRevision(null)
   }
 
   const handleEdit = () => {
@@ -819,6 +834,7 @@ export default function App() {
                         onClick={() => handleSave(currentPageContent?.content || '')}
                         sx={{ color: 'white' }}
                         aria-label="Save changes"
+                        disabled={!!viewingRevision}
                       >
                         Save
                       </Button>
@@ -837,20 +853,24 @@ export default function App() {
                           }
                         }}
                         aria-label="Cancel editing"
+                        disabled={!!viewingRevision}
                       >
                         Cancel
                       </Button>
                     </EnhancedTooltip>
                   </>
                 ) : (
-                  <EnhancedTooltip title="Edit page">
-                    <IconButton 
-                      sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
-                      onClick={handleEdit} 
-                      aria-label="Edit page"
-                    >
-                      <Edit />
-                    </IconButton>
+                  <EnhancedTooltip title={viewingRevision ? "Cannot edit old revision" : "Edit page"}>
+                    <span>
+                      <IconButton 
+                        sx={{ color: 'var(--freeki-app-bar-text-color)' }} 
+                        onClick={handleEdit} 
+                        aria-label="Edit page"
+                        disabled={!!viewingRevision}
+                      >
+                        <Edit />
+                      </IconButton>
+                    </span>
                   </EnhancedTooltip>
                 )}
               </>
@@ -1020,7 +1040,15 @@ export default function App() {
 
           <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }} role="main">
             <Box sx={{ flex: 1, overflow: 'auto' }} role="main">
-              {currentPageMetadata && currentPageContent && (
+              {(viewingRevision ? (
+                <PageViewer
+                  metadata={viewingRevision.metadata}
+                  content={{ pageId: viewingRevision.metadata.pageId, content: viewingRevision.content }}
+                  isRevision={true}
+                  onExitRevision={handleExitRevisionView}
+                  currentContent={currentPageContent?.content}
+                />
+              ) : (currentPageMetadata && currentPageContent && (
                 isEditing ? (
                   <PageEditor
                     metadata={currentPageMetadata}
@@ -1032,10 +1060,10 @@ export default function App() {
                   <PageViewer
                     metadata={currentPageMetadata}
                     content={currentPageContent}
-                    onEdit={handleEdit}
+                    isRevision={false}
                   />
                 )
-              )}
+              )))}
             </Box>
           </Box>
         </div>

@@ -1,7 +1,7 @@
 import { globalState, getCurrentTheme } from './globalState'
 import { applyTheme } from './themeUtils'
 import type { ColorScheme } from './adminSettings'
-import type { UserSettings } from './useUserSettings'
+import type { UserSettings } from './globalState'
 
 // Theme service that automatically applies theme changes when global state changes
 class ThemeService {
@@ -30,6 +30,10 @@ class ThemeService {
 
     // Listen for color scheme changes (admin can change themes)
     globalState.subscribe('adminSettings.colorSchemes', () => {
+      applyCurrentTheme()
+    })
+    // Listen for ALL nested color scheme changes (including font size sliders)
+    globalState.subscribe('adminSettings.colorSchemes.', () => {
       applyCurrentTheme()
     })
 

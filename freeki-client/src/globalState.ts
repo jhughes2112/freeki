@@ -1,5 +1,5 @@
 import { AdminSettings, DEFAULT_ADMIN_SETTINGS } from './adminSettings'
-import type { UserInfo, UserSettings } from './useUserSettings'
+import type { UserInfo } from './useUserSettings'
 
 // Server-side page metadata - exactly matches the C# PageMetadata class
 export interface PageMetadata {
@@ -52,6 +52,31 @@ export interface AppState {
   isLoadingPageContent: boolean
 }
 
+// Type for user settings (exported for use in other files)
+export interface UserSettings {
+  theme: 'light' | 'dark' | 'auto'
+  searchConfig: {
+    titles: boolean
+    tags: boolean
+    author: boolean
+    content: boolean
+  }
+  wideScreenLayout: {
+    showFolderPanel: boolean
+    metadataCollapsed: boolean
+    sidebarWidth: number
+    metadataWidth: number
+    showMetadataPanel: boolean
+  }
+  narrowScreenLayout: {
+    showFolderPanel: boolean
+    metadataCollapsed: boolean
+    showMetadataPanel: boolean
+  }
+  expandedFolderPaths: string[]
+  revisionTabOpen: boolean
+}
+
 // Default user settings
 const DEFAULT_USER_SETTINGS: UserSettings = {
   theme: 'auto',
@@ -63,15 +88,18 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
   },
   wideScreenLayout: {
     showFolderPanel: true,
+    metadataCollapsed: false,
     sidebarWidth: 300,
     metadataWidth: 280,
     showMetadataPanel: true
   },
   narrowScreenLayout: {
     showFolderPanel: false,
+    metadataCollapsed: false,
     showMetadataPanel: false
   },
-  expandedFolderPaths: []
+  expandedFolderPaths: [],
+  revisionTabOpen: false
 }
 
 // Utility functions to derive current UI state from user settings

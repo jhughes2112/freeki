@@ -13,7 +13,8 @@ import {
   Paper,
   Stack,
   Slider,
-  Box
+  Box,
+  InputAdornment
 } from '@mui/material'
 import {
   Close,
@@ -112,7 +113,7 @@ function SettingRow({
   return (
     <Box sx={{
       display: 'grid',
-      gridTemplateColumns: '140px 1fr 1fr 1fr',
+      gridTemplateColumns: '110px 40px 40px 60px', // narrower label column
       alignItems: 'center',
       py: 0.1,
       px: 0,
@@ -136,7 +137,10 @@ function SettingRow({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-start',
-        height: '100%'
+        height: '100%',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
       }}>
         {label}
       </Typography>
@@ -249,11 +253,17 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
 
   // Direct property updates to global state for real-time changes
   const updateLightColor = (property: keyof ColorScheme, value: string | number) => {
-    globalState.setProperty(`adminSettings.colorSchemes.light.${property}`, value)
+    globalState.setProperty(`adminSettings.colorSchemes.light.${String(property)}`, value)
   }
 
   const updateDarkColor = (property: keyof ColorScheme, value: string | number) => {
-    globalState.setProperty(`adminSettings.colorSchemes.dark.${property}`, value)
+    globalState.setProperty(`adminSettings.colorSchemes.dark.${String(property)}`, value)
+  }
+
+  // New: update font size for both light and dark schemes
+  const updateFontSizeBoth = (property: keyof ColorScheme, value: number) => {
+    globalState.setProperty(`adminSettings.colorSchemes.light.${String(property)}`, value)
+    globalState.setProperty(`adminSettings.colorSchemes.dark.${String(property)}`, value)
   }
 
   return (
@@ -355,27 +365,28 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
             Settings saved successfully!
           </Alert>
         )}
-        <Stack spacing={1} sx={{ p: 0 }}>
+        <Stack spacing={0.5} sx={{ p: 0 }}>
           {/* General Settings */}
           <Paper 
             className="freeki-flat"
             sx={{
-              p: 2,
+              p: 1, // reduced from 2
               backgroundColor: style.paperBg,
               color: style.color,
-              mb: 0,
+              mb: 0, // ensure no extra margin
               borderRadius: 'var(--freeki-border-radius)'
             }}>
-            <Typography variant="h6" sx={{ mb: 2, color: style.color, fontWeight: 700, letterSpacing: '1px', fontSize: '1rem', py: 0 }}>
+            <Typography variant="h6" sx={{ mb: 1, color: style.color, fontWeight: 700, letterSpacing: '1px', fontSize: '1rem', py: 0 }}>
               General Settings
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
-                <Box sx={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: '1fr 1fr 1fr auto' }, 
-                  gap: 2, 
-                  alignItems: 'stretch' 
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  gap: 2,
+                  alignItems: 'stretch',
+                  width: '100%'
                 }}>
                   <TextField
                     label="Company Name"
@@ -384,9 +395,11 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                     size="small"
                     aria-label="Company Name"
                     sx={{
+                      flex: 1,
+                      minWidth: 0,
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: style.inputBg,
-                        color: style.color,
+                        backgroundColor: 'var(--freeki-admin-textfield-bg)',
+                        color: 'var(--freeki-admin-textfield-font)',
                         fontWeight: 500,
                         borderRadius: 'var(--freeki-border-radius)',
                         fontSize: '1rem',
@@ -399,7 +412,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                         }
                       },
                       '& .MuiInputLabel-root': {
-                        color: style.color,
+                        color: 'var(--freeki-admin-textfield-font)',
                         fontWeight: 400
                       }
                     }}
@@ -411,9 +424,11 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                     size="small"
                     aria-label="Wiki Title"
                     sx={{
+                      flex: 1,
+                      minWidth: 0,
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: style.inputBg,
-                        color: style.color,
+                        backgroundColor: 'var(--freeki-admin-textfield-bg)',
+                        color: 'var(--freeki-admin-textfield-font)',
                         fontWeight: 500,
                         borderRadius: 'var(--freeki-border-radius)',
                         fontSize: '1rem',
@@ -426,7 +441,7 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                         }
                       },
                       '& .MuiInputLabel-root': {
-                        color: style.color,
+                        color: 'var(--freeki-admin-textfield-font)',
                         fontWeight: 400
                       }
                     }}
@@ -438,9 +453,11 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                     size="small"
                     aria-label="Icon URL"
                     sx={{
+                      flex: 2,
+                      minWidth: 0,
                       '& .MuiOutlinedInput-root': {
-                        backgroundColor: style.inputBg,
-                        color: style.color,
+                        backgroundColor: 'var(--freeki-admin-textfield-bg)',
+                        color: 'var(--freeki-admin-textfield-font)',
                         fontWeight: 500,
                         borderRadius: 'var(--freeki-border-radius)',
                         fontSize: '1rem',
@@ -453,30 +470,39 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
                         }
                       },
                       '& .MuiInputLabel-root': {
-                        color: style.color,
+                        color: 'var(--freeki-admin-textfield-font)',
                         fontWeight: 400
                       }
                     }}
-                  />
-                  <IconButton 
-                    onClick={() => {/* TODO: Open media browser */}}
-                    aria-label="Browse media files"
-                    sx={{ 
-                      color: style.headerText,
-                      '&:hover': {
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)'
-                      }
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => {/* TODO: Open media browser */}}
+                            aria-label="Browse media files"
+                            edge="end"
+                            sx={{
+                              color: style.headerText,
+                              borderRadius: 'var(--freeki-border-radius)',
+                              p: 0.5,
+                              '&:hover': {
+                                backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                              }
+                            }}
+                          >
+                            <Photo />
+                          </IconButton>
+                        </InputAdornment>
+                      )
                     }}
-                  >
-                    <Photo />
-                  </IconButton>
+                  />
                 </Box>
               </Grid>
             </Grid>
           </Paper>
           {/* Style & Font Settings - Remove border and fix alignment */}
           <Box sx={{
-            p: 2,
+            p: 1, // reduced from 2
             backgroundColor: style.paperBg,
             boxShadow: 'none',
             color: style.color,
@@ -488,68 +514,97 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
             <Box sx={{
               display: 'flex',
               flexWrap: 'wrap',
-              gap: 1,
-              justifyContent: 'space-between'
+              gap: 2,
+              justifyContent: 'center', // Center the style boxes only
+              alignItems: 'flex-start',
+              width: '100%',
+              p: 0,
             }}>
-              {/* Left column */}
-              <Box sx={{
-                flex: '1 1 340px',
-                minWidth: 320,
-                maxWidth: 400,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0.25,
-                backgroundColor: style.styleBoxBg,
-                border: `1px solid ${style.inputBorder}`,
-                borderRadius: 2,
-                boxShadow: '0 8px 32px #00000022',
-                p: 1
-              }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 1fr', alignItems: 'center', py: 0.5, px: 1, backgroundColor: style.paperBg, borderBottom: `1px solid ${style.inputBorder}`, color: style.color, gap: 1 }}>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>Element</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Light</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Dark</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Size</Typography>
-                </Box>
-                <SettingRow label="Header BG" lightValue={adminSettings.colorSchemes.light.appBarBackground} darkValue={adminSettings.colorSchemes.dark.appBarBackground} onLightChange={value => updateLightColor('appBarBackground', value)} onDarkChange={value => updateDarkColor('appBarBackground', value)} style={style} mode={mode} />
-                <SettingRow label="Header Font" lightValue={adminSettings.colorSchemes.light.appBarTextColor} darkValue={adminSettings.colorSchemes.dark.appBarTextColor} onLightChange={value => updateLightColor('appBarTextColor', value)} onDarkChange={value => updateDarkColor('appBarTextColor', value)} style={style} mode={mode} />
-                <SettingRow label="Footer BG" lightValue={adminSettings.colorSchemes.light.footerBackground} darkValue={adminSettings.colorSchemes.dark.footerBackground} onLightChange={value => updateLightColor('footerBackground', value)} onDarkChange={value => updateDarkColor('footerBackground', value)} style={style} mode={mode} />
-                <SettingRow label="Footer Font" lightValue={adminSettings.colorSchemes.light.footerTextColor} darkValue={adminSettings.colorSchemes.dark.footerTextColor} onLightChange={value => updateLightColor('footerTextColor', value)} onDarkChange={value => updateDarkColor('footerTextColor', value)} style={style} mode={mode} />
-                <SettingRow label="H1 Font" lightValue={adminSettings.colorSchemes.light.h1FontColor} darkValue={adminSettings.colorSchemes.dark.h1FontColor} onLightChange={value => updateLightColor('h1FontColor', value)} onDarkChange={value => updateDarkColor('h1FontColor', value)} fontSize={adminSettings.colorSchemes.light.h1FontSize} onFontSizeChange={value => updateLightColor('h1FontSize', value)} style={style} mode={mode} />
-                <SettingRow label="H2 Font" lightValue={adminSettings.colorSchemes.light.h2FontColor} darkValue={adminSettings.colorSchemes.dark.h2FontColor} onLightChange={value => updateLightColor('h2FontColor', value)} onDarkChange={value => updateDarkColor('h2FontColor', value)} fontSize={adminSettings.colorSchemes.light.h2FontSize} onFontSizeChange={value => updateLightColor('h2FontSize', value)} style={style} mode={mode} />
-                <SettingRow label="H3 Font" lightValue={adminSettings.colorSchemes.light.h3FontColor} darkValue={adminSettings.colorSchemes.dark.h3FontColor} onLightChange={value => updateLightColor('h3FontColor', value)} onDarkChange={value => updateDarkColor('h3FontColor', value)} fontSize={adminSettings.colorSchemes.light.h3FontSize} onFontSizeChange={value => updateLightColor('h3FontSize', value)} style={style} mode={mode} />
-                <SettingRow label="Text Font" lightValue={adminSettings.colorSchemes.light.pFontColor} darkValue={adminSettings.colorSchemes.dark.pFontColor} onLightChange={value => updateLightColor('pFontColor', value)} onDarkChange={value => updateDarkColor('pFontColor', value)} fontSize={adminSettings.colorSchemes.light.pFontSize} onFontSizeChange={value => updateLightColor('pFontSize', value)} style={style} mode={mode} />
-				<SettingRow label="Page View BG" lightValue={adminSettings.colorSchemes.light.viewBackground} darkValue={adminSettings.colorSchemes.dark.viewBackground} onLightChange={value => updateLightColor('viewBackground', value)} onDarkChange={value => updateDarkColor('viewBackground', value)} style={style} mode={mode} />
-				<SettingRow label="Page Edit BG" lightValue={adminSettings.colorSchemes.light.editBackground} darkValue={adminSettings.colorSchemes.dark.editBackground} onLightChange={value => updateLightColor('editBackground', value)} onDarkChange={value => updateDarkColor('editBackground', value)} style={style} mode={mode} />
-              </Box>
-              {/* Right column */}
-              <Box sx={{
-                flex: '1 1 340px',
-                minWidth: 320,
-                maxWidth: 400,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 0.25,
-                backgroundColor: style.styleBoxBg,
-                border: `1px solid ${style.inputBorder}`,
-                borderRadius: 2,
-                boxShadow: '0 8px 32px #00000022',
-                p: 1
-              }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr 1fr', alignItems: 'center', py: 0.5, px: 1, backgroundColor: style.paperBg, borderBottom: `1px solid ${style.inputBorder}`, color: style.color, gap: 1 }}>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left' }}>Element</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Light</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Dark</Typography>
-                  <Typography sx={{ fontSize: '0.8rem', color: style.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'center' }}>Size</Typography>
-                </Box>
-                <SettingRow label="Folders BG" lightValue={adminSettings.colorSchemes.light.foldersBackground} darkValue={adminSettings.colorSchemes.dark.foldersBackground} onLightChange={value => updateLightColor('foldersBackground', value)} onDarkChange={value => updateDarkColor('foldersBackground', value)} style={style} mode={mode} />
-                <SettingRow label="Folders Selected BG" lightValue={adminSettings.colorSchemes.light.foldersSelectedBackground} darkValue={adminSettings.colorSchemes.dark.foldersSelectedBackground} onLightChange={value => updateLightColor('foldersSelectedBackground', value)} onDarkChange={value => updateDarkColor('foldersSelectedBackground', value)} style={style} mode={mode} />
-                <SettingRow label="Folders Font" lightValue={adminSettings.colorSchemes.light.foldersFontColor} darkValue={adminSettings.colorSchemes.dark.foldersFontColor} onLightChange={value => updateLightColor('foldersFontColor', value)} onDarkChange={value => updateDarkColor('foldersFontColor', value)} fontSize={adminSettings.colorSchemes.light.foldersFontSize} onFontSizeChange={value => updateLightColor('foldersFontSize', value)} style={style} mode={mode} />
-                <SettingRow label="Page Details BG" lightValue={adminSettings.colorSchemes.light.pageDetailsBackground} darkValue={adminSettings.colorSchemes.dark.pageDetailsBackground} onLightChange={value => updateLightColor('pageDetailsBackground', value)} onDarkChange={value => updateDarkColor('pageDetailsBackground', value)} style={style} mode={mode} />
-				<SettingRow label="Page Details Font" lightValue={adminSettings.colorSchemes.light.pageDetailsFontColor} darkValue={adminSettings.colorSchemes.dark.pageDetailsFontColor} onLightChange={value => updateLightColor('pageDetailsFontColor', value)} onDarkChange={value => updateDarkColor('pageDetailsFontColor', value)} fontSize={adminSettings.colorSchemes.light.pageDetailsFontSize} onFontSizeChange={value => updateLightColor('pageDetailsFontSize', value)} style={style} mode={mode} />
-				<SettingRow label="Border Color" lightValue={adminSettings.colorSchemes.light.borderColor} darkValue={adminSettings.colorSchemes.dark.borderColor} onLightChange={value => updateLightColor('borderColor', value)} onDarkChange={value => updateDarkColor('borderColor', value)} style={style} mode={mode} />
-                <SettingRow label="Shadow Color" lightValue={adminSettings.colorSchemes.light.shadowColor} darkValue={adminSettings.colorSchemes.dark.shadowColor} onLightChange={value => updateLightColor('shadowColor', value)} onDarkChange={value => updateDarkColor('shadowColor', value)} style={style} mode={mode} />
-              </Box>
+              {/* System Elements */}
+				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>System Elements</Typography>
+                {SYSTEM_ELEMENT_ROWS.map((row) => (
+                  <SettingRow
+                    key={row.label}
+                    label={row.label}
+                    lightValue={String(adminSettings.colorSchemes.light[row.light])}
+                    darkValue={String(adminSettings.colorSchemes.dark[row.dark])}
+                    onLightChange={value => updateLightColor(row.light, value)}
+                    onDarkChange={value => updateDarkColor(row.dark, value)}
+                    style={style}
+                    mode={mode}
+                  />
+                ))}
+              </Paper>
+              {/* Typography & Page BGs */}
+				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>Typography & Page Backgrounds</Typography>
+                {TYPOGRAPHY_ROWS.map((row) => {
+                  const fontSize = row.fontSize && typeof adminSettings.colorSchemes.light[row.fontSize] === 'number'
+                    ? (adminSettings.colorSchemes.light[row.fontSize] as number)
+                    : undefined;
+                  return (
+                    <SettingRow
+                      key={row.label}
+                      label={row.label}
+                      lightValue={String(adminSettings.colorSchemes.light[row.light])}
+                      darkValue={String(adminSettings.colorSchemes.dark[row.dark])}
+                      onLightChange={value => updateLightColor(row.light, value)}
+                      onDarkChange={value => updateDarkColor(row.dark, value)}
+                      fontSize={fontSize}
+                      onFontSizeChange={row.fontSize && fontSize !== undefined ? (value => updateFontSizeBoth(row.fontSize!, value)) : undefined}
+                      style={style}
+                      mode={mode}
+                    />
+                  );
+                })}
+              </Paper>
+              {/* Folders */}
+				<Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>Folders</Typography>
+                {FOLDERS_ROWS.map((row) => {
+                  const fontSize = row.fontSize && typeof adminSettings.colorSchemes.light[row.fontSize] === 'number'
+                    ? (adminSettings.colorSchemes.light[row.fontSize] as number)
+                    : undefined;
+                  return (
+                    <SettingRow
+                      key={row.label}
+                      label={row.label}
+                      lightValue={String(adminSettings.colorSchemes.light[row.light])}
+                      darkValue={String(adminSettings.colorSchemes.dark[row.dark])}
+                      onLightChange={value => updateLightColor(row.light, value)}
+                      onDarkChange={value => updateDarkColor(row.dark, value)}
+                      fontSize={fontSize}
+                      onFontSizeChange={row.fontSize && fontSize !== undefined ? (value => updateFontSizeBoth(row.fontSize!, value)) : undefined}
+                      style={style}
+                      mode={mode}
+                    />
+                  );
+                })}
+              </Paper>
+              {/* Page Details */}
+              <Paper sx={{ minWidth: 280, maxWidth: 280, flex: '1 1 280px', backgroundColor: style.styleBoxBg, border: `1px solid ${style.inputBorder}`, borderRadius: 2, boxShadow: '0 8px 32px #00000022', p: 1, mb: 0, overflow: 'hidden' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 1 }}>Page Details</Typography>
+                {PAGE_DETAILS_ROWS.map((row) => {
+                  const fontSize = row.fontSize && typeof adminSettings.colorSchemes.light[row.fontSize] === 'number'
+                    ? (adminSettings.colorSchemes.light[row.fontSize] as number)
+                    : undefined;
+                  return (
+                    <SettingRow
+                      key={row.label}
+                      label={row.label}
+                      lightValue={String(adminSettings.colorSchemes.light[row.light])}
+                      darkValue={String(adminSettings.colorSchemes.dark[row.dark])}
+                      onLightChange={value => updateLightColor(row.light, value)}
+                      onDarkChange={value => updateDarkColor(row.dark, value)}
+                      fontSize={fontSize}
+                      onFontSizeChange={row.fontSize && fontSize !== undefined ? (value => updateFontSizeBoth(row.fontSize!, value)) : undefined}
+                      style={style}
+                      mode={mode}
+                    />
+                  );
+                })}
+              </Paper>
             </Box>
           </Box>
         </Stack>
@@ -559,3 +614,51 @@ function AdminSettingsDialog({ open, onClose, themeMode }: AdminSettingsDialogPr
 }
 
 export default AdminSettingsDialog
+
+// --- GROUPED ROW TYPES ---
+type ColorRow = {
+  label: string;
+  light: keyof ColorScheme;
+  dark: keyof ColorScheme;
+  fontSize?: keyof ColorScheme;
+};
+
+// --- SYSTEM ELEMENTS ---
+const SYSTEM_ELEMENT_ROWS: ColorRow[] = [
+  { label: 'Header BG', light: 'appBarBackground', dark: 'appBarBackground' },
+  { label: 'Header Font', light: 'appBarTextColor', dark: 'appBarTextColor' },
+  { label: 'Footer BG', light: 'footerBackground', dark: 'footerBackground' },
+  { label: 'Footer Font', light: 'footerTextColor', dark: 'footerTextColor' },
+  { label: 'Selection BG', light: 'selectionBackground', dark: 'selectionBackground' },
+  { label: 'Hover BG', light: 'hoverBackground', dark: 'hoverBackground' },
+  { label: 'Border Color', light: 'borderColor', dark: 'borderColor' },
+  { label: 'Shadow Color', light: 'shadowColor', dark: 'shadowColor' },
+];
+
+// --- TYPOGRAPHY & PAGE BACKGROUNDS ---
+const TYPOGRAPHY_ROWS: ColorRow[] = [
+  { label: 'H1 Font', light: 'h1FontColor', dark: 'h1FontColor', fontSize: 'h1FontSize' },
+  { label: 'H2 Font', light: 'h2FontColor', dark: 'h2FontColor', fontSize: 'h2FontSize' },
+  { label: 'H3 Font', light: 'h3FontColor', dark: 'h3FontColor', fontSize: 'h3FontSize' },
+  { label: 'Text Font', light: 'pFontColor', dark: 'pFontColor', fontSize: 'pFontSize' },
+  { label: 'Page View BG', light: 'viewBackground', dark: 'viewBackground' },
+  { label: 'Page Edit BG', light: 'editBackground', dark: 'editBackground' },
+];
+
+// --- FOLDERS ---
+const FOLDERS_ROWS: ColorRow[] = [
+  { label: 'Folders BG', light: 'foldersBackground', dark: 'foldersBackground' },
+  { label: 'Folders Font', light: 'foldersFontColor', dark: 'foldersFontColor', fontSize: 'foldersFontSize' },
+];
+
+// --- PAGE DETAILS ---
+const PAGE_DETAILS_ROWS: ColorRow[] = [
+  { label: 'Page Details BG', light: 'pageDetailsBackground', dark: 'pageDetailsBackground' },
+  { label: 'Page Details Font', light: 'pageDetailsFontColor', dark: 'pageDetailsFontColor', fontSize: 'pageDetailsFontSize' },
+  { label: 'Details Block BG', light: 'detailsBlockBackground', dark: 'detailsBlockBackground' },
+  { label: 'Tags Block BG', light: 'tagsBlockBackground', dark: 'tagsBlockBackground' },
+  { label: 'Tags BG', light: 'tagBackground', dark: 'tagBackground' },
+  { label: 'Tags Font', light: 'tagColor', dark: 'tagColor' },
+  { label: 'Revision Block BG', light: 'revisionBlockBackground', dark: 'revisionBlockBackground' },
+  { label: 'Revision List BG', light: 'revisionListBackground', dark: 'revisionListBackground' }
+];

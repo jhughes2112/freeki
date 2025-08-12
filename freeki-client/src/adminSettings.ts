@@ -20,7 +20,7 @@ export interface ColorScheme {
   foldersFontColor: string;
   foldersFontSize: number;
   foldersBackground: string;
-  foldersSelectedBackground: string;
+  selectionBackground: string; // Renamed from foldersSelectedBackground
 
   // Page view fonts
   h1FontColor: string;
@@ -41,6 +41,11 @@ export interface ColorScheme {
   pageDetailsFontColor: string;
   pageDetailsFontSize: number;
 
+  // Derived backgrounds for details, tags, and revision blocks
+  detailsBlockBackground: string;
+  tagsBlockBackground: string;
+  revisionBlockBackground: string;
+
   // Footer
   footerBackground: string;
   footerTextColor: string;
@@ -57,6 +62,11 @@ export interface ColorScheme {
   inputBorder: string;
   rowEvenBg: string;
   rowOddBg: string;
+  revisionListBackground: string; // NEW: for revision list background
+  hoverBackground: string; // NEW: for hover color
+  // New: tag colors
+  tagColor: string; // NEW: for tag text color
+  tagBackground: string; // NEW: for tag background color
 }
 
 const DEFAULT_LIGHT_SCHEME: ColorScheme = {
@@ -66,7 +76,7 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   foldersFontColor: '#2E2E2E',
   foldersFontSize: 14,
   foldersBackground: '#F5F5F5',
-  foldersSelectedBackground: '#c2d8ff',
+  selectionBackground: '#c2d8ff',
   h1FontColor: '#2979FF',
   h1FontSize: 32,
   h2FontColor: '#1E88E5',
@@ -80,6 +90,9 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   pageDetailsBackground: '#ffffff',
   pageDetailsFontColor: '#333333',
   pageDetailsFontSize: 14,
+  detailsBlockBackground: '#f2f6fa', // soft gray-blue
+  tagsBlockBackground: '#e3ecfa',    // filtered 0.8 of #f7fafd, button-like
+  revisionBlockBackground: '#fff9e3',// gentle pale yellow
   footerBackground: '#ECECEC',
   footerTextColor: '#606060',
   borderColor: '#D1D5DB',
@@ -90,7 +103,11 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   styleBoxBg: '#eaf3fb',
   inputBorder: '#b0c4de',
   rowEvenBg: '#f7fafd',
-  rowOddBg: '#eaf3fb'
+  rowOddBg: '#eaf3fb',
+  revisionListBackground: '#f0f6ff', // NEW: default for revision list
+  hoverBackground: '#e3ecfa', // NEW: default hover for light theme (matches tags block bg)
+  tagColor: '#26324a', // NEW: default tag text color (dark)
+  tagBackground: '#e3ecfa', // NEW: default tag background (matches tags block bg)
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
@@ -100,7 +117,7 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   foldersFontColor: '#E0E0E0',
   foldersFontSize: 16,
   foldersBackground: '#1E1E1E',
-  foldersSelectedBackground: '#28324E',
+  selectionBackground: '#28324E',
   h1FontColor: '#64B5F6',
   h1FontSize: 32,
   h2FontColor: '#42A5F5',
@@ -114,6 +131,9 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   pageDetailsBackground: '#2b2b2b',
   pageDetailsFontColor: '#cccccc',
   pageDetailsFontSize: 16,
+  detailsBlockBackground: '#23272b', // slightly lighter than main bg
+  tagsBlockBackground: '#26324a',    // deep blue-gray, button-like
+  revisionBlockBackground: '#2a2320',// muted warm gray
   footerBackground: '#202020',
   footerTextColor: '#A0A0A0',
   borderColor: '#2A2A2A',
@@ -124,7 +144,11 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   styleBoxBg: '#262b31',
   inputBorder: '#444444',
   rowEvenBg: '#23272b',
-  rowOddBg: '#202225'
+  rowOddBg: '#202225',
+  revisionListBackground: '#121212', // Assuming a dark background for dark theme
+  hoverBackground: '#26324a', // NEW: default hover for dark theme (matches tags block bg)
+  tagColor: '#e0e0e0', // NEW: default tag text color (light)
+  tagBackground: '#313a4a', // NEW: default tag background (lighter blue-gray)
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
