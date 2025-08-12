@@ -196,15 +196,21 @@ export class FakeSemanticApi implements ISemanticApi {
     this.logRequest('deletePage', { pageId })
     
     try {
-      const index = this.fakePages.findIndex(p => p.pageId === pageId)
-      if (index === -1) {
+      // Remove all revisions of this pageId
+      const toDelete = this.fakePages.filter(p => p.pageId === pageId)
+      if (toDelete.length === 0) {
         const duration = Math.round(performance.now() - startTime)
         this.logResponse('deletePage', false, duration)
         return false
       }
-
-      this.fakePages.splice(index, 1)
-      delete this.fakeContent[pageId]
+      // Remove all PageMetadata for this pageId
+      this.fakePages = this.fakePages.filter(p => p.pageId !== pageId)
+      // Remove all content for this pageId (all versions)
+      Object.keys(this.fakeContent).forEach(key => {
+        if (key.startsWith(pageId + ':')) {
+          delete this.fakeContent[key]
+        }
+      })
       const duration = Math.round(performance.now() - startTime)
       this.logResponse('deletePage', true, duration)
       return true

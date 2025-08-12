@@ -132,7 +132,6 @@ export default function App() {
           globalState.set('pageMetadata', pages)
           const sortedPages = sortPagesByDisplayOrder(pages)
           const defaultPage = sortedPages[0]
-          
           globalState.set('currentPageMetadata', defaultPage)
           const pageWithContent = await api.getSinglePage(defaultPage.pageId)
           if (pageWithContent) {

@@ -388,10 +388,26 @@ export default function FolderTree({
     }
   }
 
+  // If there are no pages and no search, treat root as selected for button overlay
+  const effectiveSelectedPageMetadata = useMemo(() => {
+    if (!selectedPageMetadata && pageMetadata.length === 0 && !isSearchActive) {
+      return {
+        pageId: 'folder_root',
+        tags: [],
+        title: '/',
+        author: 'System',
+        lastModified: Date.now() / 1000,
+        version: 0,
+        path: ''
+      }
+    }
+    return selectedPageMetadata
+  }, [selectedPageMetadata, pageMetadata.length, isSearchActive])
+
   // Auto-expand to show selected page
   useEffect(() => {
-    if (selectedPageMetadata) {
-      const pathParts = selectedPageMetadata.path.split('/').filter(Boolean)
+    if (effectiveSelectedPageMetadata) {
+      const pathParts = effectiveSelectedPageMetadata.path.split('/').filter(Boolean)
       const neededPaths: string[] = []
       
       // Add all parent folder paths
@@ -417,7 +433,7 @@ export default function FolderTree({
         }
       }
     }
-  }, [selectedPageMetadata?.pageId, expandedFolderPaths])
+  }, [effectiveSelectedPageMetadata?.pageId, expandedFolderPaths])
 
   // Drag handlers
   const handleDragStart = (draggedPath: string) => {
@@ -692,8 +708,8 @@ export default function FolderTree({
 
   // Get current page's folder for New Page button
   const getCurrentPageFolder = () => {
-    if (!selectedPageMetadata) return null
-    const path = selectedPageMetadata.path
+    if (!effectiveSelectedPageMetadata) return null
+    const path = effectiveSelectedPageMetadata.path
     return path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : ''
   }
 
@@ -1048,7 +1064,27 @@ export default function FolderTree({
             boxSizing: 'border-box'
           }}
         >
-          {enhancedPageTree.length === 0 ? (
+          {enhancedPageTree.length === 0 && !isSearchActive ? (
+            // Show root folder and create page button if no pages and no search query
+            <List dense disablePadding sx={{ width: 'calc(100% + 200px)', minWidth: 'calc(100% + 200px)' }}>
+              {renderNode({
+                metadata: {
+                  pageId: 'folder_root',
+                  tags: [],
+                  title: '/',
+                  author: 'System',
+                  lastModified: Date.now() / 1000,
+                  version: 0,
+                  path: ''
+                },
+                isFolder: true,
+                children: [],
+                firstFilePageId: '',
+                lastFilePageId: ''
+              }, 0)}
+            </List>
+          ) : enhancedPageTree.length === 0 && isSearchActive ? (
+            // Show empty state only if searching and no results
             <Box 
               sx={{ 
                 width: '100%',
@@ -1075,8 +1111,7 @@ export default function FolderTree({
                 No pages found
               </Typography>
             </Box>
-          ) :
-          (
+          ) : (
             <List dense disablePadding sx={{ width: 'calc(100% + 200px)', minWidth: 'calc(100% + 200px)' }}>
               {enhancedPageTree.map((node) => renderNode(node, 0))}
             </List>
