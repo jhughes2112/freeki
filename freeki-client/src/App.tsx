@@ -394,7 +394,7 @@ export default function App() {
   const [viewingRevision, setViewingRevision] = React.useState<{ metadata: PageMetadata; content: string } | null>(null)
 
   // Handler for viewing a revision
-  const handleViewRevision = (revision: { metadata: PageMetadata; content: string }) => {
+  const handleViewRevision = (revision: { metadata: PageMetadata; content: string } | null) => {
     setViewingRevision(revision)
     globalState.set('isEditing', false)
   }
@@ -1099,6 +1099,7 @@ export default function App() {
                 onTagAdd={handleTagAdd}
                 onTagRemove={handleTagRemove}
                 onAuthorClick={handleAuthorClick}
+                onViewRevision={handleViewRevision}
               />
             ) : (
               <Box sx={{ 

@@ -62,6 +62,8 @@ const countWords = (content: string): number => {
 
 // Revision cache to avoid repeated API calls
 const revisionCache = new Map<string, PageMetadata[]>()
+// Add a cache for revision content
+const revisionContentCache = new Map<string, string>()
 
 // PageMetadataComponentProps interface
 interface PageMetadataComponentProps {
@@ -71,6 +73,7 @@ interface PageMetadataComponentProps {
   onTagAdd?: (tag: string) => void
   onTagRemove?: (tag: string) => void
   onAuthorClick?: (author: string) => void
+  onViewRevision?: (revision: { metadata: PageMetadata; content: string } | null) => void
 }
 
 
@@ -146,9 +149,32 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
     globalState.set('userSettings', { ...userSettings, revisionTabOpen: !showRevisions })
   }
 
-  // When a revision is clicked, update selectedRevisionVersion
-  const handleRevisionClick = (revision: PageMetadata) => {
+  // When a revision is clicked, update selectedRevisionVersion and fetch content if needed
+  const handleRevisionClick = async (revision: PageMetadata) => {
     setSelectedRevisionVersion(revision.version)
+    if (revision.version !== metadata.version) {
+      const cacheKey = `${revision.pageId}:${revision.version}`
+      if (revisionContentCache.has(cacheKey)) {
+        if (props.onViewRevision) {
+          props.onViewRevision({ metadata: revision, content: revisionContentCache.get(cacheKey)! })
+        }
+      } else {
+        const api = createSemanticApi()
+        try {
+          const result = await api.retrievePageVersion(revision.pageId, revision.version)
+          if (result && result.content && props.onViewRevision) {
+            revisionContentCache.set(cacheKey, result.content)
+            props.onViewRevision({ metadata: revision, content: result.content })
+          }
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('Failed to fetch revision content', err)
+        }
+      }
+    } else {
+      // If it's the current version, clear revision view
+      if (props.onViewRevision) props.onViewRevision(null)
+    }
   }
 
   // Find the selected revision in the list
