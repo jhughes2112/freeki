@@ -763,9 +763,9 @@ export default function App() {
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       {/* Top App Bar */}
       <AppBar position="static" sx={{ backgroundColor: 'var(--freeki-app-bar-background)' }}>
-        <Toolbar>
+        <Toolbar sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40, px: 0 }}>
           {/* Left side - Company Icon and Title */}
-          <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
             <EnhancedTooltip title={`Return to home page (${adminSettings.companyName})`}>
               <Button
                 onClick={() => {
@@ -780,19 +780,21 @@ export default function App() {
                   textTransform: 'none',
                   '&:hover': {
                     backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                  }
+                  },
+                  minWidth: 0,
+                  pr: 1
                 }}
                 aria-label="Return to home page"
               >
                 <Avatar
                   src={adminSettings.iconUrl}
                   alt={`${adminSettings.companyName} icon`}
-                  sx={{ mr: 2, width: 32, height: 32, backgroundColor: 'white' }}
+                  sx={{ mr: 1, width: 32, height: 32, backgroundColor: 'white', flexShrink: 0 }}
                   aria-label={adminSettings.companyName}
                 >
                   {adminSettings.companyName.charAt(0)}
                 </Avatar>
-                <Typography variant="h6" sx={{ color: 'var(--freeki-app-bar-text-color)' }} variantMapping={{ h6: 'div' }}>
+                <Typography variant="h6" sx={{ color: 'var(--freeki-app-bar-text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220, fontWeight: 700, fontSize: 20 }} variantMapping={{ h6: 'div' }}>
                   {adminSettings.wikiTitle}
                 </Typography>
               </Button>
@@ -800,8 +802,8 @@ export default function App() {
           </Box>
 
           {/* Center - Page Title */}
-          <Box sx={{ flexGrow: 1, maxWidth: 500, mx: 2, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            {currentPageMetadata && (
+          {!isNarrowScreen && currentPageMetadata && (
+            <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minWidth: 0, position: 'absolute', left: 0, right: 0, pointerEvents: 'none', zIndex: 0 }}>
               <Typography 
                 variant="h6" 
                 sx={{ 
@@ -810,17 +812,23 @@ export default function App() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
-                  maxWidth: '100%'
+                  maxWidth: 500,
+                  fontWeight: 600,
+                  fontSize: 18,
+                  mx: 'auto',
+                  pointerEvents: 'auto',
+                  background: 'transparent',
+                  zIndex: 1
                 }}
                 title={currentPageMetadata.title}
               >
                 {currentPageMetadata.title}
               </Typography>
-            )}
-          </Box>
+            </Box>
+          )}
 
           {/* Right side - Action buttons */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginLeft: 'auto' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, marginLeft: 'auto', zIndex: 2 }}>
             {/* Edit/Save/Cancel buttons */}
             {currentPageMetadata && (
               <>

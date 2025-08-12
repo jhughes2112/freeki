@@ -16,14 +16,6 @@ function ensureCurrentRevisionInList(list: PageMetadata[], current: PageMetadata
   }
   return list
 }
-function hasVersionGaps(list: PageMetadata[]): boolean {
-  if (list.length < 2) return false
-  const versions = list.map(r => r.version).sort((a, b) => b - a)
-  for (let i = 1; i < versions.length; i++) {
-    if (versions[i-1] - versions[i] > 1) return true
-  }
-  return false
-}
 
 // EnhancedTooltip for consistent tooltips
 const EnhancedTooltip = ({ children, title, ...props }: { 
@@ -40,7 +32,12 @@ const EnhancedTooltip = ({ children, title, ...props }: {
     leaveDelay={0}
     arrow
     {...props}
+    componentsProps={{
+      tooltip: { sx: { pointerEvents: 'none' } },
+      popper: { sx: { pointerEvents: 'none' } }
+    }}
   >
+    {/* Just render children, don't try to force pointerEvents on them (causes TS error) */}
     {children}
   </Tooltip>
 )
@@ -104,15 +101,23 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
     setShowRevisions(revisionTabOpen)
   }, [revisionTabOpen])
 
-  // When currentPageId changes or revision tab is opened, trigger revision load if not cached
+  // When currentPageId changes or revision tab is opened, check cache for all versions before calling API
   React.useEffect(() => {
     let cancelled = false
-    async function loadRevisionsIfNeeded() {
-      let list = revisionCache.get(currentPageId) || []
-      list = ensureCurrentRevisionInList(list, metadata)
-      setRevisions(list)
-      // If tab is open and there are gaps, fetch full list
-      if (revisionTabOpen && hasVersionGaps(list)) {
+    async function loadRevisions() {
+      const currentVersion = metadata.version
+      let cached = revisionCache.get(currentPageId) || []
+      cached = ensureCurrentRevisionInList(cached, metadata)
+      // Check if all versions from 1 to currentVersion are present
+      const cachedVersions = new Set(cached.map(r => r.version))
+      let missing = false
+      for (let v = 1; v <= currentVersion; v++) {
+        if (!cachedVersions.has(v)) {
+          missing = true
+          break
+        }
+      }
+      if (revisionTabOpen && missing) {
         setLoadingRevisions(true)
         try {
           const api = createSemanticApi()
@@ -126,10 +131,11 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
           setLoadingRevisions(false)
         }
       } else {
-        revisionCache.set(currentPageId, list)
+        setRevisions(cached)
+        revisionCache.set(currentPageId, cached)
       }
     }
-    loadRevisionsIfNeeded()
+    loadRevisions()
     // Always select the current version on page change
     setSelectedRevisionVersion(metadata.version)
     return () => { cancelled = true }
@@ -332,8 +338,8 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       {/* Page Details Section - responsive title sizing based on actual panel width */}
       <Paper sx={{ 
         ...themeStyles.paper,
-        p: 2, 
-        mb: 2,
+        p: 1, // Slim padding
+        mb: 1.5,
         backgroundColor: 'var(--freeki-details-block-bg)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'
@@ -508,8 +514,8 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       {/* Tags Section - moved below page details */}
       <Paper sx={{ 
         ...themeStyles.paper,
-        p: 2, 
-        mb: 2,
+        p: 1, // Slim padding
+        mb: 1.5,
         backgroundColor: 'var(--freeki-tags-block-bg)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'
@@ -637,7 +643,7 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       {/* Revisions Section */}
       <Paper sx={{ 
         ...themeStyles.paper,
-        p: 2,
+        p: 1, // Slim padding
         backgroundColor: 'var(--freeki-revision-block-bg)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none'

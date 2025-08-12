@@ -884,7 +884,7 @@ export default function FolderTree({
       margin: 0
     }}>
       {/* Search bar */}
-      <Box sx={{ p: 2, pb: 1 }}>
+      <Box sx={{ p: 0.5, pb: 0.25, mb: 1.25 }}>
         <TextField
           variant="outlined"
           size="small"
