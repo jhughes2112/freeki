@@ -19,6 +19,7 @@
     "@mui/material": "^6.5.0",
     "@tiptap/react": "^2.8.0",
     "@tiptap/starter-kit": "^2.8.0",
+    "diff": "^8.0.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

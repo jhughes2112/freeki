@@ -1,6 +1,7 @@
 import { Box, Typography, Paper, Divider, Button } from '@mui/material'
 import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
+import { DiffHighlighter } from './diffUtils'
 
 interface PageViewerProps {
   metadata: PageMetadata
@@ -10,48 +11,17 @@ interface PageViewerProps {
   currentContent?: string
 }
 
-// Simple line-by-line diff algorithm
-function diffLines(oldStr: string, newStr: string) {
-  const oldLines = oldStr.split('\n')
-  const newLines = newStr.split('\n')
-  const diffs = []
-  let i = 0, j = 0
-  while (i < oldLines.length || j < newLines.length) {
-    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
-      diffs.push({ type: 'unchanged', text: oldLines[i] })
-      i++
-      j++
-    } else if (j < newLines.length && (i >= oldLines.length || !oldLines.includes(newLines[j]))) {
-      diffs.push({ type: 'added', text: newLines[j] })
-      j++
-    } else if (i < oldLines.length && (j >= newLines.length || !newLines.includes(oldLines[i]))) {
-      diffs.push({ type: 'removed', text: oldLines[i] })
-      i++
-    } else {
-      diffs.push({ type: 'changed', text: newLines[j] })
-      i++
-      j++
-    }
-  }
-  return diffs
-}
-
 export default function PageViewer({ metadata, content, isRevision, onExitRevision, currentContent }: PageViewerProps) {
   const isFolder = metadata.path.includes('/') && !metadata.path.endsWith('.md')
 
-  // If viewing a revision, show diff
-  let diffBlocks = null
+  // If viewing a revision, show diff for the whole text
+  let diffBlock = null
   if (isRevision && currentContent !== undefined) {
-    const diffs = diffLines(content.content, currentContent)
-    diffBlocks = diffs.map((d, idx) => {
-      if (d.type === 'added') {
-        return <div key={idx} style={{ background: '#cce6ff', color: '#003366', padding: '2px 6px', borderRadius: 3, margin: '2px 0' }}>{d.text}</div>
-      } else if (d.type === 'removed') {
-        return <div key={idx} style={{ background: '#ffd6d6', color: '#660000', padding: '2px 6px', borderRadius: 3, margin: '2px 0', textDecoration: 'line-through' }}>{d.text}</div>
-      } else {
-        return <div key={idx}>{d.text}</div>
-      }
-    })
+    diffBlock = (
+      <div>
+        <DiffHighlighter oldText={content.content} newText={currentContent} />
+      </div>
+    )
   }
 
   return (
@@ -148,7 +118,7 @@ export default function PageViewer({ metadata, content, isRevision, onExitRevisi
                 }
               }}
             >
-              {isRevision && diffBlocks ? diffBlocks : <div dangerouslySetInnerHTML={{ __html: content.content }} />}
+              {isRevision && diffBlock ? diffBlock : <div dangerouslySetInnerHTML={{ __html: content.content }} />}
             </Box>
           </Paper>
         )}
