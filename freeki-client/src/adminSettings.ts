@@ -86,7 +86,7 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   pFontColor: '#212121',
   pFontSize: 16,
   viewBackground: '#FAFAFA',
-  editBackground: '#FFFDE7',
+  editBackground: '#e3f0fa', // Calm light blue for edit background
   pageDetailsBackground: '#ffffff',
   pageDetailsFontColor: '#333333',
   pageDetailsFontSize: 14,
@@ -95,7 +95,7 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   revisionBlockBackground: '#fff9e3',// gentle pale yellow
   footerBackground: '#ECECEC',
   footerTextColor: '#606060',
-  borderColor: '#D1D5DB',
+  borderColor: '#B8C2CC', // Slightly stronger border for light mode
   shadowColor: '#0000001F',
   styleRowFontColor: '#222c36',
   sliderMarkColor: '#7da4c7',
@@ -112,42 +112,42 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
   appBarBackground: '#2979FF',
-  appBarTextColor: '#ffffff',
+  appBarTextColor: '#e0e0e0', // Faded down from pure white
   appBarDivider: 'rgba(0, 0, 0, 0.2)',
-  foldersFontColor: '#E0E0E0',
+  foldersFontColor: '#B0B6C3', // Faded down
   foldersFontSize: 16,
   foldersBackground: '#1E1E1E',
   selectionBackground: '#28324E',
-  h1FontColor: '#64B5F6',
+  h1FontColor: '#8ab4f8', // Faded blue
   h1FontSize: 32,
-  h2FontColor: '#42A5F5',
+  h2FontColor: '#6ea8f7', // Faded blue
   h2FontSize: 24,
-  h3FontColor: '#2196F3',
+  h3FontColor: '#4e8fdc', // Faded blue
   h3FontSize: 20,
-  pFontColor: '#E0e0e0',
+  pFontColor: '#b0b6c3', // Faded down from #E0e0e0
   pFontSize: 16,
-  viewBackground: '#121212',
-  editBackground: '#262626',
-  pageDetailsBackground: '#2b2b2b',
-  pageDetailsFontColor: '#cccccc',
+  viewBackground: '#181A1B',
+  editBackground: '#23272b',
+  pageDetailsBackground: '#23272b',
+  pageDetailsFontColor: '#b0b6c3', // Faded down
   pageDetailsFontSize: 16,
   detailsBlockBackground: '#23272b', // slightly lighter than main bg
   tagsBlockBackground: '#26324a',    // deep blue-gray, button-like
   revisionBlockBackground: '#2a2320',// muted warm gray
   footerBackground: '#202020',
-  footerTextColor: '#A0A0A0',
-  borderColor: '#2A2A2A',
+  footerTextColor: '#8a8a8a', // Faded down
+  borderColor: '#3a4250', // Brighter border for dark mode
   shadowColor: '#FFFFFF19',
-  styleRowFontColor: '#e0e0e0',
+  styleRowFontColor: '#b0b6c3', // Faded down
   sliderMarkColor: '#888',
   sliderThumbOutline: '#888',
-  styleBoxBg: '#262b31',
-  inputBorder: '#444444',
+  styleBoxBg: '#23272b',
+  inputBorder: '#3a4250', // Brighter border for dark mode
   rowEvenBg: '#23272b',
   rowOddBg: '#202225',
-  revisionListBackground: '#121212', // Assuming a dark background for dark theme
+  revisionListBackground: '#181A1B', // Slightly lighter for dark theme
   hoverBackground: '#26324a', // NEW: default hover for dark theme (matches tags block bg)
-  tagColor: '#e0e0e0', // NEW: default tag text color (light)
+  tagColor: '#b0b6c3', // Faded down
   tagBackground: '#313a4a', // NEW: default tag background (lighter blue-gray)
 }
 

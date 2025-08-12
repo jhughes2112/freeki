@@ -20,7 +20,8 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
         backgroundColor: 'var(--freeki-view-background)',
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none',
-        height: '100%'
+        height: '100%',
+        m: 0 // Remove all margin
       }}>
         <Box sx={{ color: 'var(--freeki-p-font-color)', fontSize: 'var(--freeki-p-font-size)' }}>
           This is a folder. Select a page to view its content.
@@ -37,7 +38,9 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
       backgroundColor: 'var(--freeki-view-background)',
       border: '1px solid var(--freeki-border-color)',
       boxShadow: 'none',
-      height: '100%'
+      height: '100%',
+      m: 0, // Remove all margin
+      borderRadius: 0 // Set border radius to 0px for page Paper
     }}>
       <RichTextRenderer content={content.content} />
     </Paper>

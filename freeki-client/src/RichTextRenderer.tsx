@@ -21,11 +21,12 @@ export const RichTextRenderer: React.FC<RichTextRendererProps> = ({ content }) =
   // Update content if it changes
   useEffect(() => {
     if (editor && content !== lastContent.current) {
-		editor.commands.setContent(content, { emitUpdate: false });
+      editor.commands.setContent(content, { emitUpdate: false });
       lastContent.current = content;
     }
   }, [content, editor]);
 
   if (!editor) return null;
-  return <EditorContent editor={editor} />;
+  // Add freeki-page-content class for consistent CSS targeting
+  return <div className="freeki-page-content"><EditorContent editor={editor} /></div>;
 };

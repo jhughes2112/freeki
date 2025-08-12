@@ -43,6 +43,7 @@ export default function EditorToolbar({ onFormat }: EditorToolbarProps) {
     <Box
       sx={{
         display: 'flex',
+        flexWrap: 'wrap',
         alignItems: 'center',
         gap: 0.5,
         px: 1,
@@ -54,6 +55,9 @@ export default function EditorToolbar({ onFormat }: EditorToolbarProps) {
         zIndex: 10,
         minHeight: 48,
         boxShadow: '0 2px 8px var(--freeki-shadow-color, #22222233)',
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        width: '100%'
       }}
       role="toolbar"
       aria-label="Editor formatting toolbar"

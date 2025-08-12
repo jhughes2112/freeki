@@ -96,26 +96,36 @@ export function injectGlobalStyles() {
     }
 
     /* Page content typography styling - scope to content class for higher specificity */
+    .freeki-page-content {
+      margin-left: 2vw;
+      margin-right: 2vw;
+      padding-left: 0;
+      padding-right: 0;
+      /* Remove max-width so content can expand */
+      /* max-width: unset; */
+    }
+    .freeki-page-content .ProseMirror {
+      white-space: pre-wrap;
+    }
     .freeki-page-content h1 {
       color: var(--freeki-h1-font-color);
       font-size: var(--freeki-h1-font-size);
+      text-align: center;
     }
-
     .freeki-page-content h2 {
       color: var(--freeki-h2-font-color);
       font-size: var(--freeki-h2-font-size);
+      text-align: left;
     }
-
     .freeki-page-content h3 {
       color: var(--freeki-h3-font-color);
       font-size: var(--freeki-h3-font-size);
+      text-align: left;
     }
-
     .freeki-page-content p {
       color: var(--freeki-p-font-color);
       font-size: var(--freeki-p-font-size);
     }
-
     .freeki-page-content li {
       color: var(--freeki-p-font-color);
       font-size: var(--freeki-p-font-size);
@@ -269,6 +279,10 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
 
   // Inject global styles for consistent theming
   injectGlobalStyles()
+
+  // Set body and html background color to match viewBackground for seamless dark/light mode
+  document.body.style.backgroundColor = colorScheme.viewBackground || '#ffffff';
+  document.documentElement.style.backgroundColor = colorScheme.viewBackground || '#ffffff';
 
   // Use direct color values, fallback to hardcoded if missing
   root.style.setProperty('--freeki-app-bar-background', colorScheme.appBarBackground || '#1976d2');
