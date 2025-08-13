@@ -259,20 +259,23 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
           }
         }} />
         <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <div className="freeki-page-content" style={{ flex: '0 0 auto' }}>
-            <EditorContent editor={editor} />
+          {/* Click-to-focus parent wrapper */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div className="freeki-page-content" style={{ flex: '0 0 auto' }}>
+              <EditorContent editor={editor} />
+            </div>
+            {/* Virtual space for clicking below content */}
+            <div
+              style={{ flex: 1, minHeight: 120, cursor: 'text', background: 'none', border: 'none' }}
+              onMouseDown={() => {
+                if (editor) {
+                  editor.commands.focus('end');
+                }
+              }}
+              aria-label="Click to focus editor"
+            />
           </div>
         </div>
-        {/* Virtual space for clicking below content */}
-        <div
-          style={{ flex: 1, minHeight: 120, cursor: 'text', background: 'none', border: 'none' }}
-          onMouseDown={() => {
-            if (editor) {
-              editor.commands.focus('end');
-            }
-          }}
-          aria-label="Click to focus editor"
-        />
         {/* Selection popup using Popover */}
         <Popover
           open={showAiPanel}
