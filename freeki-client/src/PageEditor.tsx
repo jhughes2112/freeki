@@ -1,10 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Paper, Button, Box, TextField } from '@mui/material';
-import type { PageContent } from './globalState';
+import { Paper, Button, Box, TextField, Typography, IconButton, Collapse, Popover } from '@mui/material';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
 import EditorToolbar from './EditorToolbar';
+import { PlayArrow, ExpandMore, ExpandLess } from '@mui/icons-material';
+import { useGlobalState, globalState } from './globalState';
+import type { PageContent } from './globalState';
+import { AIRequestor } from './AIRequestor';
+import { Decoration, DecorationSet } from 'prosemirror-view';
+import { Plugin, PluginKey } from 'prosemirror-state';
 
 interface PageEditorProps {
   content: PageContent;
@@ -26,63 +31,80 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
     editable: true,
   });
 
-  // Popup state
-  const [popup, setPopup] = useState<{ x: number; y: number; show: boolean }>({ x: 0, y: 0, show: false });
-  const [textValue, setTextValue] = useState('');
+  // AI prompt state
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [showSettings, setShowSettings] = useState(false)
+  const userSettings = useGlobalState('userSettings');
+  const [aiUrl, setAiUrl] = useState(() => (userSettings.aiUrl || ''))
+  const [aiToken, setAiToken] = useState(() => (userSettings.aiToken || ''))
+  const [aiError, setAiError] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiResult, setAiResult] = useState('')
 
-  // Show popup on selection
+  // Add a ref to track the last selection string
+  const lastSelectionRef = useRef<string | null>(null);
+
+  // Ref to store the selected range
+  const selectedRangeRef = useRef<Range | null>(null);
+
+  // Add systemPrompt and instructions to user settings
+  const [systemPrompt, setSystemPrompt] = useState(() => (userSettings.systemPrompt || 'You are a helpful assistant.'));
+  const [instructions, setInstructions] = useState(() => (userSettings.instructions || 'Rewrite the selected text as requested.'));
+
+  // Instead of popoverAnchor, use a boolean for showing the AI panel
+  const [showAiPanel, setShowAiPanel] = useState(false);
+
+  // Highlight state for replaced region
+  const [highlight, setHighlight] = useState<{ from: number; to: number } | null>(null);
+
+  // Track popup position
+  const [popupY, setPopupY] = useState<number>(0);
+
+  // Save AI settings to user settings
+  const saveAiSettings = () => {
+    globalState.setProperty('userSettings.aiUrl', aiUrl);
+    globalState.setProperty('userSettings.aiToken', aiToken);
+    globalState.setProperty('userSettings.systemPrompt', systemPrompt);
+    globalState.setProperty('userSettings.instructions', instructions);
+    setShowSettings(false);
+  };
+
+  // --- Highlight Plugin ---
+  // Only create the plugin once
+  const highlightPluginRef = useRef<Plugin | null>(null);
+  if (!highlightPluginRef.current && editor) {
+    highlightPluginRef.current = new Plugin({
+      key: new PluginKey('highlight'),
+      props: {
+        decorations(state) {
+          // Get the highlight decoration from plugin state
+          const decoSet = highlightPluginRef.current?.getState(state);
+          return decoSet || null;
+        }
+      },
+      state: {
+        init() { return null; },
+        apply(tr, prev) {
+          const meta = tr.getMeta('highlightDeco');
+          if (meta !== undefined) return meta;
+          return prev;
+        }
+      }
+    });
+    editor.registerPlugin(highlightPluginRef.current);
+  }
+
+  // Update the highlight decoration when needed
   useEffect(() => {
-    if (!editor) return;
-    const handleMouseUp = (e: MouseEvent) => {
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed) {
-        setPopup(p => ({ ...p, show: false }));
-        return;
-      }
-      // Only show if selection is inside the editor
-      const anchorNode = selection.anchorNode;
-      if (anchorNode && editor.view.dom.contains(anchorNode)) {
-        setPopup({ x: e.clientX, y: e.clientY, show: true });
-      } else {
-        setPopup(p => ({ ...p, show: false }));
-      }
-    };
-    const handleClick = (e: MouseEvent) => {
-      // Hide popup if clicking outside
-      if (!(e.target && (editor.view.dom.contains(e.target as Node)))) {
-        setPopup(p => ({ ...p, show: false }));
-      }
-    };
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mousedown', handleClick);
-    return () => {
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('mousedown', handleClick);
-    };
-  }, [editor]);
-
-  // Copy as HTML
-  const handleCopyHtml = () => {
-    if (!editor) return;
-    const html = editor.getHTML();
-    navigator.clipboard.writeText(html);
-    setPopup(p => ({ ...p, show: false }));
-  };
-
-  // Copy as Markdown
-  const handleCopyMarkdown = () => {
-    if (!editor) return;
-    let markdown = '';
-    try {
-      // @ts-expect-error tiptap/markdown types are incomplete
-      const serializer = new MarkdownSerializer();
-      markdown = serializer.serialize(editor.state.doc);
-    } catch {
-      markdown = editor.getText();
+    if (!editor || !highlightPluginRef.current) return;
+    if (!highlight) {
+      editor.view.dispatch(editor.state.tr.setMeta('highlightDeco', null));
+      return;
     }
-    navigator.clipboard.writeText(markdown);
-    setPopup(p => ({ ...p, show: false }));
-  };
+    const deco = Decoration.inline(highlight.from, highlight.to, { style: 'background: var(--freeki-selection-background, #d5e9fb);' });
+    const decoSet = DecorationSet.create(editor.state.doc, [deco]);
+    editor.view.dispatch(editor.state.tr.setMeta('highlightDeco', decoSet));
+  }, [highlight, editor]);
 
   // Expose a save/complete handler (e.g. Ctrl+S or blur)
   useEffect(() => {
@@ -104,6 +126,92 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
       dom.removeEventListener('blur', handleBlur);
     };
   }, [editor, onEditingComplete]);
+
+  // Show AI panel on selection
+  useEffect(() => {
+    if (!editor) return;
+    const handleMouseUp = (e: MouseEvent) => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        lastSelectionRef.current = null;
+        selectedRangeRef.current = null;
+        setHighlight(null); // Remove highlight if nothing selected
+        return;
+      }
+      // Only show if selection is inside the editor
+      const anchorNode = selection.anchorNode;
+      const selectedText = selection.toString();
+      if (anchorNode && editor.view.dom.contains(anchorNode)) {
+        // Save the current selection range
+        if (selection.rangeCount > 0) {
+          selectedRangeRef.current = selection.getRangeAt(0).cloneRange();
+          // Highlight the selection immediately
+          const range = selectedRangeRef.current;
+          if (editor && editor.view) {
+            const from = editor.view.posAtDOM(range.startContainer, range.startOffset);
+            const to = editor.view.posAtDOM(range.endContainer, range.endOffset);
+            setHighlight({ from, to });
+          }
+        }
+        setPopupY(e.clientY);
+        setShowAiPanel(true);
+        lastSelectionRef.current = selectedText;
+      } else {
+        lastSelectionRef.current = null;
+        selectedRangeRef.current = null;
+        setHighlight(null);
+      }
+    };
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [editor]);
+
+  // Replace handleAiPrompt with use of AIRequestor
+  const handleAiPrompt = async () => {
+    setAiError('');
+    setAiResult('');
+    if (!aiUrl) {
+      setShowSettings(true);
+      return;
+    }
+    setAiLoading(true);
+    try {
+      const selection = window.getSelection();
+      const selectedText = selection && !selection.isCollapsed ? selection.toString() : '';
+      const fullContent = editor?.getHTML() || '';
+      const ai = new AIRequestor(aiUrl, aiToken, 'default');
+      ai.system(systemPrompt)
+        .assistant(fullContent)
+        .user(instructions)
+        .user(aiPrompt)
+        .user(selectedText);
+      const result = await ai.send();
+      if (result.status >= 200 && result.status < 300) {
+        if (editor && selectedRangeRef.current) {
+          const range = selectedRangeRef.current;
+          const from = editor.view.posAtDOM(range.startContainer, range.startOffset);
+          const to = editor.view.posAtDOM(range.endContainer, range.endOffset);
+          // Replace selection with AI result
+          editor.view.dispatch(
+            editor.state.tr.replaceWith(from, to, editor.schema.text(result.response))
+          );
+          // Highlight the replaced region (keep popup open, don't reselect, don't focus editor)
+          setHighlight({ from, to: from + result.response.length });
+        }
+        setAiResult('');
+      } else {
+        setAiError(`AI request failed (${result.status}): ${result.response}`);
+        setShowSettings(result.status === 400 || result.status === 500);
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Unknown error');
+      setShowSettings(true);
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   return (
     <Paper sx={{
@@ -165,43 +273,150 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
           }}
           aria-label="Click to focus editor"
         />
-        {/* Selection popup */}
-        {popup.show && (
-          <Box
-            sx={{
+        {/* Selection popup using Popover */}
+        <Popover
+          open={showAiPanel}
+          anchorReference="none"
+          onClose={() => setShowAiPanel(false)}
+          PaperProps={{
+            sx: {
               position: 'fixed',
-              left: popup.x,
-              top: popup.y + 8,
-              zIndex: 9999,
+              top: popupY + 8,
+              left: '50vw',
+              transform: 'translateX(-50%)', // Center horizontally
+              width: '80vw',
+              minWidth: 320,
+              maxWidth: '100vw',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              zIndex: 1300,
               background: 'white',
               border: '1px solid #ccc',
               borderRadius: 2,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              p: 2,
+              boxShadow: '0 2px 16px rgba(0,0,0,0.25)',
+              p: 3,
               display: 'flex',
               flexDirection: 'column',
-              gap: 1,
-              minWidth: 220,
-              maxWidth: 320,
-            }}
-          >
-            <Button variant="outlined" size="small" onClick={handleCopyHtml} sx={{ mb: 1 }}>
-              Copy as HTML
-            </Button>
-            <Button variant="outlined" size="small" onClick={handleCopyMarkdown} sx={{ mb: 1 }}>
-              Copy as Markdown
-            </Button>
+              gap: 2,
+              // Remove any transform: none that might be inherited
+              '&': {
+                transform: 'translateX(-50%) !important',
+                transformOrigin: 'top center !important',
+              },
+            }
+          }}
+          disableAutoFocus
+          disableEnforceFocus
+          disableRestoreFocus
+        >
+          {/* Remove onFocus={restoreSelection} since we no longer restore DOM selection */}
+          <Box tabIndex={-1}>
             <TextField
+              label="Rewrite With AI"
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              size="small"
+              aria-label="Rewrite With AI"
               multiline
               minRows={2}
               maxRows={6}
-              value={textValue}
-              onChange={e => setTextValue(e.target.value)}
-              placeholder="Type here..."
-              sx={{ mt: 1 }}
+              fullWidth
+              placeholder="Further instructions for the AI..."
+              sx={{
+                mt: 0,
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'var(--freeki-admin-textfield-bg)',
+                  color: 'var(--freeki-admin-textfield-font)',
+                  fontWeight: 500,
+                  borderRadius: 'var(--freeki-border-radius)',
+                  fontSize: '1rem',
+                  boxShadow: 'none',
+                  '& fieldset': {
+                    borderColor: 'var(--freeki-input-border)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: 'var(--freeki-input-border-hover, #7da4c7)',
+                  }
+                },
+                '& .MuiInputLabel-root': {
+                  color: 'var(--freeki-admin-textfield-font)',
+                  fontWeight: 400
+                }
+              }}
+              variant="outlined"
+              InputLabelProps={{ shrink: true }}
+              InputProps={{
+                endAdornment: (
+                  <>
+                    <IconButton
+                      aria-label="Run AI prompt"
+                      onClick={handleAiPrompt}
+                      disabled={aiLoading}
+                      size="small"
+                    >
+                      <PlayArrow />
+                    </IconButton>
+                    <IconButton
+                      aria-label={showSettings ? "Hide AI settings" : "Show AI settings"}
+                      onClick={() => setShowSettings(v => !v)}
+                      size="small"
+                    >
+                      {showSettings ? <ExpandLess /> : <ExpandMore />}
+                    </IconButton>
+                  </>
+                )
+              }}
             />
+            {aiLoading && <Typography variant="body2" sx={{ color: 'gray' }}>Running...</Typography>}
+            {aiError && <Typography variant="body2" sx={{ color: 'red' }}>{aiError}</Typography>}
+            {aiResult && <TextField value={aiResult} multiline minRows={2} maxRows={8} InputProps={{ readOnly: true }} sx={{ mt: 1 }} fullWidth />}
+            {/* AI Settings Foldout */}
+            <Collapse in={showSettings} timeout="auto" unmountOnExit>
+              <Box sx={{ mt: 2, p: 1, border: '1px solid #eee', borderRadius: 1, background: '#fafafa', display: 'flex', flexDirection: 'column', gap: 2, maxHeight: '60vh', overflowY: 'auto' }}>
+                <Button onClick={saveAiSettings} variant="contained" size="small" sx={{ alignSelf: 'flex-end', mb: 1 }}>Save</Button>
+                <Typography variant="subtitle2">AI Model Settings</Typography>
+                <TextField
+                  label="AI Endpoint URL"
+                  value={aiUrl}
+                  onChange={e => setAiUrl(e.target.value)}
+                  size="small"
+                  fullWidth
+                  sx={{ mb: 1 }}
+                />
+                <TextField
+                  label="API Token (optional)"
+                  value={aiToken}
+                  onChange={e => setAiToken(e.target.value)}
+                  size="small"
+                  fullWidth
+                  sx={{ mb: 1 }}
+                />
+                <TextField
+                  label="System Prompt"
+                  value={systemPrompt}
+                  onChange={e => setSystemPrompt(e.target.value)}
+                  size="small"
+                  fullWidth
+                  multiline
+                  minRows={6}
+                  maxRows={12}
+                  sx={{ mb: 1 }}
+                />
+                <TextField
+                  label="Instructions"
+                  value={instructions}
+                  onChange={e => setInstructions(e.target.value)}
+                  size="small"
+                  fullWidth
+                  multiline
+                  minRows={6}
+                  maxRows={12}
+                  sx={{ mb: 1 }}
+                />
+              </Box>
+            </Collapse>
           </Box>
-        )}
+        </Popover>
       </div>
     </Paper>
   );

@@ -75,6 +75,10 @@ export interface UserSettings {
   }
   expandedFolderPaths: string[]
   revisionTabOpen: boolean
+  aiUrl?: string
+  aiToken?: string
+  systemPrompt?: string
+  instructions?: string
 }
 
 // Default user settings
@@ -99,7 +103,11 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
     showMetadataPanel: false
   },
   expandedFolderPaths: [],
-  revisionTabOpen: false
+  revisionTabOpen: false,
+  systemPrompt: `You are an AI assistant helping to write and edit wiki articles. Your output must be factual, neutral, and verifiable, following the style and formatting conventions of the target wiki. Avoid speculation, original research, or unverifiable claims. Always write in a clear, concise, and encyclopedic tone. Cite reliable sources when possible. For factual statements, either state the source explicitly or phrase the content so it is easily attributable to a known, reputable source. Follow consistent section headings, linking practices, and formatting rules. When summarizing information, prioritize clarity, accuracy, and relevance to the article's topic.Do not include personal opinions or promotional language.`,
+  instructions: `Return only the revised HTML for the provided selection.  Do not add or remove anything outside it.  Output the HTML exactly, with no extra text, no markdown, and no commentary.`,
+  aiUrl: '',
+  aiToken: ''
 }
 
 // Utility functions to derive current UI state from user settings
