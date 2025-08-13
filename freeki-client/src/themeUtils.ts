@@ -184,11 +184,11 @@ export function injectGlobalStyles() {
     }
     
     html body .MuiListItem-root.Mui-selected {
-      background-color: var(--freeki-folders-selected-background);
+      background-color: var(--freeki-selection-background);
     }
     
     html body .MuiListItem-root.Mui-selected:hover {
-      background-color: var(--freeki-folders-selected-background);
+      background-color: var(--freeki-selection-background);
       filter: brightness(1.05);
     }
 
@@ -264,6 +264,12 @@ export function injectGlobalStyles() {
       border-radius: var(--freeki-border-radius);
       font-weight: 500;
       transition: background-color 0.15s, border-color 0.15s;
+    }
+    html body .MuiChip-root:hover {
+      background-color: var(--freeki-hover-background, #e3ecfa);
+      border-color: var(--freeki-primary, #2979FF);
+      cursor: pointer;
+      filter: brightness(97%);
     }
     html body .MuiChip-root .MuiChip-label {
       color: var(--freeki-tag-color, inherit);

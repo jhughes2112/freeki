@@ -57,6 +57,7 @@ interface FolderTreeProps {
   pageMetadata: PageMetadata[]
   onDragDrop?: (dragData: DragData, dropTarget: DropTarget) => Promise<void>
   onCreatePage?: (title: string, content: string, filepath: string, tags: string[]) => Promise<void>
+  confirmOrProceed: (operation: () => void) => void // Now required
 }
 
 // Helper to generate safe filename
@@ -91,9 +92,10 @@ export default function FolderTree({
   searchQuery: externalSearchQuery, 
   pageMetadata, 
   onDragDrop,
-  onCreatePage
+  onCreatePage,
+  confirmOrProceed
 }: FolderTreeProps) {
-  // Use global state for user settings and folder expansion
+  // User settings and expanded folders state
   const userSettings = useGlobalState('userSettings')
   const expandedFolderPaths = userSettings.expandedFolderPaths
   
@@ -106,7 +108,7 @@ export default function FolderTree({
   // SOURCE OF TRUTH: searchText is the only search query state
   const [searchText, setSearchText] = useState(externalSearchQuery || '')
 
-  // Keep input in sync with prop (for tag/author clicks)
+  // Sync input with externalSearchQuery prop (for tag/author clicks)
   useEffect(() => {
     if (externalSearchQuery !== undefined && externalSearchQuery !== searchText) {
       setSearchText(externalSearchQuery)
@@ -239,7 +241,7 @@ export default function FolderTree({
   }, [isDragging, dragHoverFolder, selectedPageMetadata, pageTree, expandedFolderPaths])
 
   // Smart text positioning on row hover - simple logic: check if ALL content fits, otherwise show icon at left
-  const handleRowHover = (listItem: HTMLElement, textContent: string) => {
+  const handleRowHover = (listItem: HTMLElement) => {
     if (!containerRef.current) return
     
     const container = containerRef.current
@@ -282,7 +284,6 @@ export default function FolderTree({
           
       if (totalContentWidth > actualVisibleWidth) {
         anyRowTooWide = true
-        // console.log(`${itemType}: Found wide row: ${textEl.textContent} (${totalContentWidth}px > ${actualVisibleWidth}px)`)
         break
       }
     }
@@ -480,7 +481,7 @@ export default function FolderTree({
             
             // Trigger the same scrolling logic as row hover
             if (textEl) {
-              handleRowHover(listItem, textEl.textContent || '')
+              handleRowHover(listItem)
             }
             break
           }
@@ -614,49 +615,43 @@ export default function FolderTree({
   // Handle new folder dialog confirmation
   const handleNewFolderConfirm = async () => {
     if (!newFolderName.trim() || !onCreatePage || !onDragDrop || !newFolderDragData) return
-    
-    const newFolderPath = newFolderTargetPath ? `${newFolderTargetPath}/${newFolderName.trim()}` : newFolderName.trim()
-    
-    // Final validation before creating folder
-    if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
-      console.log(`Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
-      return
-    }
-    
-    try {
-      // Move the dragged content into the new folder FIRST
-      const dropTarget: DropTarget = {
-        targetPageId: `folder_${newFolderPath}`,
-        targetPath: newFolderPath,
-        position: 'inside'
+    const op = async () => {
+      const newFolderPath = newFolderTargetPath ? `${newFolderTargetPath}/${newFolderName.trim()}` : newFolderName.trim()
+      // Final validation before creating folder
+      if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
+        console.log(`Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
+        return
       }
-      
-      console.log(`Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
-      await onDragDrop(newFolderDragData, dropTarget)
-      
-      // Auto-expand the new folder and restore child folder expansion state
-      autoExpandTargetFolder(newFolderPath, newFolderDragData)
-      
-      // Close dialog
-      setShowNewFolderDialog(false)
-      setNewFolderName('')
-      setNewFolderTargetPath('')
-      setNewFolderDragData(null)
-    } catch (error) {
-      console.error('Failed to create folder and move content:', error)
-    } finally {
-      setIsDragging(false)
-      setDragHoverFolder('__NONE__')
-
-      setCurrentDraggedPath('')
-      
-      // Clear hover timer
-      if (hoverExpandTimer) {
-        clearTimeout(hoverExpandTimer)
-        setHoverExpandTimer(null)
+      try {
+        // Move the dragged content into the new folder FIRST
+        const dropTarget: DropTarget = {
+          targetPageId: `folder_${newFolderPath}`,
+          targetPath: newFolderPath,
+          position: 'inside'
+        }
+        console.log(`Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
+        await onDragDrop(newFolderDragData, dropTarget)
+        // Auto-expand the new folder and restore child folder expansion state
+        autoExpandTargetFolder(newFolderPath, newFolderDragData)
+        // Close dialog
+        setShowNewFolderDialog(false)
+        setNewFolderName('')
+        setNewFolderTargetPath('')
+        setNewFolderDragData(null)
+      } catch (error) {
+        console.error('Failed to create folder and move content:', error)
+      } finally {
+        setIsDragging(false)
+        setDragHoverFolder('__NONE__')
+        setCurrentDraggedPath('')
+        if (hoverExpandTimer) {
+          clearTimeout(hoverExpandTimer)
+          setHoverExpandTimer(null)
+        }
+        setHoverExpandFolder('')
       }
-      setHoverExpandFolder('')
     }
+    await confirmOrProceed(op)
   }
 
   // Handle new page dialog
@@ -666,29 +661,29 @@ export default function FolderTree({
     setNewPageTitle('')
   }
 
+  // handleNewPageConfirm and handleNewFolderConfirm must always return Promise<void>
   const handleNewPageConfirm = async () => {
     if (!newPageTitle.trim() || !onCreatePage) return
-    
-    try {
-      const existingPaths = pageMetadata.map(p => p.path)
-      const filePath = generateFileName(newPageTitle.trim(), existingPaths, newPageTargetFolder)
-      
-      await onCreatePage(
-        newPageTitle.trim(),
-        `# ${newPageTitle.trim()}\n\n`,
-        filePath,
-        []
-      )
-      
-      // Auto-expand the target folder
-      autoExpandTargetFolder(newPageTargetFolder)
-      
-      setShowNewPageDialog(false)
-      setNewPageTitle('')
-      setNewPageTargetFolder('')
-    } catch (error) {
-      console.error('Failed to create page:', error)
+    const op = async () => {
+      try {
+        const existingPaths = pageMetadata.map(p => p.path)
+        const filePath = generateFileName(newPageTitle.trim(), existingPaths, newPageTargetFolder)
+        await onCreatePage(
+          newPageTitle.trim(),
+          `# ${newPageTitle.trim()}\n\n`,
+          filePath,
+          []
+        )
+        // Auto-expand the target folder
+        autoExpandTargetFolder(newPageTargetFolder)
+        setShowNewPageDialog(false)
+        setNewPageTitle('')
+        setNewPageTargetFolder('')
+      } catch (error) {
+        console.error('Failed to create page:', error)
+      }
     }
+    await confirmOrProceed(op)
   }
 
   // Get current page's folder for New Page button
@@ -717,7 +712,6 @@ export default function FolderTree({
       pl: 1 + level * 1.5,
       pr: 0, // Remove right padding to extend to edge
       py: 0.1,
-      backgroundColor: isSelected ? 'var(--freeki-folders-selected-background)' : 'transparent',
       borderRadius: 'var(--freeki-border-radius)',
       mx: 0, // Remove margins that create gutters
       mb: 0.05,
@@ -734,12 +728,10 @@ export default function FolderTree({
       boxSizing: 'border-box',
       // Add smooth transitions for all interactive states
       transition: 'background-color 0.15s ease, opacity 0.15s ease, filter 0.15s ease',
-      // Apply selection class for CSS hover rules
-      ...(isSelected && {
-        '&.Mui-selected': {
-          backgroundColor: 'var(--freeki-folders-selected-background)'
-        }
-      }),
+      // Only set hover/drag backgrounds inline. Let global CSS handle .Mui-selected
+      '&:hover': {
+        backgroundColor: isSelected ? 'var(--freeki-selection-background)' : 'var(--freeki-hover-background)'
+      },
       ...(isDragHover && {
         backgroundColor: 'rgba(var(--freeki-primary-rgb), 0.1)',
         borderLeft: '3px solid var(--freeki-primary)'
@@ -772,7 +764,7 @@ export default function FolderTree({
               onPageSelect(node.metadata)
             }
           }}
-          onMouseEnter={(e) => handleRowHover(e.currentTarget, node.metadata.title)}
+          onMouseEnter={(e) => handleRowHover(e.currentTarget)}
           onDragStart={(e) => {
             let expandedChildFolders: string[] = []
             if (node.isFolder) {
@@ -842,7 +834,7 @@ export default function FolderTree({
               className="folder-tree-text"
               variant="body2"
               sx={{
-                fontWeight: isSelected ? 600 : 400,
+                fontWeight: 400, // Always normal, never bold for selection
                 fontSize: 'var(--freeki-folders-font-size)',
                 color: 'var(--freeki-folders-font-color)',
                 whiteSpace: 'nowrap',

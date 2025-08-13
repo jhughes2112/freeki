@@ -71,15 +71,16 @@ interface PageMetadataComponentProps {
   content: PageContent
   semanticApi: ISemanticApi
   onTagClick?: (tag: string) => void
-  onTagAdd?: (tag: string) => void
-  onTagRemove?: (tag: string) => void
+  onTagAdd?: (tag: string) => Promise<PageMetadata | null>
+  onTagRemove?: (tag: string) => Promise<PageMetadata | null>
   onAuthorClick?: (author: string) => void
   onViewRevision?: (revision: { metadata: PageMetadata; content: string } | null) => void
+  currentPageVersion: number // Pass the latest version for this pageId
 }
 
-
 export default function PageMetadataComponent(props: PageMetadataComponentProps) {
-  const { metadata, content, semanticApi, onTagClick, onTagAdd, onTagRemove, onAuthorClick } = props
+  // Always use the metadata and content props for the current viewed revision
+  const { metadata, content, semanticApi, onTagClick, onTagAdd, onTagRemove, onAuthorClick, onViewRevision, currentPageVersion } = props;
   const [newTagInput, setNewTagInput] = React.useState('')
   const [showRevisions, setShowRevisions] = React.useState(false)
   const [revisions, setRevisions] = React.useState<PageMetadata[]>([])
@@ -94,8 +95,6 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
   const [availableWidth, setAvailableWidth] = React.useState(280)
   const [titleFontSize, setTitleFontSize] = React.useState(18)
 
-  // Use global state for current pageId and currentPageMetadata
-  const currentPageId = (useGlobalState('currentPageMetadata') as PageMetadata | null)?.pageId || metadata.pageId
   // Use correct typing for userSettings
   const userSettings = useGlobalState('userSettings') as UserSettings
   const revisionTabOpen = userSettings.revisionTabOpen
@@ -105,12 +104,17 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
     setShowRevisions(revisionTabOpen)
   }, [revisionTabOpen])
 
-  // When currentPageId changes or revision tab is opened, check cache for all versions before calling API
+  // When current page or revision changes, always update selectedRevisionVersion
+  React.useEffect(() => {
+    setSelectedRevisionVersion(metadata.version)
+  }, [metadata.version, metadata.pageId])
+
+  // When currentPageId or revision tab is opened, check cache for all versions before calling API
   React.useEffect(() => {
     let cancelled = false
     async function loadRevisions() {
       const currentVersion = metadata.version
-      let cached = revisionCache.get(currentPageId) || []
+      let cached = revisionCache.get(metadata.pageId) || []
       cached = ensureCurrentRevisionInList(cached, metadata)
       // Check if all versions from 1 to currentVersion are present
       const cachedVersions = new Set(cached.map(r => r.version))
@@ -124,30 +128,23 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       if (revisionTabOpen && missing) {
         setLoadingRevisions(true)
         try {
-          const history = await semanticApi.getPageHistory(currentPageId)
+          const history = await semanticApi.getPageHistory(metadata.pageId)
           if (!cancelled) {
             const withCurrent = ensureCurrentRevisionInList(history, metadata)
             setRevisions(withCurrent)
-            revisionCache.set(currentPageId, withCurrent)
+            revisionCache.set(metadata.pageId, withCurrent)
           }
         } finally {
           setLoadingRevisions(false)
         }
       } else {
         setRevisions(cached)
-        revisionCache.set(currentPageId, cached)
+        revisionCache.set(metadata.pageId, cached)
       }
     }
     loadRevisions()
-    // Always select the current version on page change
-    setSelectedRevisionVersion(metadata.version)
     return () => { cancelled = true }
-  }, [currentPageId, revisionTabOpen, metadata.version, semanticApi])
-
-  // When user toggles the revision tab, update userSettings
-  const handleRevisionsToggle = () => {
-    globalState.set('userSettings', { ...userSettings, revisionTabOpen: !showRevisions })
-  }
+  }, [metadata.pageId, revisionTabOpen, metadata.version, semanticApi])
 
   // When a revision is clicked, update selectedRevisionVersion and fetch content if needed
   const handleRevisionClick = async (revision: PageMetadata) => {
@@ -176,13 +173,9 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
     }
   }
 
-  // Find the selected revision in the list
-  const selectedRevision = React.useMemo(() => {
-    return revisions.find(r => r.version === selectedRevisionVersion) || metadata
-  }, [revisions, selectedRevisionVersion, metadata])
-
-  // Use selectedRevision for all details
-  const detailsMetadata = selectedRevision
+  // Use metadata and content props for all details
+  const detailsMetadata = metadata
+  const detailsContent = content
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -191,33 +184,35 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
     return () => clearInterval(interval)
   }, [])
 
-  const handleAddTag = () => {
-    const tag = newTagInput.trim()
-    if (tag && !metadata.tags.includes(tag) && onTagAdd) {
-      onTagAdd(tag)
-      setNewTagInput('')
-    }
-  }
+  // This is the only check you need:
+  const isLatestRevision = metadata.version === currentPageVersion;
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleAddTag()
+  // Fix: expect onTagAdd/onTagRemove to return Promise<PageMetadata|null>
+  const handleAddTag = async () => {
+    const tag = newTagInput.trim();
+    if (tag && !detailsMetadata.tags.includes(tag) && onTagAdd) {
+      const updatedMetadata = await onTagAdd(tag);
+      setNewTagInput('');
+      if (updatedMetadata) {
+        setRevisions(prev => [updatedMetadata, ...prev.filter(r => r.version !== updatedMetadata.version)]);
+        if (onViewRevision) {
+          onViewRevision({ metadata: updatedMetadata, content: detailsContent.content });
+        }
+      }
     }
-  }
+  };
 
-  const handleRemoveTag = (tagToRemove: string) => {
+  const handleRemoveTag = async (tagToRemove: string) => {
     if (onTagRemove) {
-      onTagRemove(tagToRemove)
+      const updatedMetadata = await onTagRemove(tagToRemove);
+      if (updatedMetadata) {
+        setRevisions(prev => [updatedMetadata, ...prev.filter(r => r.version !== updatedMetadata.version)]);
+        if (onViewRevision) {
+          onViewRevision({ metadata: updatedMetadata, content: detailsContent.content });
+        }
+      }
     }
-  }
-
-  // Handle author click - use callback to parent instead of direct global state
-  const handleAuthorClick = () => {
-    if (onAuthorClick) {
-      onAuthorClick(metadata.author)
-    }
-  }
+  };
 
   // Measure container width and adjust title font size accordingly
   const measureAndAdjustSizing = () => {
@@ -323,14 +318,10 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
   // Sort tags alphabetically
   const sortedTags = [...metadata.tags].sort((a, b) => a.localeCompare(b))
 
-  // Sort revisions: current version first, then descending by version
+  // Sort revisions: always descending by version (newest to oldest)
   const sortedRevisions = React.useMemo(() => {
-    if (revisions.length === 0) return []
-    const current = revisions.find((r: PageMetadata) => r.version === metadata.version)
-    const others = revisions.filter((r: PageMetadata) => r.version !== metadata.version)
-    others.sort((a: PageMetadata, b: PageMetadata) => b.version - a.version)
-    return current ? [current, ...others] : others
-  }, [revisions, metadata.version])
+    return [...revisions].sort((a: PageMetadata, b: PageMetadata) => b.version - a.version)
+  }, [revisions])
 
   // On mount, ensure revisionCache is populated for the current version
   React.useEffect(() => {
@@ -346,6 +337,13 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       }
     }
   }, [metadata.pageId, metadata.version])
+
+  // Handle author click - use callback to parent instead of direct global state
+  const handleAuthorClick = () => {
+    if (onAuthorClick) {
+      onAuthorClick(detailsMetadata.author)
+    }
+  }
 
   return (
     <Box 
@@ -576,7 +574,7 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
                   color: 'var(--freeki-page-details-font-color)',
                   fontSize: 'var(--freeki-page-details-font-size)',
                   cursor: 'pointer',
-                  transition: 'box-shadow 0.2s',
+                  transition: 'box-shadow 0.2s, background-color 0.15s',
                   boxShadow: 'none',
                   maxWidth: '200px',
                   '& .MuiChip-label': {
@@ -588,51 +586,60 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
                   },
                   '&:hover': {
                     boxShadow: '0 0 0 2px var(--freeki-border-color)',
-                    backgroundColor: 'var(--freeki-selection-background)',
+                    backgroundColor: 'var(--freeki-hover-background)',
                   }
                 }}
                 onClick={() => onTagClick && onTagClick(tag)}
                 aria-label={`Tag: ${tag}`}
               />
-              <IconButton
-                className="tag-delete-button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleRemoveTag(tag)
-                }}
-                sx={{
-                  position: 'absolute',
-                  top: -6,
-                  right: -6,
-                  width: 16,
-                  height: 16,
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  opacity: 0,
-                  transition: 'opacity 0.2s',
-                  '&:hover': {
-                    backgroundColor: '#c02633',
-                    opacity: 1
-                  },
-                  '& .MuiSvgIcon-root': {
-                    fontSize: '12px'
-                  }
-                }}
-                aria-label={`Remove tag: ${tag}`}
-              >
-                <Close />
-              </IconButton>
+              {/* Only show delete button if this is the latest revision */}
+              {isLatestRevision && (
+                <IconButton
+                  className="tag-delete-button"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    await handleRemoveTag(tag);
+                  }}
+                  sx={{
+                    position: 'absolute',
+                    top: -6,
+                    right: -6,
+                    width: 16,
+                    height: 16,
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    opacity: 0,
+                    transition: 'opacity 0.2s',
+                    '&:hover': {
+                      backgroundColor: '#c02633',
+                      opacity: 1
+                    },
+                    '& .MuiSvgIcon-root': {
+                      fontSize: '12px'
+                    }
+                  }}
+                  aria-label={`Remove tag: ${tag}`}
+                >
+                  <Close />
+                </IconButton>
+              )}
             </Box>
           ))}
         </Stack>
-        {/* Add new tag input - full width, no + button */}
+        {/* Add new tag input - always rendered, but disabled if not latest revision */}
         <TextField
           size="small"
           placeholder="Add tag..."
           value={newTagInput}
           onChange={(e) => setNewTagInput(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyPress={async (e) => {
+            if (e.key === 'Enter' && isLatestRevision) {
+              e.preventDefault();
+              await handleAddTag();
+            }
+          }}
           fullWidth
+          disabled={!isLatestRevision}
           sx={{
             fontSize: 'inherit',
             '& .MuiOutlinedInput-root': {
@@ -674,7 +681,7 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
         boxShadow: 'none'
       }}>
         <Button
-          onClick={handleRevisionsToggle}
+          onClick={() => setShowRevisions(!showRevisions)}
           disabled={loadingRevisions}
           sx={{
             width: '100%',
@@ -684,7 +691,7 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
             fontWeight: 600,
             textTransform: 'none',
             '&:hover': {
-              backgroundColor: 'var(--freeki-folders-selected-background)'
+              backgroundColor: 'var(--freeki-selection-background)'
             }
           }}
           endIcon={showRevisions ? <ExpandLess /> : <ExpandMore />}
@@ -722,8 +729,8 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
                       transition: 'background 0.15s',
                       filter: revision.version === selectedRevisionVersion ? 'brightness(1.1)' : undefined,
                       '&:hover': {
-                        backgroundColor: 'var(--freeki-selection-background)',
-                        filter: 'brightness(1.2)'
+                        backgroundColor: revision.version === selectedRevisionVersion ? 'var(--freeki-selection-background)' : 'var(--freeki-hover-background)',
+                        filter: 'none'
                       }
                     }}
                   >
@@ -759,5 +766,3 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
 const formatExactTime = (timestamp: number) => {
   return new Date(timestamp * 1000).toLocaleString()
 }
-
-export { default as PageMetadataPanel } from './PageMetadata'

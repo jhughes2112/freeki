@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useRef } from 'react'
 import {
   Dialog,
   Button,
@@ -12,35 +12,44 @@ import {
 interface ConfirmDialogProps {
   open: boolean
   onClose: () => void
-  onConfirm: () => void
+  onDiscard?: () => void // Called if user discards changes
+  onSave?: () => void   // Called if user saves changes
+  onProceed?: () => void // Called if user proceeds (no edit mode)
   title: string
   message: string
   confirmText?: string
   cancelText?: string
-  confirmColor?: 'error' | 'primary' | 'secondary' | 'success' | 'warning'
+  saveText?: string
+  discardText?: string
   dangerous?: boolean
+  isEditing?: boolean
+  hasUnsaved?: boolean
 }
 
 export default function ConfirmDialog({
   open,
   onClose,
-  onConfirm,
+  onDiscard,
+  onSave,
+  onProceed,
   title,
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  confirmColor = 'primary',
-  dangerous = false
+  saveText = 'Save',
+  discardText = 'Discard',
+  dangerous = false,
+  isEditing = false,
+  hasUnsaved = false
 }: ConfirmDialogProps) {
-  const handleConfirm = () => {
-    onConfirm()
-    onClose()
-  }
-
   // Split the message into two lines for better presentation
   const messageParts = message.split('? ')
   const firstLine = messageParts[0] + '?'
   const secondLine = messageParts[1] || ''
+
+  // If not editing, just show confirm/cancel
+  // If editing and hasUnsaved, show Cancel, Discard, Save
+  // If editing but no unsaved, treat as not editing
 
   return (
     <Dialog
@@ -159,48 +168,203 @@ export default function ConfirmDialog({
         p: 2,
         mt: 'auto'
       }}>
-        <Button 
-          onClick={onClose}
-          variant="outlined"
-          size="large"
-          sx={{ 
-            color: dangerous ? '#721c24' : 'var(--freeki-p-font-color)', 
-            borderColor: dangerous ? '#dc3545' : 'var(--freeki-border-color)',
-            minWidth: '100px',
-            fontWeight: 600,
-            '&:hover': {
-              backgroundColor: dangerous ? 'rgba(220, 53, 69, 0.1)' : 'var(--freeki-folders-selected-background)',
-              borderColor: dangerous ? '#dc3545' : 'var(--freeki-border-color)'
-            }
-          }}
-          aria-label={cancelText}
-        >
-          {cancelText}
-        </Button>
-        <Button 
-          onClick={handleConfirm}
-          variant="contained"
-          size="large"
-          sx={{ 
-            minWidth: '100px',
-            fontWeight: 700,
-            backgroundColor: '#dc3545',
-            color: 'white',
-            boxShadow: '0 4px 12px rgba(220, 53, 69, 0.4)',
-            '&:hover': {
-              backgroundColor: '#c02633',
-              boxShadow: '0 6px 16px rgba(220, 53, 69, 0.5)'
-            },
-            '&:active': {
-              backgroundColor: '#a02834',
-              boxShadow: '0 2px 8px rgba(220, 53, 69, 0.6)'
-            }
-          }}
-          aria-label={confirmText}
-        >
-          {confirmText}
-        </Button>
+        {isEditing && hasUnsaved ? (
+          <>
+            <Button 
+              onClick={() => { onClose(); }}
+              variant="outlined"
+              size="large"
+              sx={{ 
+                color: dangerous ? '#721c24' : 'var(--freeki-p-font-color)', 
+                borderColor: dangerous ? '#dc3545' : 'var(--freeki-border-color)',
+                minWidth: '100px',
+                fontWeight: 600,
+                '&:hover': {
+                  backgroundColor: dangerous ? 'rgba(220, 53, 69, 0.1)' : 'var(--freeki-folders-selected-background)',
+                  borderColor: dangerous ? '#dc3545' : 'var(--freeki-border-color)'
+                }
+              }}
+              aria-label={cancelText}
+            >
+              {cancelText}
+            </Button>
+            <Button
+              onClick={() => {
+                if (onDiscard) { onDiscard(); }
+                onClose();
+              }}
+              variant="contained"
+              size="large"
+              sx={{
+                minWidth: '100px',
+                fontWeight: 700,
+                backgroundColor: '#dc3545',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(220, 53, 69, 0.4)',
+                '&:hover': {
+                  backgroundColor: '#c02633',
+                  boxShadow: '0 6px 16px rgba(220, 53, 69, 0.5)'
+                },
+                '&:active': {
+                  backgroundColor: '#a02834',
+                  boxShadow: '0 2px 8px rgba(220, 53, 69, 0.6)'
+                }
+              }}
+              aria-label={discardText}
+            >
+              {discardText}
+            </Button>
+            <Button
+              onClick={() => {
+                if (onSave) { onSave(); }
+                onClose();
+              }}
+              variant="contained"
+              size="large"
+              sx={{
+                minWidth: '100px',
+                fontWeight: 700,
+                backgroundColor: '#007bff',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(0, 123, 255, 0.4)',
+                '&:hover': {
+                  backgroundColor: '#0056b3',
+                  boxShadow: '0 6px 16px rgba(0, 123, 255, 0.5)'
+                },
+                '&:active': {
+                  backgroundColor: '#003d80',
+                  boxShadow: '0 2px 8px rgba(0, 123, 255, 0.6)'
+                }
+              }}
+              aria-label={saveText}
+            >
+              {saveText}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button 
+              onClick={() => { onClose(); }}
+              variant="outlined"
+              size="large"
+              sx={{ 
+                color: dangerous ? '#721c24' : 'var(--freeki-p-font-color)', 
+                borderColor: dangerous ? '#dc3545' : 'var(--freeki-border-color)',
+                minWidth: '100px',
+                fontWeight: 600,
+                '&:hover': {
+                  backgroundColor: dangerous ? 'rgba(220, 53, 69, 0.1)' : 'var(--freeki-folders-selected-background)',
+                  borderColor: dangerous ? '#dc3545' : 'var(--freeki-border-color)'
+                }
+              }}
+              aria-label={cancelText}
+            >
+              {cancelText}
+            </Button>
+            <Button 
+              onClick={() => {
+                if (onProceed) { onProceed(); }
+                onClose();
+              }}
+              variant="contained"
+              size="large"
+              sx={{ 
+                minWidth: '100px',
+                fontWeight: 700,
+                backgroundColor: '#dc3545',
+                color: 'white',
+                boxShadow: '0 4px 12px rgba(220, 53, 69, 0.4)',
+                '&:hover': {
+                  backgroundColor: '#c02633',
+                  boxShadow: '0 6px 16px rgba(220, 53, 69, 0.5)'
+                },
+                '&:active': {
+                  backgroundColor: '#a02834',
+                  boxShadow: '0 2px 8px rgba(220, 53, 69, 0.6)'
+                }
+              }}
+              aria-label={confirmText}
+            >
+              {confirmText}
+            </Button>
+          </>
+        )}
       </Box>
     </Dialog>
   )
+}
+
+// Utility: confirmOrProceed
+// Usage: confirmOrProceed({
+//   isEditing, hasUnsaved, showDialog, setShowDialog, onSave, onDiscard, operation, message, ... })
+export function useConfirmOrProceed({
+  isEditing,
+  hasUnsaved,
+  onSave,
+  onDiscard,
+  message,
+  title,
+  dangerous,
+  confirmText,
+  cancelText,
+  saveText,
+  discardText
+}: {
+  isEditing: boolean,
+  hasUnsaved: boolean,
+  onSave?: () => Promise<void> | void,
+  onDiscard?: () => Promise<void> | void,
+  message: string,
+  title: string,
+  dangerous?: boolean,
+  confirmText?: string,
+  cancelText?: string,
+  saveText?: string,
+  discardText?: string
+}) {
+  const [showDialog, setShowDialog] = React.useState(false)
+  const operationRef = useRef<null | (() => void)>(null)
+
+  // Call this to trigger the confirm-or-proceed logic
+  const confirmOrProceed = (operation: () => void) => {
+    if (!isEditing || !hasUnsaved) {
+      operation()
+    } else {
+      operationRef.current = operation
+      setShowDialog(true)
+    }
+  }
+
+  // Dialog component to render
+  const dialog = (
+    <ConfirmDialog
+      open={showDialog}
+      onClose={() => setShowDialog(false)}
+      onProceed={() => {
+        setShowDialog(false)
+        if (operationRef.current) operationRef.current()
+      }}
+      onDiscard={async () => {
+        setShowDialog(false)
+        if (onDiscard) await onDiscard()
+        if (operationRef.current) operationRef.current()
+      }}
+      onSave={async () => {
+        setShowDialog(false)
+        if (onSave) await onSave()
+        if (operationRef.current) operationRef.current()
+      }}
+      title={title}
+      message={message}
+      dangerous={dangerous}
+      isEditing={isEditing}
+      hasUnsaved={hasUnsaved}
+      confirmText={confirmText}
+      cancelText={cancelText}
+      saveText={saveText}
+      discardText={discardText}
+    />
+  )
+
+  return { confirmOrProceed, dialog }
 }

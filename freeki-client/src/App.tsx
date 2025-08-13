@@ -29,7 +29,7 @@ import PageViewer from './PageViewer'
 import PageEditor from './PageEditor'
 import PageMetadataPanel from './PageMetadata'
 import AdminSettingsDialog from './AdminSettingsDialog'
-import ConfirmDialog from './ConfirmDialog'
+import { useConfirmOrProceed } from './ConfirmDialog'
 import { useUserSettings } from './useUserSettings'
 import { useGlobalState, globalState, getCurrentLayoutState } from './globalState'
 import { buildPageTree } from './pageTreeUtils'
@@ -41,7 +41,7 @@ import { createSemanticApi } from './semanticApiFactory'
 import type { ISemanticApi } from './semanticApiInterface'
 import './themeService'
 import './App.css'
-import { revisionCache } from './PageMetadata'
+import PageMetadataComponent from './PageMetadata'
 
 const FadePanelContent = ({ visible, children }: { visible: boolean; children: React.ReactNode }) => (
   <div className={`fade-panel${visible ? '' : ' hidden'}`}>
@@ -68,10 +68,18 @@ const EnhancedTooltip = ({ children, title, ...props }: {
   </Tooltip>
 )
 
+// Helper: update or insert the latest version of a page in pageMetadata
+function upsertPageMetadata(list: PageMetadata[], updated: PageMetadata): PageMetadata[] {
+  // Remove any old version of this pageId
+  const filtered = list.filter(p => p.pageId !== updated.pageId)
+  // Add the new/updated metadata
+  return [...filtered, updated]
+}
+
+// --- STATE HOOKS ---
 export default function App() {
   // API client instance
   const [semanticApi, setSemanticApi] = React.useState<ISemanticApi | null>(null)
-  
   const { settings, userInfo, isLoaded, updateSetting, fetchUserInfo } = useUserSettings(semanticApi)
   
   // Global state
@@ -85,11 +93,22 @@ export default function App() {
   
   const isNarrowScreen = useMediaQuery('(max-width: 900px)')
   
-  // Derive current layout state - READ-ONLY
-  const currentLayout = React.useMemo(() => getCurrentLayoutState(settings), [settings, isNarrowScreen])
-
   // Remove searchQuery from globalState, use local state for searchQueryForFolderTree
   const [searchQueryForFolderTree, setSearchQueryForFolderTree] = React.useState<string>('') // SOURCE OF TRUTH
+
+  // Admin settings dialog
+  const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
+
+  // Editor state
+  const [editorContent, setEditorContent] = React.useState<string | null>(null)
+  const [viewingRevision, setViewingRevision] = React.useState<{ metadata: PageMetadata; content: string } | null>(null)
+
+  // --- DERIVED STATE ---
+  const isEditingState = isEditing
+  const hasUnsaved = isEditing && editorContent !== null && editorContent !== currentPageContent?.content
+
+  // Derive current layout state - READ-ONLY
+  const currentLayout = React.useMemo(() => getCurrentLayoutState(settings), [settings, isNarrowScreen])
 
   // Use search results if active, otherwise all pages
   const effectivePageMetadata = React.useMemo(() => {
@@ -100,8 +119,125 @@ export default function App() {
   // Page tree
   const pageTree = React.useMemo(() => buildPageTree(effectivePageMetadata), [effectivePageMetadata])
 
-  const [showAdminSettings, setShowAdminSettings] = React.useState<boolean>(false)
-  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState<boolean>(false)
+  // Get the isLatestRevision logic from the metadata panel (tags block)
+  // We need to know the metadata and currentPageVersion for the currently viewed revision
+  const pageMetadataPanelRef = React.useRef<any>(null);
+
+  // Find the correct metadata and currentPageVersion for the viewed revision
+  const viewedMetadata = viewingRevision ? viewingRevision.metadata : currentPageMetadata;
+  const viewedCurrentPageVersion = React.useMemo(() => {
+    if (!viewedMetadata) return 0;
+    // Find the latest version for this pageId from all pageMetadata
+    const allVersions = pageMetadata.filter(p => p.pageId === viewedMetadata.pageId);
+    return allVersions.length > 0 ? Math.max(...allVersions.map(p => p.version)) : viewedMetadata.version;
+  }, [pageMetadata, viewedMetadata]);
+
+  // Use the same isLatestRevision logic as PageMetadata.tsx
+  const isLatestRevision = viewedMetadata && (viewedMetadata.version === viewedCurrentPageVersion);
+
+  // --- HANDLERS ---
+  const handleViewRevision = (revision: { metadata: PageMetadata; content: string } | null) => {
+    setViewingRevision(revision)
+    globalState.set('isEditing', false)
+  }
+
+  const handlePageSelect = (metadata: PageMetadata) => {
+    confirmOrProceed(async () => {
+      if (!semanticApi) return
+      if (currentPageMetadata?.pageId === metadata.pageId) return
+      setViewingRevision(null)
+      globalState.set('currentPageMetadata', metadata)
+      globalState.set('isEditing', false)
+      globalState.set('isLoadingPageContent', true)
+      try {
+        const pageWithContent = await semanticApi.getSinglePage(metadata.pageId)
+        if (pageWithContent) {
+          globalState.set('currentPageContent', {
+            pageId: metadata.pageId,
+            content: pageWithContent.content
+          })
+        } else {
+          globalState.set('currentPageContent', {
+            pageId: metadata.pageId,
+            content: `# ${metadata.title}\n\nContent could not be loaded.`
+          })
+        }
+      } catch (error) {
+        console.error('Failed to load page content:', error)
+        globalState.set('currentPageContent', {
+          pageId: metadata.pageId,
+          content: `# ${metadata.title}\n\nContent could not be loaded.`
+        })
+      } finally {
+        globalState.set('isLoadingPageContent', false)
+      }
+    })
+  }
+
+  // --- REIMPLEMENTED EDIT/SAVE/CANCEL/CONTENT HANDLERS ---
+  const handleEdit = () => {
+    if (!currentPageContent) return;
+    setEditorContent(currentPageContent.content);
+    globalState.set('isEditing', true);
+  };
+
+  const handleEditorContentChange = (content: string) => {
+    setEditorContent(content);
+  };
+
+  const handleSave = async (content: string) => {
+    if (!semanticApi || !currentPageMetadata) return;
+    try {
+      const updatedMetadata = await semanticApi.updatePage({
+        pageId: currentPageMetadata.pageId,
+        title: currentPageMetadata.title,
+        content,
+        filepath: currentPageMetadata.path,
+        tags: currentPageMetadata.tags
+      });
+      if (updatedMetadata) {
+        globalState.set('currentPageMetadata', updatedMetadata);
+        globalState.set('pageMetadata', upsertPageMetadata(pageMetadata, updatedMetadata));
+        globalState.set('currentPageContent', { pageId: updatedMetadata.pageId, content });
+        setEditorContent(null);
+        globalState.set('isEditing', false);
+      }
+    } catch (error) {
+      console.error('Failed to save page:', error);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditorContent(null);
+    globalState.set('isEditing', false);
+  };
+
+  // --- CONFIRM DIALOG ---
+  const {
+    confirmOrProceed,
+    dialog: confirmDialog
+  } = useConfirmOrProceed({
+    isEditing: isEditingState,
+    hasUnsaved,
+    onSave: async () => {
+      if (editorContent !== null && currentPageMetadata && semanticApi) {
+        await handleSave(editorContent)
+      }
+      globalState.set('isEditing', false)
+      setEditorContent(null)
+    },
+    onDiscard: () => {
+      globalState.set('isEditing', false)
+      setEditorContent(null)
+    },
+    message: 'You have unsaved changes. What do you want to do?',
+    title: 'Unsaved Changes',
+    dangerous: true,
+    confirmText: 'Proceed',
+    cancelText: 'Cancel',
+    saveText: 'Save',
+    discardText: 'Discard'
+  })
 
   // Initialize Semantic API
   useEffect(() => {
@@ -302,172 +438,54 @@ export default function App() {
     // No direct performSearch() call - let the reactive system handle it
   }
 
-  const handleTagAdd = async (tagToAdd: string) => {
-    if (!currentPageMetadata || !currentPageContent || !semanticApi) return
-    
-    if (currentPageMetadata.tags.includes(tagToAdd)) return
-    
+  // Fix: handleTagAdd/handleTagRemove must always return Promise<PageMetadata|null>
+  const handleTagAdd = async (tagToAdd: string): Promise<PageMetadata | null> => {
+    if (!currentPageMetadata || !currentPageContent || !semanticApi) return null;
+    if (currentPageMetadata.tags.includes(tagToAdd)) return null;
     try {
-      const newTags = [...currentPageMetadata.tags, tagToAdd]
+      const newTags = [...currentPageMetadata.tags, tagToAdd];
       const updatedMetadata = await semanticApi.updatePage({
         pageId: currentPageMetadata.pageId,
         title: currentPageMetadata.title,
         content: currentPageContent.content,
         filepath: currentPageMetadata.path,
         tags: newTags
-      })
-      
+      });
       if (updatedMetadata) {
-        globalState.set('currentPageMetadata', updatedMetadata)
-        const updatedPageMetadata = pageMetadata.map(p => 
-          p.pageId === updatedMetadata.pageId ? updatedMetadata : p
-        )
-        globalState.set('pageMetadata', updatedPageMetadata)
+        globalState.set('currentPageMetadata', updatedMetadata);
+        globalState.set('pageMetadata', upsertPageMetadata(pageMetadata, updatedMetadata));
+        return updatedMetadata;
       }
     } catch (error) {
-      console.error('Failed to add tag:', error)
+      console.error('Failed to add tag:', error);
     }
-  }
+    return null;
+  };
 
-  const handleTagRemove = async (tagToRemove: string) => {
-    if (!currentPageMetadata || !currentPageContent || !semanticApi) return
-    
+  const handleTagRemove = async (tagToRemove: string): Promise<PageMetadata | null> => {
+    if (!currentPageMetadata || !currentPageContent || !semanticApi) return null;
     try {
-      const newTags = currentPageMetadata.tags.filter(tag => tag !== tagToRemove)
+      const newTags = currentPageMetadata.tags.filter(tag => tag !== tagToRemove);
       const updatedMetadata = await semanticApi.updatePage({
         pageId: currentPageMetadata.pageId,
         title: currentPageMetadata.title,
         content: currentPageContent.content,
         filepath: currentPageMetadata.path,
         tags: newTags
-      })
-      
+      });
       if (updatedMetadata) {
-        globalState.set('currentPageMetadata', updatedMetadata)
-        const updatedPageMetadata = pageMetadata.map(p => 
-          p.pageId === updatedMetadata.pageId ? updatedMetadata : p
-        )
-        globalState.set('pageMetadata', updatedPageMetadata)
+        globalState.set('currentPageMetadata', updatedMetadata);
+        globalState.set('pageMetadata', upsertPageMetadata(pageMetadata, updatedMetadata));
+        return updatedMetadata;
       }
     } catch (error) {
-      console.error('Failed to remove tag:', error)
+      console.error('Failed to remove tag:', error);
     }
-  }
-
-  const handlePageSelect = async (metadata: PageMetadata) => {
-    if (!semanticApi) return
-    
-    if (currentPageMetadata?.pageId === metadata.pageId) {
-      return
-    }
-    
-    setViewingRevision(null)
-    globalState.set('currentPageMetadata', metadata)
-    globalState.set('isEditing', false)
-    
-    globalState.set('isLoadingPageContent', true)
-    try {
-      const pageWithContent = await semanticApi.getSinglePage(metadata.pageId)
-      if (pageWithContent) {
-        globalState.set('currentPageContent', {
-          pageId: metadata.pageId,
-          content: pageWithContent.content
-        })
-      } else {
-        globalState.set('currentPageContent', {
-          pageId: metadata.pageId,
-          content: `# ${metadata.title}\n\nContent could not be loaded.`
-        })
-      }
-    } catch (error) {
-      console.error('Failed to load page content:', error)
-      globalState.set('currentPageContent', {
-        pageId: metadata.pageId,
-        content: `# ${metadata.title}\n\nContent could not be loaded.`
-      })
-    } finally {
-      globalState.set('isLoadingPageContent', false)
-    }
-  }
-
-  // Add state for viewing a revision
-  const [viewingRevision, setViewingRevision] = React.useState<{ metadata: PageMetadata; content: string } | null>(null)
-
-  // Handler for viewing a revision
-  const handleViewRevision = (revision: { metadata: PageMetadata; content: string } | null) => {
-    setViewingRevision(revision)
-    globalState.set('isEditing', false)
-  }
-
-  // Add state for tracking unsaved edits and cancel dialog
-  const [editorContent, setEditorContent] = React.useState<string | null>(null)
-  const [showCancelConfirm, setShowCancelConfirm] = React.useState(false)
-
-  const handleEdit = () => {
-    setEditorContent(currentPageContent?.content || '')
-    globalState.set('isEditing', true)
-  }
-
-  const handleEditorContentChange = (content: string) => {
-    setEditorContent(content)
-  }
-
-  const handleSave = async (content: string) => {
-    if (!currentPageMetadata || !semanticApi) return
-    try {
-      const updatedMetadata = await semanticApi.updatePage({
-        pageId: currentPageMetadata.pageId,
-        title: currentPageMetadata.title,
-        content: content,
-        filepath: currentPageMetadata.path,
-        tags: currentPageMetadata.tags
-      })
-      if (updatedMetadata) {
-        globalState.set('currentPageContent', {
-          pageId: currentPageMetadata.pageId,
-          content: content
-        })
-        globalState.set('currentPageMetadata', updatedMetadata)
-        // Update pageMetadata list
-        const updatedPageMetadata = pageMetadata.map(p =>
-          p.pageId === updatedMetadata.pageId ? updatedMetadata : p
-        )
-        globalState.set('pageMetadata', updatedPageMetadata)
-        // Update revision cache for this page (no need to fetch history)
-        const cached = revisionCache.get(currentPageMetadata.pageId) || []
-        // Remove any existing revision with the same version (shouldn't happen, but be safe)
-        const filtered = cached.filter((r: PageMetadata) => r.version !== updatedMetadata.version)
-        revisionCache.set(currentPageMetadata.pageId, [updatedMetadata, ...filtered])
-        globalState.set('isEditing', false)
-        setEditorContent(null)
-      }
-    } catch (error) {
-      console.error('Failed to save page:', error)
-    }
-  }
-
-  const handleCancel = () => {
-    if (editorContent !== null && editorContent !== currentPageContent?.content) {
-      setShowCancelConfirm(true)
-    } else {
-      globalState.set('isEditing', false)
-      setEditorContent(null)
-    }
-  }
-
-  const handleConfirmCancel = () => {
-    setShowCancelConfirm(false)
-    globalState.set('isEditing', false)
-    setEditorContent(null)
-  }
-
-  const handleCancelDialogClose = () => {
-    setShowCancelConfirm(false)
+    return null;
   }
 
   const handleCreatePage = async (title: string, content: string, filepath: string, tags: string[]) => {
     if (!semanticApi) return
-    
     try {
       const newMetadata = await semanticApi.createPage({
         title,
@@ -475,10 +493,8 @@ export default function App() {
         filepath,
         tags
       })
-
       if (newMetadata) {
-        const pages = await semanticApi.listAllPages()
-        globalState.set('pageMetadata', pages)
+        globalState.set('pageMetadata', upsertPageMetadata(pageMetadata, newMetadata))
         handlePageSelect(newMetadata)
       }
     } catch (error) {
@@ -487,34 +503,15 @@ export default function App() {
     }
   }
 
-  const handleDelete = () => {
-    if (!currentPageMetadata) return
-    setShowDeleteConfirm(true)
+  const handleCreatePageWithConfirm = async (title: string, content: string, filepath: string, tags: string[]) => {
+    await confirmOrProceed(async () => {
+      await handleCreatePage(title, content, filepath, tags)
+    })
   }
 
-  const handleConfirmDelete = async () => {
-    if (!currentPageMetadata || !semanticApi) return
-    
-    try {
-      const success = await semanticApi.deletePage(currentPageMetadata.pageId)
-      
-      if (success) {
-        const updatedPageMetadata = pageMetadata.filter(p => p.pageId !== currentPageMetadata.pageId)
-        globalState.set('pageMetadata', updatedPageMetadata)
-        
-        if (updatedPageMetadata.length > 0) {
-          const sortedPages = sortPagesByDisplayOrder(updatedPageMetadata)
-          const nextDefaultPage = sortedPages[0]
-          handlePageSelect(nextDefaultPage)
-        } else {
-          globalState.set('currentPageMetadata', null)
-          globalState.set('currentPageContent', null)
-        }
-        setShowDeleteConfirm(false)
-      }
-    } catch (error) {
-      console.error('Failed to delete page:', error)
-    }
+  const handleDelete = () => {
+    if (!currentPageMetadata) return
+    // Open delete confirmation dialog
   }
 
   const handleSettingsClick = () => {
@@ -790,39 +787,37 @@ export default function App() {
         <Toolbar sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 40, px: 0 }}>
           {/* Left side - Company Icon and Title */}
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
-            <EnhancedTooltip title={`Return to home page (${adminSettings.companyName})`}>
-              <Button
-                onClick={() => {
-                  if (pageMetadata.length > 0) {
-                    const sortedPages = sortPagesByDisplayOrder(pageMetadata)
-                    const homePage = sortedPages[0]
-                    handlePageSelect(homePage)
-                  }
-                }}
-                sx={{
-                  color: 'var(--freeki-app-bar-text-color)',
-                  textTransform: 'none',
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)'
-                  },
-                  minWidth: 0,
-                  pr: 1
-                }}
-                aria-label="Return to home page"
+            <Button
+              onClick={() => {
+                if (pageMetadata.length > 0) {
+                  const sortedPages = sortPagesByDisplayOrder(pageMetadata)
+                  const homePage = sortedPages[0]
+                  handlePageSelect(homePage)
+                }
+              }}
+              sx={{
+                color: 'var(--freeki-app-bar-text-color)',
+                textTransform: 'none',
+                '&:hover': {
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                },
+                minWidth: 0,
+                pr: 1
+              }}
+              aria-label="Return to home page"
+            >
+              <Avatar
+                src={adminSettings.iconUrl}
+                alt={`${adminSettings.companyName} icon`}
+                sx={{ mr: 1, width: 32, height: 32, backgroundColor: 'white', flexShrink: 0 }}
+                aria-label={adminSettings.companyName}
               >
-                <Avatar
-                  src={adminSettings.iconUrl}
-                  alt={`${adminSettings.companyName} icon`}
-                  sx={{ mr: 1, width: 32, height: 32, backgroundColor: 'white', flexShrink: 0 }}
-                  aria-label={adminSettings.companyName}
-                >
-                  {adminSettings.companyName.charAt(0)}
-                </Avatar>
-                <Typography variant="h6" sx={{ color: 'var(--freeki-app-bar-text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220, fontWeight: 700, fontSize: 20 }} variantMapping={{ h6: 'div' }}>
-                  {adminSettings.wikiTitle}
-                </Typography>
-              </Button>
-            </EnhancedTooltip>
+                {adminSettings.companyName.charAt(0)}
+              </Avatar>
+              <Typography variant="h6" sx={{ color: 'var(--freeki-app-bar-text-color)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220, fontWeight: 700, fontSize: 20 }} variantMapping={{ h6: 'div' }}>
+                {adminSettings.wikiTitle}
+              </Typography>
+            </Button>
           </Box>
 
           {/* Center - Page Title */}
@@ -882,24 +877,36 @@ export default function App() {
           onClick={handleCancel}
           sx={{ color: 'var(--freeki-app-bar-text-color)', fontSize: 24 }}
           aria-label="Cancel editing"
-          disabled={!!viewingRevision}
+          disabled={false}
         >
           <Cancel sx={{ fontSize: 24 }} />
         </IconButton>
       </EnhancedTooltip>
     ) : (
-      <EnhancedTooltip title={viewingRevision ? "Cannot edit old revision" : "Edit page"}>
+      isLatestRevision ? (
+        <EnhancedTooltip title="Edit page">
+          <span>
+            <IconButton
+              sx={{ color: 'var(--freeki-app-bar-text-color)', fontSize: 24 }}
+              onClick={handleEdit}
+              aria-label="Edit page"
+              disabled={false}
+            >
+              <Edit sx={{ fontSize: 24 }} />
+            </IconButton>
+          </span>
+        </EnhancedTooltip>
+      ) : (
         <span>
           <IconButton
             sx={{ color: 'var(--freeki-app-bar-text-color)', fontSize: 24 }}
-            onClick={handleEdit}
             aria-label="Edit page"
-            disabled={!!viewingRevision}
+            disabled={true}
           >
             <Edit sx={{ fontSize: 24 }} />
           </IconButton>
         </span>
-      </EnhancedTooltip>
+      )
     )
   )}
 
@@ -1002,11 +1009,12 @@ export default function App() {
                 pageTree={pageTree}
                 selectedPageMetadata={currentPageMetadata}
                 onPageSelect={handlePageSelect}
-                onSearch={setSearchQueryForFolderTree} // Only updates the query, not config
-                searchQuery={searchQueryForFolderTree} // SOURCE OF TRUTH
+                onSearch={setSearchQueryForFolderTree}
+                searchQuery={searchQueryForFolderTree}
                 pageMetadata={effectivePageMetadata}
                 onDragDrop={handleDragDrop}
-                onCreatePage={handleCreatePage}
+                onCreatePage={handleCreatePageWithConfirm}
+                confirmOrProceed={confirmOrProceed}
               />
             )}
           </FadePanelContent>
@@ -1104,31 +1112,46 @@ export default function App() {
           </button>
 
           <FadePanelContent visible={currentLayout.showMetadataPanel}>
-            {currentPageMetadata && currentPageContent ? (
-              <PageMetadataPanel
-                metadata={currentPageMetadata}
-                content={currentPageContent}
-                semanticApi={semanticApi}
-                onTagClick={handleTagClick}
-                onTagAdd={handleTagAdd}
-                onTagRemove={handleTagRemove}
-                onAuthorClick={handleAuthorClick}
-                onViewRevision={handleViewRevision}
-              />
-            ) : (
-              <Box sx={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: 200,
-                color: 'var(--freeki-page-details-font-color)',
-                p: 2
-              }}>
-                <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.6 }}>
-                  {currentPageMetadata ? 'Loading page content...' : 'No page selected'}
-                </Typography>
-              </Box>
-            )}
+            {(viewingRevision
+              ? (
+                <PageMetadataPanel
+                  metadata={viewingRevision.metadata}
+                  content={{ pageId: viewingRevision.metadata.pageId, content: viewingRevision.content }}
+                  semanticApi={semanticApi}
+                  onTagClick={handleTagClick}
+                  onTagAdd={handleTagAdd}
+                  onTagRemove={handleTagRemove}
+                  onAuthorClick={handleAuthorClick}
+                  onViewRevision={handleViewRevision}
+                  currentPageVersion={currentPageMetadata?.version || viewingRevision.metadata.version}
+                />
+              )
+              : (currentPageMetadata && currentPageContent ? (
+                <PageMetadataPanel
+                  metadata={currentPageMetadata}
+                  content={currentPageContent}
+                  semanticApi={semanticApi}
+                  onTagClick={handleTagClick}
+                  onTagAdd={handleTagAdd}
+                  onTagRemove={handleTagRemove}
+                  onAuthorClick={handleAuthorClick}
+                  onViewRevision={handleViewRevision}
+                  currentPageVersion={currentPageMetadata.version}
+                />
+              ) : (
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  height: 200,
+                  color: 'var(--freeki-page-details-font-color)',
+                  p: 2
+                }}>
+                  <Typography variant="body2" sx={{ textAlign: 'center', opacity: 0.6 }}>
+                    {currentPageMetadata ? 'Loading page content...' : 'No page selected'}
+                  </Typography>
+                </Box>
+              )))}
           </FadePanelContent>
           
           {currentLayout.showMetadataPanel && !isNarrowScreen && (
@@ -1178,31 +1201,8 @@ export default function App() {
         themeMode={settings.theme}
       />
 
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Page"
-        message={`Are you sure you want to delete "${currentPageMetadata?.title}"? This action cannot be undone.`}
-        confirmText="Delete"
-        cancelText="Cancel"
-        confirmColor="error"
-        dangerous={true}
-      />
-
       {/* Cancel Confirmation Dialog */}
-      <ConfirmDialog
-        open={showCancelConfirm}
-        onClose={handleCancelDialogClose}
-        onConfirm={handleConfirmCancel}
-        title="Discard Changes?"
-        message="You have unsaved changes. Are you sure you want to discard them?"
-        confirmText="Discard"
-        cancelText="Keep Editing"
-        confirmColor="warning"
-        dangerous={true}
-      />
+      {confirmDialog}
     </Box>
   )
 }
