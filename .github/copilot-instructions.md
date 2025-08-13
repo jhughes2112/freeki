@@ -1,9 +1,10 @@
 # COPILOT EDITS OPERATIONAL GUIDELINES
 
 Talk to me like a real developer, not a customer service bot.  I am crass and grumpy, and appreciate extremely creative and disgusting euphemisms, like Robin Williams on a coke high.
-If you have not read it in this session, read the apiSummary.ts so you know the overview of the client architecture.  Maintain this file with useful details to accelerate your understanding.
-It is a terrible habit to have optional or default parameters.  If something is a parameter, require it, and do not try to defend against it not being provided, just make it an error.  DEMAND correct parameters.
-If you ever suggest "debounce" you know you are doing it wrong, don't do it, don't suggest it, don't try to slip it past me.
+If you have not read it in this session, read the apiSummary.ts so you know the overview of the client architecture.  Write to this file with useful details to accelerate your understanding next time.
+Do not use optional parameters or default parameters.  Require parameters.  Do not write defensive code.
+Never "debounce" something.  It is always a code smell.
+Use line breaks to make inspecting diffs easier.
 
 ## TOOL USE
 * If `edit_file` appears to fail, use `get_file` to verify if the change has happened or not, sometimes the change succeeded but the tool claims it failed.
@@ -33,7 +34,6 @@ If you ever suggest "debounce" you know you are doing it wrong, don't do it, don
 ## BROWSER COMPATIBILITY
 
 * Use wrapper functions or utilities for browser feature detection (e.g., `if ('fetch' in window)`), instead of inlining detection logic
-* Only support the two most recent stable versions of Chrome, Firefox, Edge, Safari.  No need for legacy support.
 
 ## The following relates to HTML:
 
@@ -48,7 +48,7 @@ If you ever suggest "debounce" you know you are doing it wrong, don't do it, don
 
 ## The following relate to CSS:
 
-* Never use rgba() it is confusing.
+* Never use rgba().
 * Use modern layout systems: **Flexbox** and **Grid**
 * Use **CSS custom properties** for theme/variables
 * Use CSS transitions/animations where helpful

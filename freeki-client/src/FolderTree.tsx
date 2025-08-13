@@ -599,91 +599,67 @@ export default function FolderTree({
   // Enhanced drop handler with validation and user feedback
   const handleCreateFolderDrop = async (targetFolderPath: string, draggedData: DragData) => {
     if (!onCreatePage || !onDragDrop) return
-    
-    // Validate the drop operation first
-    if (!isValidDropTarget(draggedData.path, targetFolderPath)) {
-      console.log(`Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`)
-      return
-    }
-    
-    setNewFolderTargetPath(targetFolderPath)
-    setNewFolderDragData(draggedData)
-    setShowNewFolderDialog(true)
-    setNewFolderName('')
+    if (!isValidDropTarget(draggedData.path, targetFolderPath)) { console.log(`Folder creation rejected: Invalid target for '${draggedData.path}' -> '${targetFolderPath}'`); return }
+    confirmOrProceed(() => {
+      setNewFolderTargetPath(targetFolderPath)
+      setNewFolderDragData(draggedData)
+      setShowNewFolderDialog(true)
+      setNewFolderName('')
+    })
   }
 
   // Handle new folder dialog confirmation
   const handleNewFolderConfirm = async () => {
     if (!newFolderName.trim() || !onCreatePage || !onDragDrop || !newFolderDragData) return
-    const op = async () => {
-      const newFolderPath = newFolderTargetPath ? `${newFolderTargetPath}/${newFolderName.trim()}` : newFolderName.trim()
-      // Final validation before creating folder
-      if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
-        console.log(`Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
-        return
-      }
-      try {
-        // Move the dragged content into the new folder FIRST
-        const dropTarget: DropTarget = {
-          targetPageId: `folder_${newFolderPath}`,
-          targetPath: newFolderPath,
-          position: 'inside'
-        }
-        console.log(`Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
-        await onDragDrop(newFolderDragData, dropTarget)
-        // Auto-expand the new folder and restore child folder expansion state
-        autoExpandTargetFolder(newFolderPath, newFolderDragData)
-        // Close dialog
-        setShowNewFolderDialog(false)
-        setNewFolderName('')
-        setNewFolderTargetPath('')
-        setNewFolderDragData(null)
-      } catch (error) {
-        console.error('Failed to create folder and move content:', error)
-      } finally {
-        setIsDragging(false)
-        setDragHoverFolder('__NONE__')
-        setCurrentDraggedPath('')
-        if (hoverExpandTimer) {
-          clearTimeout(hoverExpandTimer)
-          setHoverExpandTimer(null)
-        }
-        setHoverExpandFolder('')
-      }
+    // No unsaved-changes confirmation here; that was done before opening the dialog
+    const newFolderPath = newFolderTargetPath ? `${newFolderTargetPath}/${newFolderName.trim()}` : newFolderName.trim()
+    if (!isValidDropTarget(newFolderDragData.path, newFolderPath)) {
+      console.log(`Folder creation rejected: Invalid target for '${newFolderDragData.path}' -> '${newFolderPath}'`)
+      return
     }
-    await confirmOrProceed(op)
+    try {
+      const dropTarget: DropTarget = { targetPageId: `folder_${newFolderPath}`, targetPath: newFolderPath, position: 'inside' }
+      console.log(`Creating folder '${newFolderPath}' and moving '${newFolderDragData.path}' into it`)
+      await onDragDrop(newFolderDragData, dropTarget)
+      autoExpandTargetFolder(newFolderPath, newFolderDragData)
+      setShowNewFolderDialog(false)
+      setNewFolderName('')
+      setNewFolderTargetPath('')
+      setNewFolderDragData(null)
+    } catch (error) {
+      console.error('Failed to create folder and move content:', error)
+    } finally {
+      setIsDragging(false)
+      setDragHoverFolder('__NONE__')
+      setCurrentDraggedPath('')
+      if (hoverExpandTimer) { clearTimeout(hoverExpandTimer); setHoverExpandTimer(null) }
+      setHoverExpandFolder('')
+    }
   }
 
-  // Handle new page dialog
+  // Handle new page dialog – now confirm unsaved edits BEFORE opening dialog
   const handleNewPageClick = (targetFolderPath: string) => {
-    setNewPageTargetFolder(targetFolderPath)
-    setShowNewPageDialog(true)
-    setNewPageTitle('')
+    confirmOrProceed(() => {
+      setNewPageTargetFolder(targetFolderPath)
+      setShowNewPageDialog(true)
+      setNewPageTitle('')
+    })
   }
 
-  // handleNewPageConfirm and handleNewFolderConfirm must always return Promise<void>
+  // handleNewPageConfirm executes directly (unsaved confirmation already handled when dialog opened)
   const handleNewPageConfirm = async () => {
     if (!newPageTitle.trim() || !onCreatePage) return
-    const op = async () => {
-      try {
-        const existingPaths = pageMetadata.map(p => p.path)
-        const filePath = generateFileName(newPageTitle.trim(), existingPaths, newPageTargetFolder)
-        await onCreatePage(
-          newPageTitle.trim(),
-          `# ${newPageTitle.trim()}\n\n`,
-          filePath,
-          []
-        )
-        // Auto-expand the target folder
-        autoExpandTargetFolder(newPageTargetFolder)
-        setShowNewPageDialog(false)
-        setNewPageTitle('')
-        setNewPageTargetFolder('')
-      } catch (error) {
-        console.error('Failed to create page:', error)
-      }
+    try {
+      const existingPaths = pageMetadata.map(p => p.path)
+      const filePath = generateFileName(newPageTitle.trim(), existingPaths, newPageTargetFolder)
+      await onCreatePage(newPageTitle.trim(), `# ${newPageTitle.trim()}\n\n`, filePath, [])
+      autoExpandTargetFolder(newPageTargetFolder)
+      setShowNewPageDialog(false)
+      setNewPageTitle('')
+      setNewPageTargetFolder('')
+    } catch (error) {
+      console.error('Failed to create page:', error)
     }
-    await confirmOrProceed(op)
   }
 
   // Get current page's folder for New Page button
