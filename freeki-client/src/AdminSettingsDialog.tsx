@@ -644,6 +644,7 @@ const TYPOGRAPHY_ROWS: ColorRow[] = [
   { label: 'Toolbar Icon', light: 'toolbarIconColor', dark: 'toolbarIconColor' }, // Expose toolbarIconColor
   { label: 'Page View BG', light: 'viewBackground', dark: 'viewBackground' },
   { label: 'Page Edit BG', light: 'editBackground', dark: 'editBackground' },
+  { label: 'Page Highlight', light: 'pageHighlightColor', dark: 'pageHighlightColor' }
 ];
 
 // --- FOLDERS ---
@@ -656,12 +657,14 @@ const FOLDERS_ROWS: ColorRow[] = [
 
 // --- PAGE DETAILS ---
 const PAGE_DETAILS_ROWS: ColorRow[] = [
+  { label: 'Panel BG', light: 'detailsBlockBackground', dark: 'detailsBlockBackground' },
   { label: 'Page Details BG', light: 'pageDetailsBackground', dark: 'pageDetailsBackground' },
   { label: 'Page Details Font', light: 'pageDetailsFontColor', dark: 'pageDetailsFontColor', fontSize: 'pageDetailsFontSize' },
-  { label: 'Details Block BG', light: 'detailsBlockBackground', dark: 'detailsBlockBackground' },
   { label: 'Tags Block BG', light: 'tagsBlockBackground', dark: 'tagsBlockBackground' },
   { label: 'Tags BG', light: 'tagBackground', dark: 'tagBackground' },
   { label: 'Tags Font', light: 'tagColor', dark: 'tagColor' },
   { label: 'Revision Block BG', light: 'revisionBlockBackground', dark: 'revisionBlockBackground' },
-  { label: 'Revision List BG', light: 'revisionListBackground', dark: 'revisionListBackground' }
+  { label: 'Revision List BG', light: 'revisionListBackground', dark: 'revisionListBackground' },
+  { label: 'AI Panel BG', light: 'aiPanelBackground', dark: 'aiPanelBackground' },
+  { label: 'AI Panel Font', light: 'aiPanelFontColor', dark: 'aiPanelFontColor' },
 ];

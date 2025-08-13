@@ -3,10 +3,55 @@ import { Paper } from '@mui/material';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TextAlign from '@tiptap/extension-text-align';
+import { Extension } from '@tiptap/core';
 import EditorToolbar from './EditorToolbar';
 import type { PageContent, UserSettings } from './globalState';
 import { AIRequestor } from './AIRequestor';
 import { useGlobalState, globalState } from './globalState';
+import { Plugin, PluginKey } from 'prosemirror-state';
+import { Decoration, DecorationSet } from 'prosemirror-view';
+
+// Extension to render a highlight decoration over stored selection when active
+const SelectionHighlightExtension = Extension.create({
+  name: 'selectionHighlight',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('selectionHighlight'),
+        props: {
+          decorations: (state) => {
+            const data = (window as unknown as { freekiHighlightSelectionData?: { active: boolean; from: number; to: number } }).freekiHighlightSelectionData;
+            if (!data || !data.active) return null;
+            const from = data.from;
+            const to = data.to;
+            if (typeof from !== 'number' || typeof to !== 'number' || from === to) return null;
+            try {
+              return DecorationSet.create(state.doc, [Decoration.inline(from, to, { class: 'freeki-ai-selection-highlight' })]);
+            } catch {
+              return null;
+            }
+          }
+        }
+      })
+    ];
+  }
+});
+
+// Inject highlight CSS once
+function ensureHighlightCss() {
+  if (document.getElementById('freeki-ai-selection-highlight-style')) return;
+  const style = document.createElement('style');
+  style.id = 'freeki-ai-selection-highlight-style';
+  style.textContent = `
+    .freeki-ai-selection-highlight {
+      background: rgba(255, 200, 0, 0.35);
+      box-shadow: 0 0 0 1px rgba(255, 170, 0, 0.8) inset;
+      border-radius: 2px;
+      transition: background 0.15s ease;
+    }
+  `;
+  document.head.appendChild(style);
+}
 
 interface PageEditorProps {
   content: PageContent;
@@ -14,16 +59,21 @@ interface PageEditorProps {
   onEditingComplete?: (content: string) => void;
 }
 
+// Highlight selection data interface
+interface HighlightSelectionData { active: boolean; from: number; to: number }
+
 export default function PageEditor({ content, onContentChange, onEditingComplete }: PageEditorProps) {
   const initialContent = useRef(content.content);
   const userSettings = useGlobalState('userSettings') as UserSettings;
   const isEditing = useGlobalState('isEditing') as boolean;
   const selectionCounterRef = useRef(0);
+  const highlightActiveRef = useRef(false);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
-      TextAlign.configure({ types: ['heading', 'paragraph'] })
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      SelectionHighlightExtension
     ],
     content: initialContent.current,
     onUpdate: ({ editor }) => {
@@ -34,21 +84,61 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
 
   const currentSelectionRangeRef = useRef<Range | null>(null);
 
-  // Push selection into global state
+  // Highlight hover event handling (panel hover toggles decoration)
+  useEffect(() => {
+    if (!editor) return;
+    ensureHighlightCss();
+
+    const enterHandler = () => {
+      highlightActiveRef.current = true;
+      const selState = globalState.get('currentSelection') as { hasSelection: boolean; from: number; to: number } | null;
+      if (selState && selState.hasSelection) {
+        (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: true, from: selState.from, to: selState.to };
+        editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', true));
+      }
+    };
+    const leaveHandler = () => {
+      highlightActiveRef.current = false;
+      (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
+      editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
+    };
+
+    document.addEventListener('freeki-ai-panel-hover-enter', enterHandler as EventListener);
+    document.addEventListener('freeki-ai-panel-hover-leave', leaveHandler as EventListener);
+    return () => {
+      document.removeEventListener('freeki-ai-panel-hover-enter', enterHandler as EventListener);
+      document.removeEventListener('freeki-ai-panel-hover-leave', leaveHandler as EventListener);
+    };
+  }, [editor]);
+
+  // Push selection into global state; preserve when focusing AI panel
   useEffect(() => {
     if (!editor) return;
 
     const handleSelectionChange = () => {
+      const active = document.activeElement as HTMLElement | null;
+      const inAiPanel = !!(active && active.closest && active.closest('#freeki-ai-rewrite-panel'));
       const sel = window.getSelection();
+
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
-        currentSelectionRangeRef.current = null;
-        globalState.set('currentSelection', null);
+        // Only clear if not inside AI panel and not showing highlight
+        if (!inAiPanel && !highlightActiveRef.current) {
+          currentSelectionRangeRef.current = null;
+          globalState.set('currentSelection', null);
+          (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
+          if (editor) editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
+        }
         return;
       }
+
       const anchorNode = sel.anchorNode;
       if (!anchorNode || !editor.view.dom.contains(anchorNode)) {
-        currentSelectionRangeRef.current = null;
-        globalState.set('currentSelection', null);
+        if (!inAiPanel) {
+          currentSelectionRangeRef.current = null;
+          globalState.set('currentSelection', null);
+          (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
+          if (editor) editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
+        }
         return;
       }
 
@@ -60,8 +150,12 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
         const to = editor.view.posAtDOM(range.endContainer, range.endOffset);
         const text = sel.toString();
         globalState.set('currentSelection', { hasSelection: true, text, from, to, selectionId: selectionCounterRef.current });
+        if (highlightActiveRef.current) {
+          (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: true, from, to };
+          editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', true));
+        }
       } catch {
-        globalState.set('currentSelection', null);
+        // Leave existing selection if mapping fails
       }
     };
 
@@ -73,19 +167,32 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
   useEffect(() => {
     if (!isEditing) {
       globalState.set('currentSelection', null);
+      (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
+      if (editor) editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
     }
-  }, [isEditing]);
+  }, [isEditing, editor]);
 
-  // Listen for AI rewrite via global state not needed; still listen for custom event compatibility
+  // AI rewrite handler (formatted HTML insertion)
   useEffect(() => {
     if (!editor) return;
     let cancelled = false;
+
+    const extractHtml = (raw: string): string => {
+      let output = raw.trim();
+      if (output.startsWith('```')) {
+        const fenced = output.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)```$/);
+        if (fenced) output = fenced[1].trim(); else output = output.replace(/^```[a-zA-Z0-9]*\n?/, '').replace(/```$/, '').trim();
+      }
+      const bodyMatch = output.match(/<body[^>]*>([\s\S]*?)<\/body>/i); if (bodyMatch) output = bodyMatch[1].trim();
+      const htmlMatch = output.match(/<html[^>]*>([\s\S]*?)<\/html>/i); if (htmlMatch) output = htmlMatch[1].trim();
+      output = output.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '');
+      return output;
+    };
+
     const handler = async (evt: Event) => {
       const custom = evt as CustomEvent<{ prompt: string }>;
-      const selectionState = globalState.get('currentSelection');
-      if (!selectionState || !currentSelectionRangeRef.current) {
-        return;
-      }
+      const selectionState = globalState.get('currentSelection') as { hasSelection: boolean; text: string } | null;
+      if (!selectionState || !currentSelectionRangeRef.current) return;
       const range = currentSelectionRangeRef.current;
       const aiUrl = userSettings.aiUrl || '';
       const aiToken = userSettings.aiToken || '';
@@ -98,51 +205,41 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
         const ai = new AIRequestor(aiUrl, aiToken, 'default');
         ai.system(systemPrompt)
           .assistant(editor.getHTML())
-          .user(instructions)
-          .user(custom.detail.prompt || '')
-          .user(selectionText);
+            .user(instructions)
+            .user(custom.detail.prompt || '')
+            .user(selectionText);
         const result = await ai.send();
         if (cancelled) return;
         if (result.status >= 200 && result.status < 300) {
           try {
             const from = editor.view.posAtDOM(range.startContainer, range.startOffset);
             const to = editor.view.posAtDOM(range.endContainer, range.endOffset);
-            editor.view.dispatch(editor.state.tr.replaceWith(from, to, editor.schema.text(result.response)));
-            // After replacement clear selection
+            const html = extractHtml(result.response);
+            let success = false;
+            try { editor.chain().focus().setTextSelection({ from, to }).deleteRange({ from, to }).insertContent(html).run(); success = true; } catch { success = false; }
+            if (!success) { editor.view.dispatch(editor.state.tr.replaceWith(from, to, editor.schema.text(html))); }
             globalState.set('currentSelection', null);
-          } catch {
-            // Ignore mapping errors
-          }
+            (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
+            editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
+          } catch { /* ignore mapping errors */ }
         }
-      } catch {
-        // Ignore errors for now
-      }
+      } catch { /* ignore errors */ }
     };
+
     document.addEventListener('freeki-ai-rewrite-request', handler as EventListener);
-    return () => {
-      cancelled = true;
-      document.removeEventListener('freeki-ai-rewrite-request', handler as EventListener);
-    };
+    return () => { cancelled = true; document.removeEventListener('freeki-ai-rewrite-request', handler as EventListener); };
   }, [editor, userSettings]);
 
   useEffect(() => {
     if (!editor || !onEditingComplete) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        onEditingComplete(editor.getHTML());
-      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); onEditingComplete(editor.getHTML()); }
     };
-    const handleBlur = () => {
-      onEditingComplete(editor.getHTML());
-    };
+    const handleBlur = () => { onEditingComplete(editor.getHTML()); };
     const dom = editor.view.dom;
     dom.addEventListener('keydown', handleKeyDown);
     dom.addEventListener('blur', handleBlur);
-    return () => {
-      dom.removeEventListener('keydown', handleKeyDown);
-      dom.removeEventListener('blur', handleBlur);
-    };
+    return () => { dom.removeEventListener('keydown', handleKeyDown); dom.removeEventListener('blur', handleBlur); };
   }, [editor, onEditingComplete]);
 
   return (
@@ -161,7 +258,7 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
       <div style={{
         width: '100%',
         overflowX: 'auto',
-        overflowY: 'hidden',
+        overflowY: 'auto',
         display: 'flex',
         flexDirection: 'column',
         height: '100%'
@@ -190,20 +287,13 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
             default: break;
           }
         }} />
-        <div style={{ flex: 1, overflow: 'hidden', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-            <div className="freeki-page-content" style={{ flex: '0 0 auto' }}>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
+			<div className="freeki-page-content" style={{ flex: 1, position: 'relative', cursor: 'text' }}
+				onMouseDown={() => { if (editor) { editor.commands.focus('end'); } }}
+				aria-label="Click to focus editor at end">
               <EditorContent editor={editor} />
             </div>
-            <div
-              style={{ flex: 1, minHeight: 120, cursor: 'text', background: 'none', border: 'none' }}
-              onMouseDown={() => {
-                if (editor) {
-                  editor.commands.focus('end');
-                }
-              }}
-              aria-label="Click to focus editor"
-            />
           </div>
         </div>
       </div>

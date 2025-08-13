@@ -101,11 +101,14 @@ export function injectGlobalStyles() {
       margin-right: 2vw;
       padding-left: 0;
       padding-right: 0;
-      /* Remove max-width so content can expand */
-      /* max-width: unset; */
+      overflow: auto; /* allow both scroll directions */
     }
     .freeki-page-content .ProseMirror {
       white-space: pre-wrap;
+      overflow: visible;
+      min-width: fit-content; /* allow wide tables/images to define width */
+      min-height: 100%; /* fill parent height so clicking below content works */
+      width: 100%;
     }
     .freeki-page-content h1 {
       color: var(--freeki-h1-font-color);
@@ -287,6 +290,30 @@ export function injectGlobalStyles() {
       background-color: var(--freeki-create-icon);
       color: var(--freeki-folders-background);
     }
+
+    /* AI panel styling */
+    html body .freeki-ai-panel {
+      background-color: var(--freeki-ai-panel-bg, #f0f4f8);
+      color: var(--freeki-ai-panel-font, #333333);
+      border-radius: var(--freeki-border-radius);
+      padding: 16px;
+      margin: 8px 0;
+      box-shadow: 0 2px 8px var(--freeki-shadow-color);
+    }
+    html body .freeki-ai-panel h4 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      color: var(--freeki-h2-font-color);
+    }
+    html body .freeki-ai-panel p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--freeki-p-font-color);
+    }
+    html body .freeki-ai-panel .freeki-ai-selection-highlight {
+      background: var(--freeki-page-highlight-color, rgba(255,200,0,0.35));
+      box-shadow: 0 0 0 1px var(--freeki-page-highlight-color, rgba(255,170,0,0.8)) inset;
+    }
   `
   document.head.appendChild(style)
 }
@@ -392,6 +419,11 @@ export function applyTheme(colorSchemes: { light: ColorScheme; dark: ColorScheme
     root.style.setProperty('--freeki-admin-textfield-bg', '#ffffff'); // white for light mode
     root.style.setProperty('--freeki-admin-textfield-font', '#222c36'); // deep blue-gray
   }
+
+  // AI panel colors
+  root.style.setProperty('--freeki-ai-panel-bg', colorScheme.aiPanelBackground || root.style.getPropertyValue('--freeki-details-block-bg'));
+  root.style.setProperty('--freeki-ai-panel-font', colorScheme.aiPanelFontColor || root.style.getPropertyValue('--freeki-page-details-font-color'));
+  root.style.setProperty('--freeki-page-highlight-color', colorScheme.pageHighlightColor || '#ffc80055');
 }
 
 // Get current theme CSS values for real-time preview

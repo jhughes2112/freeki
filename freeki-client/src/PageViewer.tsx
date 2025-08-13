@@ -21,7 +21,8 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
         border: '1px solid var(--freeki-border-color)',
         boxShadow: 'none',
         height: '100%',
-        m: 0 // Remove all margin
+        m: 0,
+        overflow: 'auto'
       }}>
         <Box sx={{ color: 'var(--freeki-p-font-color)', fontSize: 'var(--freeki-p-font-size)' }}>
           This is a folder. Select a page to view its content.
@@ -30,7 +31,6 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
     );
   }
 
-  // Just render the content in the editor, no extra headers or titles
   return (
     <Paper sx={{
       ...themeStyles.paper,
@@ -39,10 +39,13 @@ export default function PageViewer({ metadata, content }: PageViewerProps) {
       border: '1px solid var(--freeki-border-color)',
       boxShadow: 'none',
       height: '100%',
-      m: 0, // Remove all margin
-      borderRadius: 0 // Set border radius to 0px for page Paper
+      m: 0,
+      borderRadius: 0,
+      overflow: 'auto'
     }}>
-      <RichTextRenderer content={content.content} />
+      <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+        <RichTextRenderer content={content.content} />
+      </div>
     </Paper>
   );
 }

@@ -809,14 +809,18 @@ const AIRrewritePanel = ({ metadata }: AIRewritePanelProps) => {
   const buttonDisabled = !hasSelection || running || !aiUrl
 
   return (
-    <Paper sx={{
+    <Paper id="freeki-ai-rewrite-panel" sx={{
       ...themeStyles.paper,
       p: 1,
       mb: 1.5,
-      backgroundColor: 'var(--freeki-details-block-bg)',
+      backgroundColor: 'var(--freeki-ai-panel-bg)',
+      color: 'var(--freeki-ai-panel-font)',
       border: '1px solid var(--freeki-border-color)',
       boxShadow: 'none'
-    }}>
+    }}
+      onMouseEnter={() => document.dispatchEvent(new CustomEvent('freeki-ai-panel-hover-enter'))}
+      onMouseLeave={() => document.dispatchEvent(new CustomEvent('freeki-ai-panel-hover-leave'))}
+    >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: 'var(--freeki-page-details-font-size)' }}>Rewrite With AI</Typography>
         <IconButton size="small" aria-label={showSettings ? 'Hide AI settings' : 'Show AI settings'} onClick={() => setShowSettings(v => !v)}>
@@ -837,8 +841,12 @@ const AIRrewritePanel = ({ metadata }: AIRewritePanelProps) => {
         sx={{
           mb: 1,
           '& .MuiOutlinedInput-root': {
-            backgroundColor: 'var(--freeki-tags-block-bg)',
+            backgroundColor: 'var(--freeki-ai-panel-bg)',
+            color: 'var(--freeki-ai-panel-font)',
             fontSize: 'var(--freeki-page-details-font-size)'
+          },
+          '& .MuiInputLabel-root': {
+            color: 'var(--freeki-ai-panel-font)'
           }
         }}
       />
@@ -853,7 +861,7 @@ const AIRrewritePanel = ({ metadata }: AIRewritePanelProps) => {
             size="small"
             sx={{
               backgroundColor: buttonDisabled ? 'var(--freeki-border-color)' : 'var(--freeki-app-bar-background)',
-              color: 'var(--freeki-page-details-background)',
+              color: 'var(--freeki-ai-panel-bg)',
               '&:hover': { backgroundColor: buttonDisabled ? 'var(--freeki-border-color)' : 'var(--freeki-app-bar-background)' }
             }}
           >

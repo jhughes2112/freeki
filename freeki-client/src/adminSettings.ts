@@ -69,6 +69,11 @@ export interface ColorScheme {
   tagColor: string; // NEW: for tag text color
   tagBackground: string; // NEW: for tag background color
   toolbarIconColor: string; // NEW: for editor toolbar icon color (required)
+  // NEW: AI panel colors
+  aiPanelBackground: string;
+  aiPanelFontColor: string;
+  // NEW: page highlight (selection decoration) color
+  pageHighlightColor: string;
 }
 
 const DEFAULT_LIGHT_SCHEME: ColorScheme = {
@@ -112,6 +117,9 @@ const DEFAULT_LIGHT_SCHEME: ColorScheme = {
   tagBackground: '#e3ecfa', // NEW: default tag background (matches tags block bg)
   toolbarIconColor: '#888', // More gray for light mode
   createIconColor: '#B8C2CC', 
+  aiPanelBackground: '#dde7f5',
+  aiPanelFontColor: '#1c2b39',
+  pageHighlightColor: '#ffc80055'
 }
 
 const DEFAULT_DARK_SCHEME: ColorScheme = {
@@ -155,6 +163,9 @@ const DEFAULT_DARK_SCHEME: ColorScheme = {
   tagBackground: '#313a4a', // NEW: default tag background (lighter blue-gray)
   toolbarIconColor: '#b0b6c3', // Less white, more gray for dark mode
   createIconColor: '#3a4250',
+  aiPanelBackground: '#2d3844',
+  aiPanelFontColor: '#d0d6dd',
+  pageHighlightColor: '#ffcc0055'
 }
 
 export const DEFAULT_ADMIN_SETTINGS: AdminSettings = {
