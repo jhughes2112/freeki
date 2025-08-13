@@ -37,22 +37,6 @@ const SelectionHighlightExtension = Extension.create({
   }
 });
 
-// Inject highlight CSS once
-function ensureHighlightCss() {
-  if (document.getElementById('freeki-ai-selection-highlight-style')) return;
-  const style = document.createElement('style');
-  style.id = 'freeki-ai-selection-highlight-style';
-  style.textContent = `
-    .freeki-ai-selection-highlight {
-      background: rgba(255, 200, 0, 0.35);
-      box-shadow: 0 0 0 1px rgba(255, 170, 0, 0.8) inset;
-      border-radius: 2px;
-      transition: background 0.15s ease;
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 interface PageEditorProps {
   content: PageContent;
   onContentChange?: (content: string) => void;
@@ -68,6 +52,9 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
   const isEditing = useGlobalState('isEditing') as boolean;
   const selectionCounterRef = useRef(0);
   const highlightActiveRef = useRef(false);
+  const aiRewriteBusyRef = useRef(false);
+  const lockedSelectionRef = useRef<{ from: number; to: number; text: string } | null>(null);
+  const editLockActive = useGlobalState('editLockActive') as boolean;
 
   const editor = useEditor({
     extensions: [
@@ -87,17 +74,18 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
   // Highlight hover event handling (panel hover toggles decoration)
   useEffect(() => {
     if (!editor) return;
-    ensureHighlightCss();
 
     const enterHandler = () => {
       highlightActiveRef.current = true;
-      const selState = globalState.get('currentSelection') as { hasSelection: boolean; from: number; to: number } | null;
-      if (selState && selState.hasSelection) {
+      const selState = lockedSelectionRef.current || (globalState.get('currentSelection') as { hasSelection: boolean; from: number; to: number; text?: string } | null);
+      if (selState && typeof selState.from === 'number' && typeof selState.to === 'number') {
         (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: true, from: selState.from, to: selState.to };
         editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', true));
       }
     };
     const leaveHandler = () => {
+      // Keep highlight if AI rewrite in flight
+      if (aiRewriteBusyRef.current) return;
       highlightActiveRef.current = false;
       (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
       editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
@@ -116,6 +104,8 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
     if (!editor) return;
 
     const handleSelectionChange = () => {
+      // Ignore selection mutations while AI rewrite is running to preserve locked selection
+      if (aiRewriteBusyRef.current) return;
       const active = document.activeElement as HTMLElement | null;
       const inAiPanel = !!(active && active.closest && active.closest('#freeki-ai-rewrite-panel'));
       const sel = window.getSelection();
@@ -190,18 +180,30 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
     };
 
     const handler = async (evt: Event) => {
+      if (!editor) return;
+      if (aiRewriteBusyRef.current) return; // Already running
       const custom = evt as CustomEvent<{ prompt: string }>;
-      const selectionState = globalState.get('currentSelection') as { hasSelection: boolean; text: string } | null;
+      const selectionState = globalState.get('currentSelection') as { hasSelection: boolean; text: string; from: number; to: number } | null;
       if (!selectionState || !currentSelectionRangeRef.current) return;
+
+      // Lock selection & disable editing
+      aiRewriteBusyRef.current = true;
+      globalState.update({ editLockActive: true, editLockReason: 'AI rewriting selection' });
+      lockedSelectionRef.current = { from: selectionState.from, to: selectionState.to, text: selectionState.text };
+      highlightActiveRef.current = true; // force highlight
+      (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: true, from: selectionState.from, to: selectionState.to };
+      editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', true));
+      editor.setEditable(false);
+
       const range = currentSelectionRangeRef.current;
       const aiUrl = userSettings.aiUrl || '';
       const aiToken = userSettings.aiToken || '';
       const systemPrompt = userSettings.systemPrompt || 'You are a helpful assistant.';
       const instructions = userSettings.instructions || 'Rewrite the selected text as requested.';
-      if (!aiUrl) return;
+      if (!aiUrl) { aiRewriteBusyRef.current = false; editor.setEditable(true); return; }
       try {
         const selectionText = selectionState.text;
-        if (!selectionText) return;
+        if (!selectionText) { aiRewriteBusyRef.current = false; editor.setEditable(true); return; }
         const ai = new AIRequestor(aiUrl, aiToken, 'default');
         ai.system(systemPrompt)
           .assistant(editor.getHTML())
@@ -212,18 +214,26 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
         if (cancelled) return;
         if (result.status >= 200 && result.status < 300) {
           try {
-            const from = editor.view.posAtDOM(range.startContainer, range.startOffset);
-            const to = editor.view.posAtDOM(range.endContainer, range.endOffset);
+            const from = lockedSelectionRef.current ? lockedSelectionRef.current.from : editor.view.posAtDOM(range.startContainer, range.startOffset);
+            const to = lockedSelectionRef.current ? lockedSelectionRef.current.to : editor.view.posAtDOM(range.endContainer, range.endOffset);
             const html = extractHtml(result.response);
             let success = false;
             try { editor.chain().focus().setTextSelection({ from, to }).deleteRange({ from, to }).insertContent(html).run(); success = true; } catch { success = false; }
             if (!success) { editor.view.dispatch(editor.state.tr.replaceWith(from, to, editor.schema.text(html))); }
-            globalState.set('currentSelection', null);
-            (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
-            editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
           } catch { /* ignore mapping errors */ }
         }
       } catch { /* ignore errors */ }
+      finally {
+        // Clear selection & restore editing
+        globalState.set('currentSelection', null);
+        lockedSelectionRef.current = null;
+        (window as unknown as { freekiHighlightSelectionData?: HighlightSelectionData }).freekiHighlightSelectionData = { active: false, from: 0, to: 0 };
+        editor.view.dispatch(editor.state.tr.setMeta('selectionHighlight', false));
+        highlightActiveRef.current = false;
+        aiRewriteBusyRef.current = false;
+        editor.setEditable(true);
+        globalState.update({ editLockActive: false, editLockReason: null });
+      }
     };
 
     document.addEventListener('freeki-ai-rewrite-request', handler as EventListener);
@@ -244,7 +254,6 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
 
   return (
     <Paper sx={{
-      p: 0,
       backgroundColor: 'var(--freeki-edit-background)',
       color: 'var(--freeki-p-font-color)',
       height: '100%',
@@ -253,49 +262,74 @@ export default function PageEditor({ content, onContentChange, onEditingComplete
       display: 'flex',
       flexDirection: 'column',
       border: 'none',
-      boxShadow: 'none',
+      boxShadow: 'none'
     }}>
-      <div style={{
-        width: '100%',
-        overflowX: 'auto',
-        overflowY: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%'
-      }}>
-        <EditorToolbar onFormat={(action) => {
-          if (!editor) return;
-          switch (action) {
-            case 'h1': editor.chain().focus().toggleHeading({ level: 1 }).run(); break;
-            case 'h2': editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
-            case 'h3': editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
-            case 'text': editor.chain().focus().setParagraph().run(); break;
-            case 'bold': editor.chain().focus().toggleBold().run(); break;
-            case 'italic': editor.chain().focus().toggleItalic().run(); break;
-            case 'underline': editor.chain().focus().toggleUnderline().run(); break;
-            case 'strikethrough': editor.chain().focus().toggleStrike().run(); break;
-            case 'align-left': editor.chain().focus().setTextAlign('left').run(); break;
-            case 'align-center': editor.chain().focus().setTextAlign('center').run(); break;
-            case 'align-right': editor.chain().focus().setTextAlign('right').run(); break;
-            case 'numbered-list': editor.chain().focus().toggleOrderedList().run(); break;
-            case 'bulleted-list': editor.chain().focus().toggleBulletList().run(); break;
-            case 'insert-page-link': break;
-            case 'insert-url': break;
-            case 'blockquote': editor.chain().focus().toggleBlockquote().run(); break;
-            case 'horiz-line': editor.chain().focus().setHorizontalRule().run(); break;
-            case 'insert-media': break;
-            default: break;
+      <EditorToolbar onFormat={(action) => {
+        if (!editor) return;
+        switch (action) {
+          case 'h1': editor.chain().focus().toggleHeading({ level: 1 }).run(); break;
+          case 'h2': editor.chain().focus().toggleHeading({ level: 2 }).run(); break;
+          case 'h3': editor.chain().focus().toggleHeading({ level: 3 }).run(); break;
+          case 'text': editor.chain().focus().setParagraph().run(); break;
+          case 'bold': editor.chain().focus().toggleBold().run(); break;
+          case 'italic': editor.chain().focus().toggleItalic().run(); break;
+          case 'underline': editor.chain().focus().toggleUnderline().run(); break;
+          case 'strikethrough': editor.chain().focus().toggleStrike().run(); break;
+          case 'align-left': editor.chain().focus().setTextAlign('left').run(); break;
+          case 'align-center': editor.chain().focus().setTextAlign('center').run(); break;
+          case 'align-right': editor.chain().focus().setTextAlign('right').run(); break;
+          case 'numbered-list': editor.chain().focus().toggleOrderedList().run(); break;
+          case 'bulleted-list': editor.chain().focus().toggleBulletList().run(); break;
+          case 'insert-page-link': break;
+          case 'insert-url': break;
+          case 'blockquote': editor.chain().focus().toggleBlockquote().run(); break;
+          case 'horiz-line': editor.chain().focus().setHorizontalRule().run(); break;
+          case 'insert-media': break;
+          default: break;
+        }
+      }} />
+      <div
+        className="freeki-page-content"
+        style={{ flex: 1, position: 'relative', cursor: 'text', overflow: 'auto', display: 'block' }}
+        onMouseDown={(e) => {
+          // Only if background (not inside a node) - approximate by checking target class
+          if (editor && (e.currentTarget === e.target)) {
+            editor.commands.focus('end');
           }
-        }} />
-        <div style={{ flex: 1, overflow: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'auto' }}>
-			<div className="freeki-page-content" style={{ flex: 1, position: 'relative', cursor: 'text' }}
-				onMouseDown={() => { if (editor) { editor.commands.focus('end'); } }}
-				aria-label="Click to focus editor at end">
-              <EditorContent editor={editor} />
-            </div>
+        }}
+        aria-label="Editor content area"
+      >
+        <EditorContent editor={editor} />
+        {editLockActive && (
+          <div
+            tabIndex={0}
+            aria-label={globalState.get('editLockReason') || 'Operation in progress'}
+            aria-busy="true"
+            role="alert"
+            onKeyDown={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+            onMouseDown={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.15)',
+              backdropFilter: 'blur(2px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50,
+              cursor: 'wait',
+              fontSize: 16,
+              fontWeight: 600,
+              color: 'var(--freeki-p-font-color)'
+            }}
+          >
+            <span>{globalState.get('editLockReason') || 'Working… Please wait'}</span>
           </div>
-        </div>
+        )}
+        <div style={{ height: 120 }} />
       </div>
     </Paper>
   );

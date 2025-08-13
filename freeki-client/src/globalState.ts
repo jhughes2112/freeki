@@ -53,6 +53,10 @@ export interface AppState {
   
   // New: current text selection inside editor (transient)
   currentSelection: EditorSelectionState | null
+
+  // NEW: generic edit lock to block user interaction during critical operations (e.g., AI rewrite)
+  editLockActive: boolean
+  editLockReason: string | null
 }
 
 // New selection state interface
@@ -203,7 +207,9 @@ class GlobalStateManager {
       isLoadingPages: false,
       isLoadingUser: false,
       isLoadingPageContent: false,
-      currentSelection: null
+      currentSelection: null,
+      editLockActive: false,
+      editLockReason: null
     }
     
     this.state = deepClone(initialState)

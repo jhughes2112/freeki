@@ -52,6 +52,9 @@ export default function App() {
   const [viewingRevision, setViewingRevision]                   = React.useState<{ metadata: PageMetadata; content: string } | null>(null)
   const [revisionDataCache, setRevisionDataCache]               = React.useState<Record<string, { metadata: PageMetadata; content: string }>>({})
   const [showDeleteDialog, setShowDeleteDialog] = React.useState(false)
+  const didInitRef = React.useRef(false)
+  const editLockActive = useGlobalState('editLockActive') as boolean;
+  const editLockReason = useGlobalState('editLockReason') as string | null;
 
   // helper to fully clear editing state consistently
   function clearEditingState() { setEditorContent(null); globalState.set('isEditing', false) }
@@ -191,7 +194,7 @@ export default function App() {
   function getThemeTooltip() { return settings.theme === 'light' ? 'Switch to Dark Mode' : settings.theme === 'dark' ? 'Switch to Auto Mode' : 'Switch to Light Mode' }
 
   /***** Init (initial load) *****/
-  useEffect(() => { (async () => { try { await fetchUserInfo(); globalState.set('isLoadingAdminSettings', true); const s = await fetchAdminSettings(semanticApi); if (s) globalState.set('adminSettings', s); globalState.set('isLoadingPages', true); const pages = await semanticApi.listAllPages(); if (pages.length) { globalState.set('pageMetadata', pages); const sorted = sortPagesByDisplayOrder(pages); const first = sorted[0]; globalState.set('currentPageMetadata', first); const pageWithContent = await semanticApi.getSinglePage(first.pageId); globalState.set('currentPageContent', { pageId:first.pageId, content: pageWithContent ? pageWithContent.content : `# ${first.title}\n\nContent could not be loaded.` }) } else { globalState.set('pageMetadata', []); globalState.set('currentPageMetadata', null); globalState.set('currentPageContent', null) } } catch(e){ console.error('Failed to load initial data:', e); globalState.set('pageMetadata', []); globalState.set('currentPageMetadata', null); globalState.set('currentPageContent', null) } finally { globalState.set('isLoadingAdminSettings', false); globalState.set('isLoadingPages', false) } })() }, [semanticApi, fetchUserInfo])
+  useEffect(() => { if (didInitRef.current) return; didInitRef.current = true; (async () => { try { await fetchUserInfo(); globalState.set('isLoadingAdminSettings', true); const s = await fetchAdminSettings(semanticApi); if (s) globalState.set('adminSettings', s); globalState.set('isLoadingPages', true); const pages = await semanticApi.listAllPages(); if (pages.length) { globalState.set('pageMetadata', pages); const sorted = sortPagesByDisplayOrder(pages); const first = sorted[0]; globalState.set('currentPageMetadata', first); const pageWithContent = await semanticApi.getSinglePage(first.pageId); globalState.set('currentPageContent', { pageId:first.pageId, content: pageWithContent ? pageWithContent.content : `# ${first.title}\n\nContent could not be loaded.` }) } else { globalState.set('pageMetadata', []); globalState.set('currentPageMetadata', null); globalState.set('currentPageContent', null) } } catch(e){ console.error('Failed to load initial data:', e); globalState.set('pageMetadata', []); globalState.set('currentPageMetadata', null); globalState.set('currentPageContent', null) } finally { globalState.set('isLoadingAdminSettings', false); globalState.set('isLoadingPages', false) } })() }, [semanticApi])
   useEffect(() => { performSearch() }, [searchQueryForFolderTree, settings.searchConfig, semanticApi, pageMetadata])
 
   /***** Render *****/
@@ -285,6 +288,7 @@ export default function App() {
             ) : (
               <Box sx={{ display:'flex', justifyContent:'center', alignItems:'center', height:200, color:'var(--freeki-page-details-font-color)', p:2 }}><Typography variant='body2' sx={{ textAlign:'center', opacity:0.6 }}>{currentPageMetadata ? 'Loading page content...' : 'No page selected'}</Typography></Box>
             ))}
+
           </FadePanelContent>
           {currentLayout.showMetadataPanel && !isNarrowScreen && (
             <Box onMouseDown={(e)=>{ const startX=e.clientX; const startW=settings.wideScreenLayout.metadataWidth; const mv = (ev:MouseEvent)=>{ const nw=startW - (ev.clientX-startX); const c=Math.max(100, Math.min(window.innerWidth*0.8, nw)); updateSetting('wideScreenLayout', { ...settings.wideScreenLayout, metadataWidth:c }) }; const up=()=>{ document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up); document.body.style.cursor=''; document.body.style.userSelect='' }; document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up); document.body.style.cursor='col-resize'; document.body.style.userSelect='none' }} tabIndex={0} aria-label='Metadata panel width resizer' sx={{ position:'absolute', top:0, left:0, width:4, height:'100%', backgroundColor:'transparent', cursor:'col-resize', '&:hover':{ backgroundColor:'primary.main' }, zIndex:1 }} />
@@ -301,6 +305,32 @@ export default function App() {
       {confirmDialog}
       {showDeleteDialog && (
         <ConfirmDialog open={showDeleteDialog} onClose={()=> setShowDeleteDialog(false)} onProceed={async ()=> { if (currentPageMetadata) { await executeDelete(currentPageMetadata.pageId) }; setShowDeleteDialog(false) }} title='Delete Page' message={`Are you sure you want to delete the page "${currentPageMetadata?.title||''}"? This cannot be undone.`} confirmText='Delete' cancelText='Cancel' dangerous isEditing={false} hasUnsaved={false} />
+      )}
+      {editLockActive && (
+        <div
+          aria-label={editLockReason || 'Operation in progress'}
+          aria-busy="true"
+          role="alert"
+          onMouseDown={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+          onKeyDown={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 4000,
+            background: 'rgba(0,0,0,0.05)',
+            cursor: 'wait',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 600,
+            fontSize: 18,
+            color: 'var(--freeki-p-font-color)'
+          }}
+        >
+          <div style={{ padding: '12px 20px', background: 'var(--freeki-page-details-background)', border: '1px solid var(--freeki-border-color)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,0.25)' }}>
+            {editLockReason || 'Working…'}
+          </div>
+        </div>
       )}
     </Box>
   )

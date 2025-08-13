@@ -97,10 +97,11 @@ export function injectGlobalStyles() {
 
     /* Page content typography styling - scope to content class for higher specificity */
     .freeki-page-content {
-      margin-left: 2vw;
-      margin-right: 2vw;
-      padding-left: 0;
-      padding-right: 0;
+      /* Replace margins with padding so the gutter area is part of the clickable surface */
+      margin-left: 0;
+      margin-right: 0;
+      padding-left: 2rem;
+      padding-right: 2rem;
       overflow: auto; /* allow both scroll directions */
     }
     .freeki-page-content .ProseMirror {

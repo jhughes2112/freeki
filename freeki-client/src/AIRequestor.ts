@@ -133,15 +133,18 @@ export class AIRequestor {
       const resp = await fetch(this.url, { method: 'POST', headers, body: JSON.stringify(payload) })
       status = resp.status
       responseText = await resp.text()
+      // Attempt to parse and extract assistant content
       try {
         const json = JSON.parse(responseText)
         if (json && json.choices && json.choices.length > 0 && json.choices[0].message && json.choices[0].message.content) {
           responseText = json.choices[0].message.content
         }
       } catch { /* leave raw text */ }
+      console.log('[AIRequestor] Response', { url: this.url, status, payloadPreview: { model: payload.model, messageCount: payload.messages.length }, response: responseText })
     } catch (err) {
       status = 0
       responseText = err instanceof Error ? err.message : String(err)
+      console.error('[AIRequestor] Request failed', { url: this.url, error: responseText })
     }
     return { status, response: responseText }
   }
