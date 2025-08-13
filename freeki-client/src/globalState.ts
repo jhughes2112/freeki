@@ -50,6 +50,18 @@ export interface AppState {
   isLoadingPages: boolean
   isLoadingUser: boolean
   isLoadingPageContent: boolean
+  
+  // New: current text selection inside editor (transient)
+  currentSelection: EditorSelectionState | null
+}
+
+// New selection state interface
+export interface EditorSelectionState {
+  hasSelection: boolean
+  text: string
+  from: number
+  to: number
+  selectionId: number
 }
 
 // Type for user settings (exported for use in other files)
@@ -79,6 +91,7 @@ export interface UserSettings {
   aiToken?: string
   systemPrompt?: string
   instructions?: string
+  aiUserPrompt?: string
 }
 
 // Default user settings
@@ -107,7 +120,8 @@ const DEFAULT_USER_SETTINGS: UserSettings = {
   systemPrompt: `You are an AI assistant helping to write and edit wiki articles. Your output must be factual, neutral, and verifiable, following the style and formatting conventions of the target wiki. Avoid speculation, original research, or unverifiable claims. Always write in a clear, concise, and encyclopedic tone. Cite reliable sources when possible. For factual statements, either state the source explicitly or phrase the content so it is easily attributable to a known, reputable source. Follow consistent section headings, linking practices, and formatting rules. When summarizing information, prioritize clarity, accuracy, and relevance to the article's topic.Do not include personal opinions or promotional language.`,
   instructions: `Return only the revised HTML for the provided selection.  Do not add or remove anything outside it.  Output the HTML exactly, with no extra text, no markdown, and no commentary.`,
   aiUrl: '',
-  aiToken: ''
+  aiToken: '',
+  aiUserPrompt: ''
 }
 
 // Utility functions to derive current UI state from user settings
@@ -188,7 +202,8 @@ class GlobalStateManager {
       isLoadingAdminSettings: true,
       isLoadingPages: false,
       isLoadingUser: false,
-      isLoadingPageContent: false
+      isLoadingPageContent: false,
+      currentSelection: null
     }
     
     this.state = deepClone(initialState)

@@ -1,6 +1,6 @@
 import React from 'react'
-import { Box, Typography, Paper, Chip, Stack, Tooltip, TextField, IconButton, Collapse, Button, List, ListItem, ListItemText } from '@mui/material'
-import { Close, ExpandMore, ExpandLess } from '@mui/icons-material'
+import { Box, Typography, Paper, Chip, Stack, Tooltip, TextField, IconButton, Collapse, Button, List, ListItem, ListItemText, CircularProgress } from '@mui/material'
+import { Close, ExpandMore, ExpandLess, RocketLaunch, Settings } from '@mui/icons-material'
 import type { PageMetadata, PageContent } from './globalState'
 import { themeStyles } from './themeUtils'
 import { useGlobalState } from './globalState'
@@ -674,6 +674,9 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
         />
       </Paper>
 
+      {/* AI Rewrite Panel */}
+      <AIRrewritePanel metadata={metadata} />
+
       {/* Revisions Section */}
       <Paper sx={{ 
         ...themeStyles.paper,
@@ -769,6 +772,105 @@ export default function PageMetadataComponent(props: PageMetadataComponentProps)
       </Paper>
     </Box>
   );
+}
+
+// New component: AI Rewrite panel inside metadata panel between tags and revisions
+interface AIRewritePanelProps { metadata: PageMetadata }
+const AIRrewritePanel = ({ metadata }: AIRewritePanelProps) => {
+  const userSettings = useGlobalState('userSettings') as UserSettings
+  const selectionState = useGlobalState('currentSelection') as any
+  const hasSelection = !!selectionState && selectionState.hasSelection
+
+  // Controlled values tied directly to user settings with immediate persistence
+  const prompt = userSettings.aiUserPrompt || ''
+  const systemPrompt = userSettings.systemPrompt || 'You are a helpful assistant.'
+  const instructions = userSettings.instructions || 'Rewrite the selected text as requested.'
+  const aiUrl = userSettings.aiUrl || ''
+  const aiToken = userSettings.aiToken || ''
+
+  const [showSettings, setShowSettings] = React.useState(false)
+  const [running, setRunning] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const updateSetting = (key: keyof UserSettings, value: string) => {
+    globalState.setProperty(`userSettings.${key}`, value)
+  }
+
+  React.useEffect(() => { if (!hasSelection) setRunning(false) }, [hasSelection])
+
+  const trigger = () => {
+    setError(null)
+    if (!hasSelection) return
+    setRunning(true)
+    document.dispatchEvent(new CustomEvent('freeki-ai-rewrite-request', { detail: { prompt } }))
+  }
+
+  const disabledReason = !aiUrl ? 'Configure AI settings' : (!hasSelection ? 'Select text in Edit mode' : '')
+  const buttonDisabled = !hasSelection || running || !aiUrl
+
+  return (
+    <Paper sx={{
+      ...themeStyles.paper,
+      p: 1,
+      mb: 1.5,
+      backgroundColor: 'var(--freeki-details-block-bg)',
+      border: '1px solid var(--freeki-border-color)',
+      boxShadow: 'none'
+    }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, fontSize: 'var(--freeki-page-details-font-size)' }}>Rewrite With AI</Typography>
+        <IconButton size="small" aria-label={showSettings ? 'Hide AI settings' : 'Show AI settings'} onClick={() => setShowSettings(v => !v)}>
+          <Settings fontSize="small" />
+        </IconButton>
+      </Box>
+      <TextField
+        label="User Instructions"
+        aria-label="User Instructions"
+        value={prompt}
+        onChange={e => updateSetting('aiUserPrompt', e.target.value)}
+        size="small"
+        fullWidth
+        multiline
+        minRows={2}
+        maxRows={6}
+        disabled={running}
+        sx={{
+          mb: 1,
+          '& .MuiOutlinedInput-root': {
+            backgroundColor: 'var(--freeki-tags-block-bg)',
+            fontSize: 'var(--freeki-page-details-font-size)'
+          }
+        }}
+      />
+      {error && <Typography variant="caption" sx={{ color: 'red', display: 'block', mb: 1 }}>{error}</Typography>}
+      <Tooltip title={buttonDisabled && disabledReason ? disabledReason : ''} arrow disableHoverListener={!buttonDisabled}>
+        <span>
+          <IconButton
+            color="primary"
+            onClick={trigger}
+            disabled={buttonDisabled}
+            aria-label="Run AI rewrite"
+            size="small"
+            sx={{
+              backgroundColor: buttonDisabled ? 'var(--freeki-border-color)' : 'var(--freeki-app-bar-background)',
+              color: 'var(--freeki-page-details-background)',
+              '&:hover': { backgroundColor: buttonDisabled ? 'var(--freeki-border-color)' : 'var(--freeki-app-bar-background)' }
+            }}
+          >
+            {running ? <CircularProgress size={18} /> : <RocketLaunch fontSize="small" />}
+          </IconButton>
+        </span>
+      </Tooltip>
+      <Collapse in={showSettings} timeout="auto" unmountOnExit>
+        <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <TextField label="AI URL" value={aiUrl} onChange={e => updateSetting('aiUrl', e.target.value)} size="small" fullWidth />
+          <TextField label="AI Token" value={aiToken} onChange={e => updateSetting('aiToken', e.target.value)} size="small" fullWidth />
+          <TextField label="System Prompt" value={systemPrompt} onChange={e => updateSetting('systemPrompt', e.target.value)} size="small" fullWidth multiline minRows={3} />
+          <TextField label="Instructions" value={instructions} onChange={e => updateSetting('instructions', e.target.value)} size="small" fullWidth multiline minRows={3} />
+        </Box>
+      </Collapse>
+    </Paper>
+  )
 }
 
 // Helper: format time for tooltip
