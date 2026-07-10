@@ -9,7 +9,7 @@ using Shared;
 namespace Authentication
 {
 	// This checks that the JWT was signed by the correct private key, and also checks the start/stop time.  This is production-worthy.
-	public class AuthenticationJWT : IAuthentication
+	public partial class AuthenticationJWT : IAuthentication
 	{
 		private Dictionary<string, RSA> _publicKeys;
 //		private string                  _issuer;    // we DO NOT check that the JWT is issued by the issuer, because we are already validating the public key from the correct site signed the JWT
@@ -62,8 +62,8 @@ namespace Authentication
 						string decodedHeader = UrlHelper.Base64UrlDecode(header);
 						string decodedPayload = UrlHelper.Base64UrlDecode(payload);
 
-						JwtHeader? jwtheader = JsonSerializer.Deserialize<JwtHeader>(decodedHeader);
-						JwtPayload? jwtpayload = JsonSerializer.Deserialize<JwtPayload>(decodedPayload);
+						JwtHeader? jwtheader = JsonSerializer.Deserialize(decodedHeader, JwtJsonContext.Default.JwtHeader);
+						JwtPayload? jwtpayload = JsonSerializer.Deserialize(decodedPayload, JwtJsonContext.Default.JwtPayload);
 
 						// Extract the 'kid' from the JWT header
 						if (jwtheader!=null && jwtpayload!=null && jwtheader.kid!=null)
@@ -144,6 +144,13 @@ namespace Authentication
 			public string?   name          { get; set; }  // Full name
 //			public string[]? roles         { get; set; }  // fusionauth
 			public string[]? groups        { get; set; }  // authentik
+		}
+
+		// AOT-safe serializer metadata for the JWT types.  Nested so it can access the protected classes.
+		[System.Text.Json.Serialization.JsonSerializable(typeof(JwtHeader))]
+		[System.Text.Json.Serialization.JsonSerializable(typeof(JwtPayload))]
+		protected partial class JwtJsonContext : System.Text.Json.Serialization.JsonSerializerContext
+		{
 		}
 	}
 }

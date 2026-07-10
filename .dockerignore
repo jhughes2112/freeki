@@ -1,0 +1,10 @@
+# Keep the docker build context small.  Note build/static-root must stay INCLUDED —
+# the Dockerfile COPYs the prebuilt client from there (see build-client.bat).
+.git
+.vs
+build/bin
+build/obj
+build/publish
+**/node_modules
+data
+userpass.txt

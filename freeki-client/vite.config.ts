@@ -15,7 +15,7 @@ export default defineConfig({
 	  }],
 
 	build: {
-      outDir: 'static-root',
+      outDir: '../build/static-root',  // all build artifacts live under the repo-root build/ folder
       emptyOutDir: true
     },
     // PERFORMANCE OPTIMIZATIONS

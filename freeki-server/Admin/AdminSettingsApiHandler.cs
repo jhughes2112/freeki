@@ -157,8 +157,8 @@ namespace Admin
                         _logger.Log(EVerbosity.Warning, $"AdminSettingsApiHandler.HandleSaveSettings: Git commit failed for file {kSettingsFile}: {gitEx.Message}");
                     }
 
-                    object response = new { success = true };
-                    string jsonResponse = JsonSerializer.Serialize(response);
+                    Utilities.SuccessResponse response = new Utilities.SuccessResponse { success = true };
+                    string jsonResponse = JsonSerializer.Serialize(response, Utilities.FreeKiJsonContext.Default.SuccessResponse);
                     return (200, "application/json", Encoding.UTF8.GetBytes(jsonResponse));
                 }
                 else

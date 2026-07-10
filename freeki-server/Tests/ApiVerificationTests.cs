@@ -150,7 +150,7 @@ namespace FreeKi
 					if (response.IsSuccessStatusCode)
 					{
 						string content = await response.Content.ReadAsStringAsync();
-						JsonElement[]? commits = JsonSerializer.Deserialize<JsonElement[]>(content);
+						JsonElement[]? commits = JsonSerializer.Deserialize(content, Utilities.FreeKiJsonContext.Default.JsonElementArray);
 						return commits!=null && commits.Length > 0; // Should have at least one commit
 					}
 					return false;
@@ -206,7 +206,7 @@ namespace FreeKi
 				if (response.IsSuccessStatusCode)
 				{
 					string content = await response.Content.ReadAsStringAsync();
-					JsonElement[]? mediaFiles = JsonSerializer.Deserialize<JsonElement[]>(content);
+					JsonElement[]? mediaFiles = JsonSerializer.Deserialize(content, Utilities.FreeKiJsonContext.Default.JsonElementArray);
 					Console.WriteLine($"  Found {mediaFiles?.Length ?? 0} existing media files");
 					return true;
 				}
@@ -284,7 +284,7 @@ namespace FreeKi
 					if (response.IsSuccessStatusCode)
 					{
 						string content = await response.Content.ReadAsStringAsync();
-						JsonElement[]? commits = JsonSerializer.Deserialize<JsonElement[]>(content);
+						JsonElement[]? commits = JsonSerializer.Deserialize(content, Utilities.FreeKiJsonContext.Default.JsonElementArray);
 						return commits!=null && commits.Length > 0; // Should have at least one commit
 					}
 					return false;
@@ -298,7 +298,7 @@ namespace FreeKi
 					if (historyResponse.IsSuccessStatusCode)
 					{
 						string historyContent = await historyResponse.Content.ReadAsStringAsync();
-						JsonElement[]? commits = JsonSerializer.Deserialize<JsonElement[]>(historyContent);
+						JsonElement[]? commits = JsonSerializer.Deserialize(historyContent, Utilities.FreeKiJsonContext.Default.JsonElementArray);
 						if (commits!=null && commits.Length > 0)
 						{
 							string commitSha = commits[0].GetProperty("Sha").GetString() ?? "";

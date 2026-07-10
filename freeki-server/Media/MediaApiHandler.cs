@@ -234,7 +234,7 @@ namespace FreeKi
 				List<string> mediaFiles = await _storage.ListAllKeys().ConfigureAwait(false);
 				
 				// Create response with file list and metadata including last modified time
-				List<object> mediaList = new List<object>();
+				List<Utilities.MediaFileInfo> mediaList = new List<Utilities.MediaFileInfo>();
 				foreach (string filepath in mediaFiles)
 				{
 					// Get file information efficiently without reading entire file
@@ -243,7 +243,7 @@ namespace FreeKi
 						(long size, long lastModifiedTimeUtcSeconds) = await _storage.GetFileInfo(filepath).ConfigureAwait(false);
 						if (size!=0 || lastModifiedTimeUtcSeconds!=0)
 						{
-							mediaList.Add(new
+							mediaList.Add(new Utilities.MediaFileInfo
 							{
 								filepath = filepath,
 								size = size,
@@ -258,7 +258,7 @@ namespace FreeKi
 					}
 				}
 
-				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(mediaList);
+				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(mediaList, Utilities.FreeKiJsonContext.Default.ListMediaFileInfo);
 				return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 			}
 			catch (Exception ex)
@@ -327,13 +327,13 @@ namespace FreeKi
 						_logger.Log(EVerbosity.Warning, $"MediaApiHandler.HandleCreateMedia: Git commit failed for file {filepath}: {gitEx.Message}");
 					}
 
-					object response = new
+					Utilities.MediaWriteResponse response = new Utilities.MediaWriteResponse
 					{
 						filepath = filepath,
 						size = content.Length,
 						contentType = GetContentType(filepath)
 					};
-					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response);
+					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response, Utilities.FreeKiJsonContext.Default.MediaWriteResponse);
 					return (201, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 				}
 				else
@@ -377,13 +377,13 @@ namespace FreeKi
 						_logger.Log(EVerbosity.Warning, $"MediaApiHandler.HandleUpdateMedia: Git commit failed for file {filepath}: {gitEx.Message}");
 					}
 
-					object response = new
+					Utilities.MediaWriteResponse response = new Utilities.MediaWriteResponse
 					{
 						filepath = filepath,
 						size = content.Length,
 						contentType = GetContentType(filepath)
 					};
-					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response);
+					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response, Utilities.FreeKiJsonContext.Default.MediaWriteResponse);
 					return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 				}
 				else
@@ -428,8 +428,8 @@ namespace FreeKi
 						_logger.Log(EVerbosity.Warning, $"MediaApiHandler.HandleDeleteMedia: Git commit failed for deletion of file {filepath}: {gitEx.Message}");
 					}
 
-					object response = new { filepath = filepath };
-					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response);
+					Utilities.MediaDeleteResponse response = new Utilities.MediaDeleteResponse { filepath = filepath };
+					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response, Utilities.FreeKiJsonContext.Default.MediaDeleteResponse);
 					return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 				}
 				else
@@ -450,7 +450,7 @@ namespace FreeKi
 			try
 			{
 				List<CommitInfo> commits = _gitManager.RetrieveCommits(filepath);
-				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(commits);
+				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(commits, Utilities.FreeKiJsonContext.Default.ListCommitInfo);
 				return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 			}
 			catch (Exception ex)

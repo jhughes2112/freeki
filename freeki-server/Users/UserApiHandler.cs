@@ -37,7 +37,7 @@ namespace Users
             }
 
             // Create user info response
-            var userInfo = new
+            Utilities.UserInfoResponse userInfo = new Utilities.UserInfoResponse
             {
                 accountId = accountId,
                 fullName = fullName ?? accountId,
@@ -47,7 +47,7 @@ namespace Users
                 gravatarUrl = !string.IsNullOrEmpty(email) ? GetGravatarUrl(email) : null
             };
 
-            string jsonResponse = JsonSerializer.Serialize(userInfo);
+            string jsonResponse = JsonSerializer.Serialize(userInfo, Utilities.FreeKiJsonContext.Default.UserInfoResponse);
             return Task.FromResult((200, "application/json", Encoding.UTF8.GetBytes(jsonResponse)));
         }
 

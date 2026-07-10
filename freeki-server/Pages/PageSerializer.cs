@@ -8,16 +8,10 @@ namespace Storage
 	// JSON metadata followed by "---" followed by raw page content
 	public class PageSerializer
 	{
-		private readonly JsonSerializerOptions _jsonOptions;
 		const string kSeparator = "\n---\n";
 
 		public PageSerializer()
 		{
-			_jsonOptions = new JsonSerializerOptions
-			{
-				WriteIndented        = false, // Keep JSON compact for metadata
-				PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-			};
 		}
 
 		// Serialize a Page object to UTF-8 bytes in the format: JSON metadata + "---" + content
@@ -26,8 +20,9 @@ namespace Storage
 			if (page == null)
 				throw new ArgumentNullException(nameof(page));
 
-			// Serialize metadata to JSON directly from the Page.Metadata property
-			string jsonMetadata = JsonSerializer.Serialize(page.Metadata, _jsonOptions);
+			// Serialize metadata to JSON directly from the Page.Metadata property.
+			// PageFileJsonContext is camelCase to match the historical on-disk format.
+			string jsonMetadata = JsonSerializer.Serialize(page.Metadata, Utilities.PageFileJsonContext.Default.PageMetadata);
 			
 			// Combine JSON metadata + separator + content
 			string combined = jsonMetadata + kSeparator + page.Content;
@@ -53,7 +48,7 @@ namespace Storage
 			string pageContent = content.Substring(separatorIndex + kSeparator.Length); // Skip "\n---\n"
 
 			// Parse metadata JSON directly to PageMetadata
-			PageMetadata? metadata = JsonSerializer.Deserialize<PageMetadata>(jsonMetadata, _jsonOptions);
+			PageMetadata? metadata = JsonSerializer.Deserialize(jsonMetadata, Utilities.PageFileJsonContext.Default.PageMetadata);
 			if (metadata == null)
 				throw new FormatException("Invalid page format: metadata could not be parsed");
 
@@ -90,7 +85,7 @@ namespace Storage
 			try
 			{
 				// Parse the JSON metadata directly
-				PageMetadata? metadata = JsonSerializer.Deserialize<PageMetadata>(jsonMetadata, _jsonOptions);
+				PageMetadata? metadata = JsonSerializer.Deserialize(jsonMetadata, Utilities.PageFileJsonContext.Default.PageMetadata);
 				if (metadata != null && !string.IsNullOrEmpty(metadata.PageId) && !string.IsNullOrEmpty(metadata.Title))
 				{
 					return metadata;

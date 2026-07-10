@@ -1,11 +1,13 @@
-**/obj/
-**/.vs/
-**/bin/
-**/Library/
-**/Temp/
-**/Build/
-**/Logs/
-**/publish/
+# All build artifacts (server obj/bin/publish via Directory.Build.props, client via vite outDir)
+/build/
+
+# IDE
+.vs/
 *.user
+
+# Client dependencies
+node_modules/
+
+# Secrets and local runtime data
 userpass.txt
 data/

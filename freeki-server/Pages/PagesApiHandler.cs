@@ -201,23 +201,19 @@ namespace FreeKi
 			}
 		}
 
-		// Tags are CSV formatted in the query string
+		// Tags are CSV formatted in the query string.  Values may be double-quoted; quoted values may contain "" as an escaped quote.
 		private List<string> ParseTags(string tags)
 		{
 			List<string> tagList = new List<string>();
 			if (!string.IsNullOrEmpty(tags))
 			{
-				try
+				foreach (string part in tags.Split(','))
 				{
-					using (System.IO.StringReader reader = new System.IO.StringReader(tags))
-					using (CsvHelper.CsvReader csv = new CsvHelper.CsvReader(reader, System.Globalization.CultureInfo.InvariantCulture))
-					{
-						tagList.AddRange(csv.GetRecords<string>());
-					}
-				}
-				catch (Exception ex)
-				{
-					_logger.Log(EVerbosity.Error, $"Invalid tags format: {ex.Message}");
+					string tag = part.Trim();
+					if (tag.Length >= 2 && tag[0] == '"' && tag[tag.Length - 1] == '"')
+						tag = tag.Substring(1, tag.Length - 2).Replace("\"\"", "\"").Trim();
+					if (tag.Length > 0)
+						tagList.Add(tag);
 				}
 			}
 			return tagList;
@@ -231,7 +227,7 @@ namespace FreeKi
 		private (int, string, byte[]) HandleListAllPages()
 		{
 			List<PageMetadata> pageMetadata = _pageManager.ListAllPages();
-			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(pageMetadata);
+			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(pageMetadata, Utilities.FreeKiJsonContext.Default.ListPageMetadata);
 			return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 		}
 
@@ -241,7 +237,7 @@ namespace FreeKi
 			Page? page = await _pageManager.ReadPage(pageId).ConfigureAwait(false);
 			if (page != null)
 			{
-				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(page);
+				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(page, Utilities.FreeKiJsonContext.Default.Page);
 				return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 			}
 			else
@@ -262,7 +258,7 @@ namespace FreeKi
 
 			if (success)
 			{
-				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(newPage.Metadata);
+				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(newPage.Metadata, Utilities.FreeKiJsonContext.Default.PageMetadata);
 				return (201, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 			}
 			else
@@ -291,7 +287,7 @@ namespace FreeKi
 						await _pageManager.DeletePage(pageId, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 					}
 
-					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(updatedPage.Metadata);
+					string jsonResponse = System.Text.Json.JsonSerializer.Serialize(updatedPage.Metadata, Utilities.FreeKiJsonContext.Default.PageMetadata);
 					return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 				}
 				else
@@ -311,8 +307,8 @@ namespace FreeKi
 			bool success = await _pageManager.DeletePage(pageId, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);
 			if (success)
 			{
-				object response = new { PageId = pageId };
-				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response);
+				Utilities.PageIdResponse response = new Utilities.PageIdResponse { PageId = pageId };
+				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response, Utilities.FreeKiJsonContext.Default.PageIdResponse);
 				return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 			}
 			else
@@ -325,7 +321,7 @@ namespace FreeKi
 		private async Task<(int, string, byte[])> HandleSearchPageContent(string searchTerm)
 		{
 			List<string> searchResults = await _pageManager.SearchPageContent(searchTerm).ConfigureAwait(false);
-			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(searchResults);
+			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(searchResults, Utilities.FreeKiJsonContext.Default.ListString);
 			return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 		}
 
@@ -333,7 +329,7 @@ namespace FreeKi
 		private (int, string, byte[]) HandleGetPageHistory(string pageId)
 		{
 			List<PageMetadata> pageMetadata = _pageManager.GetRevisionHistory(pageId);
-			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(pageMetadata);
+			string jsonResponse = System.Text.Json.JsonSerializer.Serialize(pageMetadata, Utilities.FreeKiJsonContext.Default.ListPageMetadata);
 			return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 		}
 
@@ -344,12 +340,12 @@ namespace FreeKi
 			if (page != null)
 			{
 				// Return page as JSON with metadata object and content string
-				object response = new
+				Utilities.RetrievedPageResponse response = new Utilities.RetrievedPageResponse
 				{
 					metadata = page.Metadata,
 					content = page.Content
 				};
-				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response);
+				string jsonResponse = System.Text.Json.JsonSerializer.Serialize(response, Utilities.FreeKiJsonContext.Default.RetrievedPageResponse);
 				return (200, "application/json", System.Text.Encoding.UTF8.GetBytes(jsonResponse));
 			}
 			else
