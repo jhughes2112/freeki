@@ -8,6 +8,8 @@
     <PublishAot>true</PublishAot>
     <StripSymbols>true</StripSymbols>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Don't copy referenced assemblies' .pdb/.xml sidecars; AOT compiles the DLLs into the native image. -->
+    <AllowedReferenceRelatedFileExtensions>none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -19,6 +21,12 @@
     <PackageReference Include="MimeTypesMap" Version="1.0.9" />
     <PackageReference Include="Nito.AsyncEx" Version="5.1.2" />
     <PackageReference Include="prometheus-net" Version="8.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="RGWebSocket">
+      <HintPath>RGWebSocket\RGWebSocket.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
