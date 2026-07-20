@@ -1,4 +1,8 @@
-﻿namespace Authentication
+﻿using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Authentication
 {
 	// This allows us to have pluggable account authentication.  
 	public interface IAuthentication
@@ -7,6 +11,17 @@
 
 		// Helper that takes in httpListenerContext.Request.Headers.GetValues("Authorization")
 		public (string?, string?, string?, string[]?) AuthenticateRequest(string[]? authorizationHeaders);
+
+		// HTTPAuthorizer-compatible gate: returns null to admit the request, or a (status, contentType, body) denial tuple.
+		public Task<(int, string, byte[])?> Authorize(HttpListenerContext context)
+		{
+			(string? accountId, string? fullName, string? email, string[]? roles) = AuthenticateRequest(context.Request.Headers.GetValues("Authorization"));
+			if (accountId == null)
+			{
+				return Task.FromResult<(int, string, byte[])?> ((401, "text/plain", Encoding.UTF8.GetBytes("Unauthorized")));
+			}
+			return Task.FromResult<(int, string, byte[])?>(null);
+		}
 
 		// authstring is a JWT that is cracked into parts.  If it's invalid, accountId is returned null.  Otherwise you get a valid accountId and non-null roles.
 		// Full name and email may or may not be set, so be prepared to fall back to accountId to display something, but always trust accountId is a unique string.

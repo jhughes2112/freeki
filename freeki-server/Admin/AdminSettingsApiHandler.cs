@@ -35,23 +35,17 @@ namespace Admin
             _gitManager     = gitManager;
         }
 
-        // Main entry point for /api/admin/settings requests - handles authentication and delegates to HandleRequest
-        public async Task<(int, string, byte[])> HandleAdminSettings(HttpListenerContext httpListenerContext)
-        {
-            // Authenticate the request - required for all operations
-            (string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
-            if (accountId == null)
-            {
-                _logger.Log(EVerbosity.Error, $"{httpListenerContext.Request.Url} Unauthorized");
-                return (401, "text/plain", Encoding.UTF8.GetBytes("Unauthorized"));
-            }
+		// Main entry point for /api/admin/settings requests - delegates to HandleRequest
+		public async Task<(int, string, byte[])> HandleAdminSettings(HttpListenerContext httpListenerContext)
+		{
+			(string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
 
 			// Prepare git author information with fallbacks
-			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId;
+			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId!;
 			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : FreeKiServer.kSystemUserEmail;
 
-            return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail, roles).ConfigureAwait(false);
-        }
+			return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail, roles).ConfigureAwait(false);
+		}
 
         private async Task<(int, string, byte[])> HandleRequest(HttpListenerContext httpListenerContext, string fullName, string email, string[]? roles)
         {

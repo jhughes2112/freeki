@@ -28,19 +28,13 @@ namespace Users
 
         public Task<(int, string, byte[])> GetCurrentUser(HttpListenerContext httpListenerContext)
         {
-            // Authenticate the request
             (string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
-            if (accountId == null)
-            {
-                _logger.Log(EVerbosity.Error, $"{httpListenerContext.Request.Url} Unauthorized");
-                return Task.FromResult((401, "text/plain", Encoding.UTF8.GetBytes("Unauthorized")));
-            }
 
             // Create user info response
             Utilities.UserInfoResponse userInfo = new Utilities.UserInfoResponse
             {
-                accountId = accountId,
-                fullName = fullName ?? accountId,
+                accountId = accountId!,
+                fullName = fullName ?? accountId!,
                 email = email,
                 roles = roles ?? Array.Empty<string>(),
                 isAdmin = roles != null && Array.IndexOf(roles, IAuthentication.kAdminRole) >= 0,

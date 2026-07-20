@@ -36,19 +36,13 @@ namespace FreeKi
 			_logger = logger;
 		}
 
-		// Main entry point for /api/pages requests - handles authentication and delegates to HandleRequest
+		// Main entry point for /api/pages requests - delegates to HandleRequest
 		public async Task<(int, string, byte[])> GetPages(HttpListenerContext httpListenerContext)
 		{
-			// Authenticate the request
-            (string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
-			if (accountId == null)
-			{
-				_logger.Log(EVerbosity.Error, $"{httpListenerContext.Request.Url} Unauthorized");
-				return (401, "text/plain", System.Text.Encoding.UTF8.GetBytes("Unauthorized"));
-			}
+			(string? accountId, string? fullName, string? email, string[]? roles) = _authentication.AuthenticateRequest(httpListenerContext.Request.Headers.GetValues("Authorization"));
 
 			// Prepare git author information with fallbacks
-			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId;
+			string gitAuthorName = !string.IsNullOrWhiteSpace(fullName) ? fullName : accountId!;
 			string gitAuthorEmail = !string.IsNullOrWhiteSpace(email) ? email : FreeKiServer.kSystemUserEmail;
 
 			return await HandleRequest(httpListenerContext, gitAuthorName, gitAuthorEmail).ConfigureAwait(false);

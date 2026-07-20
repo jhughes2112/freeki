@@ -69,7 +69,7 @@ namespace FreeKi
 			AdminSettingsApiHandler? adminSettingsApiHandler = null;
 			FreeKiServer? server = null;
 			ReachableGames.RGWebSocket.RGWebServer? webServer = null;
-			
+
 			try
 			{
 				logger = CommandLineHelpersServer.CreateLogger("FreeKi", o.log_config!);
@@ -103,14 +103,14 @@ namespace FreeKi
 				webServer = new ReachableGames.RGWebSocket.RGWebServer(o.conn_bindurl!, 20, 1000, 5, connectionMgr, logger, dataCollection);
 
 				// (responseCode, responseContentType, responseContent)
-				webServer.RegisterExactEndpoint("/metrics", async (HttpListenerContext context) => { return (200, "text/plain", await dataCollection.Generate()); });
-				webServer.RegisterExactEndpoint("/health", (HttpListenerContext) => { return Task.FromResult((200, "text/plain", new byte[0])); } );
-				webServer.RegisterExactEndpoint("/api/user/me", userApiHandler.GetCurrentUser);
-				webServer.RegisterExactEndpoint("/api/admin/settings", adminSettingsApiHandler.HandleAdminSettings);
+					webServer.RegisterExactEndpoint("/metrics", async (HttpListenerContext context) => { return (200, "text/plain", await dataCollection.Generate()); }, 1, null);
+					webServer.RegisterExactEndpoint("/health", (HttpListenerContext context) => { return Task.FromResult((200, "text/plain", new byte[0])); }, 1, null);
+					webServer.RegisterExactEndpoint("/api/user/me", userApiHandler.GetCurrentUser, 5, authentication!.Authorize);
+					webServer.RegisterExactEndpoint("/api/admin/settings", adminSettingsApiHandler.HandleAdminSettings, 0, authentication!.Authorize);
 
-				webServer.RegisterPrefixEndpoint("/api/pages", pagesApiHandler.GetPages);
-				webServer.RegisterPrefixEndpoint("/api/media", mediaApiHandler.GetMedia);
-				webServer.RegisterPrefixEndpoint("/", server.GetClient);
+					webServer.RegisterPrefixEndpoint("/api/pages", pagesApiHandler.GetPages, 0, authentication!.Authorize);
+					webServer.RegisterPrefixEndpoint("/api/media", mediaApiHandler.GetMedia, 0, authentication!.Authorize);
+					webServer.RegisterPrefixEndpoint("/", server.GetClient, 0, null);
 
 				webServer.Start();  // this starts the webserver in a separate thread
 
@@ -143,11 +143,11 @@ namespace FreeKi
 				{
 					await pageStorage.Shutdown().ConfigureAwait(false);
 				}
-				if (webServer!=null)
+				if (webServer != null)
 				{
 					await webServer.Shutdown().ConfigureAwait(false);
 				}
-				
+
 				// Dispose of resources that implement IDisposable
 				// Note: PageManager (in FreeKiServer) should NOT dispose of storage since it didn't create it
 				pageStorage?.Dispose();
@@ -176,5 +176,5 @@ namespace FreeKi
 			}
 			return urls;
 		}
-    }
+	}
 }
