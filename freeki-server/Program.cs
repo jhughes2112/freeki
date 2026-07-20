@@ -110,7 +110,7 @@ namespace FreeKi
 
 					webServer.RegisterPrefixEndpoint("/api/pages", pagesApiHandler.GetPages, 0, authentication!.Authorize);
 					webServer.RegisterPrefixEndpoint("/api/media", mediaApiHandler.GetMedia, 0, authentication!.Authorize);
-					webServer.RegisterPrefixEndpoint("/", server.GetClient, 0, null);
+					webServer.RegisterPrefixEndpoint("/", server.GetClient, 10, null);
 
 				webServer.Start();  // this starts the webserver in a separate thread
 
